@@ -16,6 +16,7 @@ let currentMobilePane = 'facet-1'; // 'facet-1', 'facet-2', 'list', 'detail'
 // History Navigation State
 let isFirstLoad = true;
 let isNavigatingHistory = false;
+let lastHistoryState = null;
 
 // DOM Elements
 const menuItems = document.querySelectorAll('.menu-item');
@@ -117,6 +118,7 @@ function setupEventListeners() {
   // History popstate navigation
   window.addEventListener('popstate', async (e) => {
     if (e.state) {
+      lastHistoryState = e.state;
       isNavigatingHistory = true;
       try {
         await restoreState(e.state);
@@ -383,15 +385,14 @@ function getPaneDepth(paneName) {
 }
 
 function pushCurrentState(replace = false) {
-  const currentState = window.history.state;
   const newPane = currentMobilePane;
   const newCategory = currentCategory;
   
   let shouldReplace = replace;
   
-  if (!shouldReplace && currentState) {
-    if (currentState.category === newCategory) {
-      const prevDepth = getPaneDepth(currentState.pane);
+  if (!shouldReplace && lastHistoryState) {
+    if (lastHistoryState.category === newCategory) {
+      const prevDepth = getPaneDepth(lastHistoryState.pane);
       const newDepth = getPaneDepth(newPane);
       
       if (newDepth <= prevDepth) {
@@ -407,6 +408,9 @@ function pushCurrentState(replace = false) {
     selectedFacet1: selectedFacet1,
     selectedFacet2: selectedFacet2
   };
+  
+  lastHistoryState = state;
+  
   if (shouldReplace) {
     window.history.replaceState(state, '');
   } else {
