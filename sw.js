@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dnd-compendium-cache-v25';
+const CACHE_NAME = 'dnd-compendium-cache-v26';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,10 @@ const ASSETS = [
   './app.js',
   './db.js',
   './parser.js',
+  './storage.js',
+  './sync.js',
+  './conflict.js',
+  './ui-sync.js',
   './manifest.json',
   './icon.png',
   './source-data/System_Reference_Document_5.5e.xml'
@@ -35,6 +39,11 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+  // Don't intercept Dropbox API calls — must be fresh
+  if (e.request.url.includes('dropbox.com') || e.request.url.includes('dropboxapi.com')) {
+    return;
+  }
+
   e.respondWith(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.match(e.request).then((cachedResponse) => {
@@ -50,4 +59,19 @@ self.addEventListener('fetch', (e) => {
       });
     })
   );
+});
+
+// Background Sync — Chromium desktop/Android only
+// Fires when network is restored after a sync was registered while offline
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'dropbox-sync') {
+    // Notify the active client to run a sync cycle
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: false }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'BACKGROUND_SYNC_TRIGGER' });
+        });
+      })
+    );
+  }
 });

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { JSDOM } from 'jsdom';
+import nodeCrypto from 'crypto';
 
 // Read files
 const htmlText = fs.readFileSync('./index.html', 'utf8');
@@ -8,7 +9,7 @@ let parserJsText = fs.readFileSync('./parser.js', 'utf8');
 let dbJsText = fs.readFileSync('./db.js', 'utf8');
 
 // Strip ES module imports/exports so we can run them in JSDOM VM
-appJsText = appJsText.replace(/import\s+\{[^}]*\}\s+from\s+['"].*?['"];?/g, '');
+appJsText = appJsText.replace(/import\s+\{[^}]*\}\s+from\s+['"].*?['"];?\n?/g, '');
 parserJsText = parserJsText.replace(/export\s+/g, '');
 dbJsText = dbJsText.replace(/export\s+/g, '');
 
@@ -22,6 +23,39 @@ global.window = window;
 global.document = document;
 global.localStorage = window.localStorage;
 Object.defineProperty(global, 'navigator', { value: window.navigator, configurable: true, writable: true });
+
+// ── Mock navigator.storage (persistence + quota) ──
+window.navigator.storage = {
+  persist: () => Promise.resolve(true),
+  persisted: () => Promise.resolve(false),
+  estimate: () => Promise.resolve({ usage: 1024 * 1024 * 10, quota: 1024 * 1024 * 1000 }), // 10MB / 1GB
+};
+
+// ── Mock Web Crypto (PKCE generation) ──
+const testWebCryptoSubtle = nodeCrypto.webcrypto
+  ? nodeCrypto.webcrypto.subtle
+  : nodeCrypto.subtle;
+
+const testCryptoImpl = {
+  getRandomValues: (arr) => {
+    const bytes = nodeCrypto.randomBytes(arr.length);
+    for (let i = 0; i < arr.length; i++) arr[i] = bytes[i];
+    return arr;
+  },
+  subtle: testWebCryptoSubtle,
+};
+
+// window.crypto may be read-only in JSDOM — use Object.defineProperty
+try {
+  Object.defineProperty(window, 'crypto', { value: testCryptoImpl, configurable: true, writable: true });
+} catch (e) {
+  // already defined or read-only — ignore
+}
+try {
+  Object.defineProperty(global, 'crypto', { value: testCryptoImpl, configurable: true, writable: true });
+} catch (e) {
+  // Node.js 25 has built-in crypto — that's fine, tests don't need PKCE in app integration tests
+}
 
 // Mock Fetch to return the actual XML content
 const xmlData = fs.readFileSync('./source-data/System_Reference_Document_5.5e.xml', 'utf8');
@@ -41,10 +75,15 @@ const mockDB = {};
 const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options'];
 STORES.forEach(store => { mockDB[store] = []; });
 
+// App settings mock
+const mockAppSettings = {};
+// Sync meta mock
+const mockSyncMeta = {};
+
 window.STORES = STORES;
 
 window.openDB = () => Promise.resolve({});
-window.saveRecords = (storeName, records) => {
+window.saveRecords = (storeName, records, opts = {}) => {
   console.log(`[Mock DB] saveRecords for ${storeName}: saving ${records.length} records`);
   mockDB[storeName] = records;
   return Promise.resolve();
@@ -58,6 +97,51 @@ window.clearDatabase = () => {
   STORES.forEach(store => { mockDB[store] = []; });
   return Promise.resolve();
 };
+window.exportAllData = () => {
+  console.log('[Mock DB] exportAllData called');
+  const snap = {};
+  STORES.forEach(s => { snap[s] = [...mockDB[s]]; });
+  return Promise.resolve(snap);
+};
+window.importAllData = (data, opts = {}) => {
+  console.log('[Mock DB] importAllData called');
+  const { merge = false } = opts;
+  if (!merge) STORES.forEach(s => { mockDB[s] = []; });
+  STORES.forEach(s => { if (data[s]) mockDB[s] = [...data[s]]; });
+  return Promise.resolve();
+};
+window.getSyncMeta = (id = 'global') => Promise.resolve(mockSyncMeta[id] || null);
+window.saveSyncMeta = (id = 'global', meta) => { mockSyncMeta[id] = { id, ...meta }; return Promise.resolve(); };
+window.getAppSetting = (key) => Promise.resolve(mockAppSettings[key] || null);
+window.saveAppSetting = (key, value) => { mockAppSettings[key] = value; return Promise.resolve(); };
+window.deleteAppSetting = (key) => { delete mockAppSettings[key]; return Promise.resolve(); };
+
+// ── Mock sync module ──
+window.syncState = { status: 'idle', lastSyncAt: null, isLinked: false, lastError: null, pendingUpload: false };
+window.syncNow = () => { console.log('[Mock Sync] syncNow called'); return Promise.resolve({ success: true, conflicts: [], mergedRecords: 0 }); };
+window.scheduleDebouncedSync = () => { console.log('[Mock Sync] scheduleDebouncedSync called'); };
+window.onSyncStatusChange = (cb) => {};
+window.startDropboxOAuth = (key, uri) => Promise.resolve();
+window.unlinkDropbox = () => Promise.resolve();
+window.isDropboxLinked = () => Promise.resolve(false);
+window.refreshAccessToken = () => Promise.resolve(null);
+
+// ── Mock storage module ──
+window.storageHealth = { persistenceGranted: true, quotaUsage: 10 * 1024 * 1024, quotaTotal: 1024 * 1024 * 1024, percentUsed: 0.01, apiSupported: true };
+window.initStorage = () => Promise.resolve();
+window.getStorageQuota = () => Promise.resolve({ usage: 10 * 1024 * 1024, quota: 1024 * 1024 * 1024, percentUsed: 0.01 });
+window.onQuotaWarning = (cb) => {};
+window.onPersistenceResult = (cb) => { cb({ granted: true }); };
+window.formatBytes = (bytes) => `${bytes} B`;
+
+// ── Mock ui-sync module ──
+window.handleSyncStateChange = (state) => {};
+window.showConflictModal = (conflicts) => Promise.resolve('local');
+window.renderSyncStatusBadge = (el, state) => { if (el) el.innerHTML = '<div class="sync-status-badge badge--muted">Mock Badge</div>'; };
+window.renderStorageBadge = (el) => { if (el) el.innerHTML = '<div class="storage-health-block">Mock Storage</div>'; };
+
+// ── Mock initSync ──
+window.initSync = () => { console.log('[Mock Sync] initSync called'); return Promise.resolve(); };
 
 // Evaluate parser.js and db.js in window context
 const evalInWindow = (code) => {
@@ -536,6 +620,81 @@ const x = 10;
   if (feature.subclass !== "Path of the Storm Herald (Legacy)") {
     throw new Error(`Feature subclass attribute is incorrect. Got: "${feature.subclass}"`);
   }
+
+  // Test New Settings Panel Sections
+  console.log("\n--- Running New Settings Panel Tests ---");
+
+  // Navigate to settings
+  console.log("Clicking Settings...");
+  const settingsBtn2 = document.getElementById('btn-settings');
+  settingsBtn2.click();
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  // Verify Cloud Sync section
+  console.log("Verifying Cloud Sync section...");
+  const syncBadgeContainer = document.getElementById('sync-badge-container');
+  if (!syncBadgeContainer) throw new Error("sync-badge-container not found in Settings panel.");
+  console.log("  ✓ sync-badge-container present");
+
+  const syncNowBtn = document.getElementById('settings-btn-sync-now');
+  if (!syncNowBtn) throw new Error("settings-btn-sync-now not found in Settings panel.");
+  console.log("  ✓ Sync Now button present");
+
+  const dropboxKeyInput = document.getElementById('dropbox-app-key-input');
+  if (!dropboxKeyInput) throw new Error("dropbox-app-key-input not found in Settings panel.");
+  console.log("  ✓ Dropbox App Key input present");
+
+  const linkDropboxBtn = document.getElementById('settings-btn-link-dropbox');
+  if (!linkDropboxBtn) throw new Error("settings-btn-link-dropbox not found in Settings panel.");
+  console.log("  ✓ Link Dropbox button present");
+
+  const unlinkDropboxBtn = document.getElementById('settings-btn-unlink-dropbox');
+  if (!unlinkDropboxBtn) throw new Error("settings-btn-unlink-dropbox not found in Settings panel.");
+  console.log("  ✓ Unlink Dropbox button present");
+
+  // Verify Data Portability section
+  console.log("Verifying Data Portability section...");
+  const exportJsonBtn = document.getElementById('settings-btn-export-json');
+  if (!exportJsonBtn) throw new Error("settings-btn-export-json not found in Settings panel.");
+  console.log("  ✓ Export JSON Backup button present");
+
+  const importBackupBtn = document.getElementById('settings-btn-import-backup');
+  if (!importBackupBtn) throw new Error("settings-btn-import-backup not found in Settings panel.");
+  console.log("  ✓ Import from File button present");
+
+  // Verify Storage Health section
+  console.log("Verifying Storage Health section...");
+  const storageContainer = document.getElementById('storage-health-container');
+  if (!storageContainer) throw new Error("storage-health-container not found in Settings panel.");
+  console.log("  ✓ storage-health-container present");
+
+  // Trigger Sync Now (should call mock and not throw)
+  console.log("Triggering Sync Now...");
+  syncNowBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 100));
+  console.log("  ✓ Sync Now button clickable without errors");
+
+  // Test exportAllData mock produces valid structure
+  console.log("Testing exportAllData mock...");
+  const exportedData = await window.exportAllData();
+  if (!exportedData || typeof exportedData !== 'object') throw new Error("exportAllData did not return an object.");
+  if (!Array.isArray(exportedData.spells)) throw new Error("exportAllData.spells is not an array.");
+  console.log(`  ✓ exportAllData returns valid structure (${exportedData.spells.length} spells)`);
+
+  // Verify existing Settings buttons still work after refactor
+  console.log("Verifying existing settings buttons still present...");
+  const importBtn = document.getElementById('settings-btn-import');
+  if (!importBtn) throw new Error("settings-btn-import not found after refactor.");
+  console.log("  ✓ Import XML button present");
+  const resetDbBtn = document.getElementById('settings-btn-reset-db');
+  if (!resetDbBtn) throw new Error("settings-btn-reset-db not found after refactor.");
+  console.log("  ✓ Reset Database button present");
+  const clearDbBtn2 = document.getElementById('settings-btn-clear-db');
+  if (!clearDbBtn2) throw new Error("settings-btn-clear-db not found after refactor.");
+  console.log("  ✓ Clear Database button present");
+  const resetCacheBtn = document.getElementById('settings-btn-reset-cache');
+  if (!resetCacheBtn) throw new Error("settings-btn-reset-cache not found after refactor.");
+  console.log("  ✓ Reset Cache button present");
 
   console.log("\nALL TESTS PASSED SUCCESSFULLY!");
 }

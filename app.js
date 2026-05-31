@@ -1,5 +1,8 @@
-import { openDB, saveRecords, getAllRecords, clearDatabase, STORES } from './db.js';
+import { openDB, saveRecords, getAllRecords, clearDatabase, exportAllData, importAllData, STORES } from './db.js';
 import { parseCompendiumXML, ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
+import { initStorage, storageHealth, getStorageQuota, onQuotaWarning, onPersistenceResult } from './storage.js';
+import { initSync, syncNow, scheduleDebouncedSync, syncState, onSyncStatusChange, startDropboxOAuth, unlinkDropbox, isDropboxLinked, refreshAccessToken } from './sync.js';
+import { handleSyncStateChange, showConflictModal, renderSyncStatusBadge, renderStorageBadge } from './ui-sync.js';
 
 // Application State
 let currentCategory = 'races';
@@ -53,6 +56,27 @@ const backDetail = document.getElementById('back-detail');
 // Initialize Application
 window.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
+
+  // 1. Initialize storage persistence + quota monitoring
+  await initStorage();
+  onQuotaWarning((pct) => {
+    console.warn(`[app] Storage quota at ${Math.round(pct * 100)}% — warning user.`);
+    updateDBStatus(`⚠ Storage ${Math.round(pct * 100)}% Full`);
+  });
+  onPersistenceResult(({ granted }) => {
+    console.log(`[app] Storage persistence: ${granted ? 'granted' : 'best-effort'}`);
+  });
+
+  // 2. Initialize Dropbox sync engine (binds lifecycle triggers)
+  await initSync();
+  onSyncStatusChange((state) => {
+    handleSyncStateChange(state);
+    // Re-render the sync badge in settings if visible
+    const badgeEl = document.getElementById('sync-badge-container');
+    if (badgeEl) renderSyncStatusBadge(badgeEl, state);
+  });
+
+  // 3. Seed and load data
   await checkAndSeedDatabase();
   await loadAllRecordsCache();
   await loadCategory(currentCategory);
@@ -190,45 +214,75 @@ async function checkAndSeedDatabase() {
   }
 }
 
-// Handle XML import files
+// Handle XML or JSON import files
 async function handleImportFile(e) {
   const file = e.target.files[0];
   if (!file) return;
 
-  showOverlay('Importing XML...', `Parsing and upserting records from ${file.name}...`);
-  
+  const isJson = file.name.toLowerCase().endsWith('.json');
+  const isXml = file.name.toLowerCase().endsWith('.xml');
+
+  if (!isJson && !isXml) {
+    alert('Please select a .xml or .json file.');
+    fileInput.value = '';
+    return;
+  }
+
+  showOverlay(`Importing ${isJson ? 'JSON backup' : 'XML'}...`, `Parsing and upserting records from ${file.name}...`);
+
   const reader = new FileReader();
   reader.onload = async (event) => {
     try {
-      const xmlText = event.target.result;
-      const parsed = parseCompendiumXML(xmlText);
-      
-      let importedCount = 0;
-      for (const store of STORES) {
-        if (parsed[store] && parsed[store].length > 0) {
-          await saveRecords(store, parsed[store]);
-          importedCount += parsed[store].length;
+      if (isJson) {
+        // JSON backup import
+        const data = JSON.parse(event.target.result);
+        if (!data || typeof data !== 'object') throw new Error('Invalid JSON backup file.');
+        let importedCount = 0;
+        for (const store of STORES) {
+          if (data[store] && Array.isArray(data[store])) {
+            importedCount += data[store].length;
+          }
         }
+        await importAllData(data, { merge: true });
+        hideOverlay();
+        alert(`Successfully imported ${importedCount} records from JSON backup!`);
+        updateDBStatus(`Imported ${file.name}`);
+      } else {
+        // XML import
+        const xmlText = event.target.result;
+        const parsed = parseCompendiumXML(xmlText);
+        let importedCount = 0;
+        for (const store of STORES) {
+          if (parsed[store] && parsed[store].length > 0) {
+            await saveRecords(store, parsed[store]);
+            importedCount += parsed[store].length;
+          }
+        }
+        hideOverlay();
+        alert(`Successfully imported ${importedCount} records!`);
+        updateDBStatus(`Imported ${file.name}`);
       }
-      
-      hideOverlay();
-      alert(`Successfully imported ${importedCount} records!`);
-      updateDBStatus(`Imported ${file.name}`);
-      await loadAllRecordsCache(); // Reload universal cache
+
+      await loadAllRecordsCache();
       if (currentCategory === 'settings') {
         renderSettingsPage();
       } else {
-        await loadCategory(currentCategory); // Reload current category
+        await loadCategory(currentCategory);
       }
+
+      // Trigger sync after import
+      scheduleDebouncedSync();
+
     } catch (error) {
-      console.error('Error importing XML:', error);
+      console.error('Error importing file:', error);
       hideOverlay();
-      alert('Error parsing XML: ' + error.message);
+      alert(`Error importing ${isJson ? 'JSON' : 'XML'}: ` + error.message);
     }
   };
-  
+
   reader.readAsText(file);
   fileInput.value = ''; // Reset input
+
 }
 
 // Loader state overlay
@@ -1671,29 +1725,65 @@ function renderSettingsPage() {
       <header class="detail-header">
         <div class="detail-subtitle">Control Panel</div>
         <h1 style="font-size: 32px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Settings</h1>
-        <p style="color: var(--text-secondary); margin-top: 8px;">Manage your offline compendium database, imports, and application cache.</p>
+        <p style="color: var(--text-secondary); margin-top: 8px;">Manage your offline compendium database, cloud sync, imports, and application cache.</p>
       </header>
-      
+
       <div class="detail-body">
+
+        <!-- ── CLOUD SYNC ─────────────────────────────────────────── -->
+        <section class="settings-section" style="margin-bottom: 32px; border-bottom: 1px solid var(--border-color); padding-bottom: 24px;">
+          <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Cloud Sync (Dropbox)</h2>
+
+          <div class="settings-option">
+            <div class="settings-row">
+              <h3 style="margin-bottom: 0;">Sync Status</h3>
+              <div id="sync-badge-container"></div>
+            </div>
+            <p>Sync your compendium across devices via Dropbox. Your data is stored in your own Dropbox account in <code>/Apps/&lt;YourAppName&gt;/sync_state.json</code>.</p>
+          </div>
+
+          <div class="settings-option" id="dropbox-link-section">
+            <h3>Dropbox App Key</h3>
+            <p>Create a Dropbox App at <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener" style="color: var(--accent-color);">dropbox.com/developers/apps</a> with <strong>App folder</strong> access. Paste your <strong>App Key</strong> (not the secret) below.</p>
+            <input type="text" class="settings-input" id="dropbox-app-key-input" placeholder="e.g. abc123xyz456" autocomplete="off" spellcheck="false">
+            <div class="settings-btn-row">
+              <button class="settings-action-btn" id="settings-btn-link-dropbox">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 10l5.5 3.5L17.5 10 12 6.5zm5.5 5.5L6.5 12 2 14.5 12 21l10-6.5L17.5 12zm0-12L2 9.5 6.5 12 12 8.5 17.5 12 22 9.5z"/></svg>
+                Link Dropbox
+              </button>
+              <button class="settings-action-btn danger-btn" id="settings-btn-unlink-dropbox" style="display:none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 7h-4v2h4c1.65 0 3 1.35 3 3s-1.35 3-3 3h-4v2h4c2.76 0 5-2.24 5-5s-2.24-5-5-5zm-6 8H7c-1.65 0-3-1.35-3-3s1.35-3 3-3h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-2zm1-4H8v2h8v-2z"/></svg>
+                Unlink Dropbox
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-option">
+            <h3>Manual Sync</h3>
+            <p>Force an immediate sync cycle to upload your local changes and download any remote updates.</p>
+            <button class="settings-action-btn" id="settings-btn-sync-now">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+              Sync Now
+            </button>
+          </div>
+        </section>
+
+        <!-- ── DATABASE MANAGEMENT ───────────────────────────────── -->
         <section class="settings-section" style="margin-bottom: 32px; border-bottom: 1px solid var(--border-color); padding-bottom: 24px;">
           <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Database Management</h2>
-          
+
           <div class="settings-option">
             <h3>Import XML Content</h3>
-            <p>
-              Import a D&D compendium XML file. New records will be added, and existing records with the same name will be updated.
-            </p>
+            <p>Import a D&amp;D compendium XML file. New records will be added, and existing records with the same name will be updated.</p>
             <button class="settings-action-btn" id="settings-btn-import">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-              Choose XML File & Import
+              Choose XML File &amp; Import
             </button>
           </div>
 
           <div class="settings-option" style="margin-top: 24px;">
             <h3>Reset Database</h3>
-            <p>
-              Wipe all custom imports and revert your local database back to the default System Reference Document (SRD 5.5e) data.
-            </p>
+            <p>Wipe all custom imports and revert your local database back to the default System Reference Document (SRD 5.5e) data.</p>
             <button class="settings-action-btn danger-btn" id="settings-btn-reset-db">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
               Reset Database to Default
@@ -1702,9 +1792,7 @@ function renderSettingsPage() {
 
           <div class="settings-option" style="margin-top: 24px;">
             <h3>Clear Database</h3>
-            <p>
-              Wipe all content from the database. This leaves the database completely empty, allowing you to import your own custom XML compendium files.
-            </p>
+            <p>Wipe all content from the database. This leaves the database completely empty, allowing you to import your own custom XML compendium files.</p>
             <button class="settings-action-btn danger-btn" id="settings-btn-clear-db">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>
               Clear All Content
@@ -1712,31 +1800,146 @@ function renderSettingsPage() {
           </div>
         </section>
 
-        <section class="settings-section">
-          <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Application Cache</h2>
-          
+        <!-- ── DATA PORTABILITY ──────────────────────────────────── -->
+        <section class="settings-section" style="margin-bottom: 32px; border-bottom: 1px solid var(--border-color); padding-bottom: 24px;">
+          <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Data Portability</h2>
+
           <div class="settings-option">
-            <h3>Reset App Cache</h3>
-            <p>
-              Clear the offline Service Worker cache to force download the latest application updates. This is useful if the app is not loading newer edits.
-            </p>
-            <button class="settings-action-btn" id="settings-btn-reset-cache">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
-              Clear Cache & Reload
+            <h3>Export Local Backup</h3>
+            <p>Download a complete JSON snapshot of your entire compendium database. Store it as a backup or transfer it to another device.</p>
+            <button class="settings-action-btn" id="settings-btn-export-json">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5z"/></svg>
+              Download JSON Backup
+            </button>
+          </div>
+
+          <div class="settings-option" style="margin-top: 24px;">
+            <h3>Import from Backup File</h3>
+            <p>Restore your database from a previously exported <code>.json</code> backup file, or import an XML compendium file.</p>
+            <button class="settings-action-btn" id="settings-btn-import-backup">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+              Import from File (.xml or .json)
             </button>
           </div>
         </section>
+
+        <!-- ── STORAGE HEALTH ────────────────────────────────────── -->
+        <section class="settings-section" style="margin-bottom: 32px; border-bottom: 1px solid var(--border-color); padding-bottom: 24px;">
+          <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Storage &amp; Health</h2>
+
+          <div class="settings-option">
+            <h3>Storage Classification</h3>
+            <p>The browser can grant <strong>persistent</strong> (eviction-resistant) storage or operate in <strong>best-effort</strong> mode. Persistent storage prevents the OS from clearing your data under low-storage conditions.</p>
+            <div id="storage-health-container"></div>
+          </div>
+        </section>
+
+        <!-- ── APPLICATION CACHE ─────────────────────────────────── -->
+        <section class="settings-section">
+          <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Application Cache</h2>
+
+          <div class="settings-option">
+            <h3>Reset App Cache</h3>
+            <p>Clear the offline Service Worker cache to force download the latest application updates. This is useful if the app is not loading newer edits.</p>
+            <button class="settings-action-btn" id="settings-btn-reset-cache">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              Clear Cache &amp; Reload
+            </button>
+          </div>
+        </section>
+
       </div>
     </div>
   `;
 
-  // Attach event handlers
-  document.getElementById('settings-btn-import').addEventListener('click', () => {
-    fileInput.click();
-  });
+  // ── Attach event handlers ──
+
+  document.getElementById('settings-btn-import').addEventListener('click', () => fileInput.click());
+  document.getElementById('settings-btn-import-backup').addEventListener('click', () => fileInput.click());
   document.getElementById('settings-btn-reset-db').addEventListener('click', resetDatabaseToDefault);
   document.getElementById('settings-btn-clear-db').addEventListener('click', clearDatabaseAction);
   document.getElementById('settings-btn-reset-cache').addEventListener('click', resetServiceWorkerCache);
+
+  // Sync Now
+  document.getElementById('settings-btn-sync-now').addEventListener('click', async () => {
+    const btn = document.getElementById('settings-btn-sync-now');
+    if (btn) btn.disabled = true;
+    await syncNow();
+    if (btn) btn.disabled = false;
+  });
+
+  // Export JSON backup
+  document.getElementById('settings-btn-export-json').addEventListener('click', async () => {
+    try {
+      const data = await exportAllData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dnd-compendium-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      alert('Export failed: ' + err.message);
+    }
+  });
+
+  // Dropbox link/unlink
+  _setupDropboxLinkUI();
+
+  // Storage health badge
+  const storageContainer = document.getElementById('storage-health-container');
+  if (storageContainer) {
+    renderStorageBadge(storageContainer);
+    // Refresh quota in case it changed
+    getStorageQuota().then(() => renderStorageBadge(storageContainer));
+  }
+
+  // Sync badge
+  const badgeEl = document.getElementById('sync-badge-container');
+  if (badgeEl) renderSyncStatusBadge(badgeEl, syncState);
+}
+
+async function _setupDropboxLinkUI() {
+  const linked = await isDropboxLinked();
+  const linkBtn = document.getElementById('settings-btn-link-dropbox');
+  const unlinkBtn = document.getElementById('settings-btn-unlink-dropbox');
+  const keyInput = document.getElementById('dropbox-app-key-input');
+
+  if (!linkBtn || !unlinkBtn || !keyInput) return;
+
+  if (linked) {
+    linkBtn.style.display = 'none';
+    unlinkBtn.style.display = '';
+    keyInput.style.display = 'none';
+  } else {
+    linkBtn.style.display = '';
+    unlinkBtn.style.display = 'none';
+    keyInput.style.display = '';
+  }
+
+  linkBtn.addEventListener('click', async () => {
+    const appKey = keyInput.value.trim();
+    if (!appKey) {
+      alert('Please enter your Dropbox App Key first.');
+      return;
+    }
+    try {
+      // Redirect URI is this page's origin + pathname
+      const redirectUri = window.location.origin + window.location.pathname;
+      await startDropboxOAuth(appKey, redirectUri);
+      // Page will redirect to Dropbox — no further action needed here
+    } catch (err) {
+      alert('Failed to start Dropbox authorization: ' + err.message);
+    }
+  });
+
+  unlinkBtn.addEventListener('click', async () => {
+    if (confirm('Unlink Dropbox? Your local data will not be deleted.')) {
+      await unlinkDropbox();
+      renderSettingsPage(); // Re-render to show link UI
+    }
+  });
 }
 
 async function resetDatabaseToDefault() {
