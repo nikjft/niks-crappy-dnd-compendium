@@ -926,6 +926,20 @@ function applyFilters() {
 
 
 
+
+// Get human-readable rarity label from an item's detail field
+function getItemRarity(item) {
+  if (!item.detail) return item.magic ? 'Magic' : '';
+  const d = item.detail.toLowerCase();
+  if (d.includes('very rare')) return 'Very Rare';
+  if (d.includes('uncommon')) return 'Uncommon';
+  if (d.includes('legendary') && !d.includes('artifact')) return 'Legendary';
+  if (d.includes('artifact')) return 'Artifact';
+  if (d.includes('rare')) return 'Rare';
+  if (d.includes('common')) return 'Common';
+  return item.magic ? 'Magic' : '';
+}
+
 // Render the search results list
 function renderList(items, isGlobalSearch = false) {
   itemList.innerHTML = '';
@@ -960,7 +974,8 @@ function renderList(items, isGlobalSearch = false) {
     if (type === 'spell') {
       metaText += `${item.level === 0 ? 'Cantrip' : 'Level ' + item.level} • ${item.school}`;
     } else if (type === 'item') {
-      metaText += `${item.type || 'Item'} ${item.magic ? '• Magic' : ''}`;
+      const rarity = getItemRarity(item);
+      metaText += `${item.type || 'Item'}${rarity ? ' • ' + rarity : ''}`;
     } else if (type === 'monster') {
       metaText += `CR ${item.cr || '0'} • ${item.type || 'Monster'} • ${item.size || 'M'}`;
     } else if (type === 'option') {
@@ -1276,7 +1291,7 @@ function renderDetails(item, category = currentCategory) {
     html = `
       <div class="detail-view-container">
         <header class="detail-header">
-          <div class="detail-subtitle">${item.type} ${item.magic ? '• Magic' : ''}</div>
+          <div class="detail-subtitle">${item.type}${(() => { const r = getItemRarity(item); return r ? ' • ' + r : ''; })()}</div>
           <h1>${item.name}</h1>
           ${item.detail ? `<div style="font-style: italic; color: var(--text-secondary)">${parseInlineMarkdown(item.detail)}</div>` : ''}
         </header>
