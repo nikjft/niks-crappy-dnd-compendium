@@ -34,6 +34,7 @@ body {
   line-height: 1.6;
   overflow: hidden;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   -webkit-font-smoothing: antialiased;
 }
@@ -64,6 +65,7 @@ h1, h2, h3, h4, h5, h6 {
 .app-container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   overflow: hidden;
 }
@@ -86,6 +88,7 @@ h1, h2, h3, h4, h5, h6 {
   gap: 12px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .sidebar-logo img {
@@ -147,10 +150,12 @@ h1, h2, h3, h4, h5, h6 {
 
 .sidebar-footer {
   padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .settings-btn {
@@ -239,7 +244,6 @@ h1, h2, h3, h4, h5, h6 {
   min-width: 220px;
   background-color: var(--bg-color);
   border-right: none;
-  overflow-y: auto;
 }
 
 /* Headers */
@@ -455,7 +459,8 @@ h1, h2, h3, h4, h5, h6 {
 .detail-view-container {
   max-width: 720px;
   margin: 0 auto;
-  padding: 40px 24px;
+  padding: 40px 24px 120px 24px;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom));
 }
 
 .detail-header {
@@ -739,6 +744,11 @@ h1, h2, h3, h4, h5, h6 {
     height: 36px;
     margin: 0 auto;
     justify-content: center;
+  }
+
+  .pane-content {
+    padding-bottom: 80px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 }
 
