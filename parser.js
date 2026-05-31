@@ -72,6 +72,27 @@ function extractParenthesizedSuffix(str) {
   return null;
 }
 
+function getRequiredLevel(name, texts) {
+  const nameMatch = name.match(/\(Level\s+(\d+)\+?\)/i);
+  if (nameMatch) {
+    return parseInt(nameMatch[1]);
+  }
+  const fullText = (texts || []).join('\n');
+  const lvlPlusMatch = fullText.match(/Level\s+(\d+)\+/i);
+  if (lvlPlusMatch) {
+    return parseInt(lvlPlusMatch[1]);
+  }
+  const thLevelMatch = fullText.match(/(\d+)(?:st|nd|rd|th)\s+level/i);
+  if (thLevelMatch) {
+    return parseInt(thLevelMatch[1]);
+  }
+  const prereqLvlMatch = fullText.match(/Prerequisite:\s*(?:Level\s*)?(\d+)/i);
+  if (prereqLvlMatch) {
+    return parseInt(prereqLvlMatch[1]);
+  }
+  return 0;
+}
+
 function getChildText(element, tagName, defaultValue = '') {
   for (let i = 0; i < element.childNodes.length; i++) {
     const child = element.childNodes[i];
@@ -362,7 +383,8 @@ export function parseCompendiumXML(xmlText) {
     classes: [],
     feats: [],
     backgrounds: [],
-    races: []
+    races: [],
+    options: []
   };
 
   const compendiumNode = xmlDoc.getElementsByTagName('compendium')[0];
@@ -370,14 +392,42 @@ export function parseCompendiumXML(xmlText) {
     throw new Error('Invalid XML: No <compendium> root element found.');
   }
 
+  const optionClassesMap = {
+    "eldritch invocations": "Eldritch Invocations",
+    "fighter (rune knight)": "Rune Knight Runes",
+    "magic item plans": "Magic Item Plans",
+    "maneuver options": "Maneuver Options",
+    "metamagic options": "Metamagic Options"
+  };
+
   for (let i = 0; i < compendiumNode.childNodes.length; i++) {
     const node = compendiumNode.childNodes[i];
     if (node.nodeType !== 1) continue; // skip text/comment nodes
 
     switch (node.nodeName) {
-      case 'spell':
-        result.spells.push(parseSpell(node));
+      case 'spell': {
+        const parsedSpell = parseSpell(node);
+        let isOption = false;
+        
+        parsedSpell.classes = parsedSpell.classes.map(c => {
+          const lowerC = c.toLowerCase().trim();
+          if (optionClassesMap[lowerC]) {
+            isOption = true;
+            return optionClassesMap[lowerC];
+          }
+          return c;
+        });
+
+        if (isOption) {
+          const reqLevel = getRequiredLevel(parsedSpell.name, parsedSpell.texts);
+          parsedSpell.level = reqLevel;
+          parsedSpell.requiredLevel = reqLevel;
+          result.options.push(parsedSpell);
+        } else {
+          result.spells.push(parsedSpell);
+        }
         break;
+      }
       case 'item':
         result.items.push(parseItem(node));
         break;

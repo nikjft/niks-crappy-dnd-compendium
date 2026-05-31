@@ -1,6 +1,6 @@
 const DB_NAME = 'dnd_compendium_db';
-const DB_VERSION = 3;
-export const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races'];
+const DB_VERSION = 4;
+export const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options'];
 
 export function openDB() {
   return new Promise((resolve, reject) => {

@@ -2,7 +2,7 @@ import { openDB, saveRecords, getAllRecords, clearDatabase, STORES } from './db.
 import { parseCompendiumXML, ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
 
 // Application State
-let currentCategory = 'spells';
+let currentCategory = 'races';
 let currentRecords = []; // Records for the currently selected browsing category
 let allRecordsCache = {}; // Cache of all records across all categories for universal search
 let selectedFacet1 = 'All';
@@ -76,34 +76,12 @@ function setupEventListeners() {
 
   // Search input change
   searchInput.addEventListener('input', () => {
-    const value = searchInput.value;
-    // Check if user typed a colon-delimited facet
-    const chitRegex = /(\w+):([\w/+-]+)/i;
-    const match = value.match(chitRegex);
-    if (match && value.endsWith(' ')) {
-      // User typed a chit followed by space, extract it!
-      const field = match[1].toLowerCase();
-      const val = match[2].toLowerCase();
-      addSearchChit(field, val);
-      searchInput.value = value.replace(match[0], '').trim();
-    } else {
-      applyFilters();
-    }
+    applyFilters();
   });
 
   searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
-      const value = searchInput.value;
-      const chitRegex = /(\w+):([\w/+-]+)/i;
-      const match = value.match(chitRegex);
-      if (match) {
-        const field = match[1].toLowerCase();
-        const val = match[2].toLowerCase();
-        addSearchChit(field, val);
-        searchInput.value = value.replace(match[0], '').trim();
-      } else {
-        applyFilters();
-      }
+      applyFilters();
     }
   });
 
@@ -348,7 +326,10 @@ function hasFacet1() {
 }
 
 function hasFacet2() {
-  return currentCategory === 'spells' || currentCategory === 'classes' || currentCategory === 'monsters';
+  if (currentCategory === 'monsters') {
+    return selectedFacet1 === 'By CR' || selectedFacet1 === 'By Type';
+  }
+  return currentCategory === 'spells' || currentCategory === 'classes';
 }
 
 function updatePaneVisibility() {
@@ -626,22 +607,17 @@ function renderFacet1() {
     });
     values = Array.from(types).sort();
   } else if (currentCategory === 'monsters') {
-    facetName = 'CR';
-    const crs = new Set();
-    currentRecords.forEach(m => {
-      if (m.cr !== undefined && m.cr !== null) crs.add(m.cr.toString());
+    facetName = 'Filter';
+    values = ['By CR', 'By Type'];
+  } else if (currentCategory === 'options') {
+    facetName = 'Type';
+    const types = new Set();
+    currentRecords.forEach(o => {
+      if (o.classes && Array.isArray(o.classes)) {
+        o.classes.forEach(c => types.add(c));
+      }
     });
-    // Sort CR values numerically
-    values = Array.from(crs).sort((a, b) => {
-      const parseCR = (cr) => {
-        if (cr && typeof cr === 'string' && cr.includes('/')) {
-          const parts = cr.split('/');
-          return parseFloat(parts[0]) / parseFloat(parts[1]);
-        }
-        return parseFloat(cr) || 0;
-      };
-      return parseCR(a) - parseCR(b);
-    });
+    values = Array.from(types).sort();
   }
 
   facetTitle1.textContent = facetName;
@@ -672,7 +648,9 @@ function renderFacet1() {
     } else if (currentCategory === 'items') {
       count = currentRecords.filter(i => i.type === val).length;
     } else if (currentCategory === 'monsters') {
-      count = currentRecords.filter(m => m.cr && m.cr.toString() === val).length;
+      count = currentRecords.length;
+    } else if (currentCategory === 'options') {
+      count = currentRecords.filter(o => o.classes && o.classes.includes(val)).length;
     }
 
     appendFacetItem(facetList1, val, val, count, selectedFacet1 === val, (clickedVal) => {
@@ -703,7 +681,7 @@ function renderFacet2() {
     } else if (currentCategory === 'classes') {
       recordsFacet1 = currentRecords.filter(c => c.name === selectedFacet1);
     } else if (currentCategory === 'monsters') {
-      recordsFacet1 = currentRecords.filter(m => m.cr && m.cr.toString() === selectedFacet1);
+      // recordsFacet1 remains currentRecords
     }
   }
 
@@ -723,12 +701,31 @@ function renderFacet2() {
     });
     values = Array.from(sections).sort();
   } else if (currentCategory === 'monsters') {
-    facetName = 'Type';
-    const types = new Set();
-    recordsFacet1.forEach(m => {
-      if (m.type) types.add(m.type.toLowerCase());
-    });
-    values = Array.from(types).sort();
+    if (selectedFacet1 === 'By CR') {
+      facetName = 'CR';
+      const crs = new Set();
+      recordsFacet1.forEach(m => {
+        if (m.cr !== undefined && m.cr !== null) crs.add(m.cr.toString());
+      });
+      // Sort CR values numerically
+      values = Array.from(crs).sort((a, b) => {
+        const parseCR = (cr) => {
+          if (cr && typeof cr === 'string' && cr.includes('/')) {
+            const parts = cr.split('/');
+            return parseFloat(parts[0]) / parseFloat(parts[1]);
+          }
+          return parseFloat(cr) || 0;
+        };
+        return parseCR(a) - parseCR(b);
+      });
+    } else if (selectedFacet1 === 'By Type') {
+      facetName = 'Type';
+      const types = new Set();
+      recordsFacet1.forEach(m => {
+        if (m.type) types.add(m.type.toLowerCase());
+      });
+      values = Array.from(types).sort();
+    }
   }
 
   facetTitle2.textContent = facetName;
@@ -765,7 +762,11 @@ function renderFacet2() {
         }
       }
     } else if (currentCategory === 'monsters') {
-      count = recordsFacet1.filter(m => m.type && m.type.toLowerCase() === val).length;
+      if (selectedFacet1 === 'By CR') {
+        count = recordsFacet1.filter(m => m.cr && m.cr.toString() === val).length;
+      } else if (selectedFacet1 === 'By Type') {
+        count = recordsFacet1.filter(m => m.type && m.type.toLowerCase() === val).length;
+      }
     }
 
     appendFacetItem(facetList2, val, label, count, selectedFacet2 === val, (clickedVal) => {
@@ -793,72 +794,14 @@ function appendFacetItem(parent, value, label, count, isActive, onClick) {
 // Render dynamic dropdown search helper controls
 function renderFilterDropdowns() {
   filterDropdownContainer.innerHTML = '';
-
-  const addDropdown = (placeholder, field, options) => {
-    const select = document.createElement('select');
-    select.className = 'filter-select';
-    select.innerHTML = `<option value="">${placeholder}</option>` +
-      options.map(opt => `<option value="${opt.val || opt}">${opt.label || opt}</option>`).join('');
-    
-    select.addEventListener('change', () => {
-      if (select.value) {
-        addSearchChit(field, select.value);
-        select.value = ''; // Reset select
-      }
-    });
-    filterDropdownContainer.appendChild(select);
-  };
-
-  if (currentCategory === 'spells') {
-    addDropdown('School', 'school', Object.values(SPELL_SCHOOLS));
-    addDropdown('Level', 'level', [
-      { label: 'Cantrip', val: '0' },
-      ...Array.from({ length: 9 }, (_, i) => ({ label: `Level ${i+1}`, val: (i+1).toString() }))
-    ]);
-    addDropdown('Ritual', 'ritual', ['Yes', 'No']);
-  } else if (currentCategory === 'items') {
-    addDropdown('Type', 'type', Object.values(ITEM_TYPES));
-    addDropdown('Magic', 'magic', ['Yes', 'No']);
-  } else if (currentCategory === 'monsters') {
-    addDropdown('Size', 'size', Object.values(MONSTER_SIZES));
-    addDropdown('Alignment', 'alignment', ['Unaligned', 'Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil']);
-  } else if (currentCategory === 'feats') {
-    addDropdown('Category', 'category', ['Origin', 'Epic Boon', 'Fighting Style', 'Standard']);
-  } else if (currentCategory === 'races') {
-    addDropdown('Size', 'size', Object.values(MONSTER_SIZES));
-  }
-}
-
-// Search chit management
-function addSearchChit(field, value) {
-  if (!searchChits.some(c => c.field === field && c.value === value)) {
-    searchChits.push({ field, value });
-    renderChits();
-    applyFilters();
-  }
 }
 
 function renderChits() {
   const wrapper = document.getElementById('search-wrapper');
-  const input = document.getElementById('search-input');
-  
-  const oldChits = wrapper.querySelectorAll('.search-chit');
-  oldChits.forEach(c => c.remove());
-  
-  searchChits.forEach((chit, index) => {
-    const chitEl = document.createElement('span');
-    chitEl.className = 'search-chit';
-    chitEl.innerHTML = `${chit.field}:${chit.value} <button>&times;</button>`;
-    
-    chitEl.querySelector('button').addEventListener('click', (e) => {
-      e.stopPropagation();
-      searchChits.splice(index, 1);
-      renderChits();
-      applyFilters();
-    });
-    
-    wrapper.insertBefore(chitEl, input);
-  });
+  if (wrapper) {
+    const oldChits = wrapper.querySelectorAll('.search-chit');
+    oldChits.forEach(c => c.remove());
+  }
 }
 
 // Global Filtering and Score-based Search Sorting Engine
@@ -881,7 +824,9 @@ function applyFilters() {
       } else if (currentCategory === 'items') {
         if (record.type !== selectedFacet1) return false;
       } else if (currentCategory === 'monsters') {
-        if (record.cr !== selectedFacet1) return false;
+        // Grouping facet only, no direct filter
+      } else if (currentCategory === 'options') {
+        if (!record.classes || !record.classes.includes(selectedFacet1)) return false;
       }
     }
 
@@ -892,16 +837,15 @@ function applyFilters() {
       } else if (currentCategory === 'classes') {
         // Sections are flattened later
       } else if (currentCategory === 'monsters') {
-        if (!record.type || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
+        if (selectedFacet1 === 'By CR') {
+          if (record.cr !== selectedFacet2) return false;
+        } else if (selectedFacet1 === 'By Type') {
+          if (!record.type || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
+        }
       }
     }
 
-    // Filter by search chits
-    for (const chit of searchChits) {
-      if (!recordMatchesChit(record, chit)) {
-        return false;
-      }
-    }
+
 
     return true;
   });
@@ -980,60 +924,17 @@ function applyFilters() {
 
   renderList(itemsToRender, false);}
 
-function recordMatchesChit(record, chit) {
-  const val = chit.value.toLowerCase();
-  const type = record.categoryType;
-  const field = chit.field.toLowerCase();
 
-  if (type === 'spell') {
-    if (field === 'school') {
-      return record.school && record.school.toLowerCase() === val;
-    } else if (field === 'level') {
-      return record.level !== undefined && record.level.toString() === val;
-    } else if (field === 'class') {
-      return record.classes && record.classes.map(c => c.toLowerCase()).includes(val);
-    } else if (field === 'ritual') {
-      const isRitual = val === 'yes' || val === 'true';
-      return record.ritual === isRitual;
-    }
-    return false;
-  } else if (type === 'item') {
-    if (field === 'type') {
-      return record.type && record.type.toLowerCase() === val;
-    } else if (field === 'magic') {
-      const isMagic = val === 'yes' || val === 'true';
-      return record.magic === isMagic;
-    }
-    return false;
-  } else if (type === 'monster') {
-    if (field === 'size') {
-      return record.size && record.size.toLowerCase() === val;
-    } else if (field === 'type') {
-      return record.type && record.type.toLowerCase().includes(val);
-    } else if (field === 'cr') {
-      return record.cr !== undefined && record.cr.toString() === val;
-    } else if (field === 'alignment') {
-      return record.alignment && record.alignment.toLowerCase().includes(val);
-    }
-    return false;
-  } else if (type === 'feat') {
-    if (field === 'category') {
-      return record.category && record.category.toLowerCase() === val;
-    }
-    return false;
-  } else if (type === 'race') {
-    if (field === 'size') {
-      return record.size && record.size.toLowerCase() === val;
-    }
-    return false;
-  }
-  return false;
-}
 
 // Render the search results list
 function renderList(items, isGlobalSearch = false) {
   itemList.innerHTML = '';
-  listTitle.textContent = isGlobalSearch ? `Search Results (${items.length})` : `${currentCategory} (${items.length})`;
+  let displayCategory = currentCategory;
+  if (currentCategory === 'items') displayCategory = 'Equipment';
+  else if (currentCategory === 'monsters') displayCategory = 'Bestiary';
+  else displayCategory = displayCategory.charAt(0).toUpperCase() + displayCategory.slice(1);
+
+  listTitle.textContent = isGlobalSearch ? `Search Results (${items.length})` : `${displayCategory} (${items.length})`;
 
   if (items.length === 0) {
     itemList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-muted)">No entries match your filters.</li>';
@@ -1050,7 +951,9 @@ function renderList(items, isGlobalSearch = false) {
     const type = item.categoryType;
 
     if (isGlobalSearch) {
-      const displayType = type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      let displayType = type.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      if (displayType === 'Item') displayType = 'Equipment';
+      if (displayType === 'Monster') displayType = 'Bestiary';
       metaText = `[${displayType}] `;
     }
 
@@ -1060,6 +963,8 @@ function renderList(items, isGlobalSearch = false) {
       metaText += `${item.type || 'Item'} ${item.magic ? '• Magic' : ''}`;
     } else if (type === 'monster') {
       metaText += `CR ${item.cr || '0'} • ${item.type || 'Monster'} • ${item.size || 'M'}`;
+    } else if (type === 'option') {
+      metaText += `${item.classes ? item.classes.join(', ') : 'Option'}`;
     } else if (type === 'class-overview') {
       const cls = item.classData || item;
       metaText += `${cls.hd ? 'Hit Die d' + cls.hd : 'Overview'}`;
@@ -1597,6 +1502,23 @@ function renderDetails(item, category = currentCategory) {
         </div>
       `;
     }
+  } else if (category === 'options' || category === 'option') {
+    html = `
+      <div class="detail-view-container">
+        <header class="detail-header">
+          <div class="detail-subtitle">${item.classes ? item.classes.join(', ') : 'Option'}</div>
+          <h1>${item.name}</h1>
+        </header>
+        <div class="detail-body">
+          ${formatText(item.texts)}
+          ${item.source ? `
+            <div style="margin-top: 10px; color: var(--text-muted); font-size: 13px;">
+              Source: ${parseInlineMarkdown(item.source)}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
   } else if (category === 'feats' || category === 'feat') {
     html = `
       <div class="detail-view-container">
@@ -1913,6 +1835,11 @@ function renderUniversalSearchPanel() {
             <input type="checkbox" class="search-cat-cb" data-store="races" checked style="accent-color: var(--accent-color);">
             <span>Races</span>
           </label>
+          
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px;">
+            <input type="checkbox" class="search-cat-cb" data-store="options" checked style="accent-color: var(--accent-color);">
+            <span>Options</span>
+          </label>
         </div>
       </div>
     `;
@@ -2026,7 +1953,7 @@ function applyUniversalSearch() {
     // Full text match
     let fullText = '';
     const type = item.categoryType;
-    if (type === 'spell' || type === 'item' || type === 'feat' || type === 'background' || type === 'race' || type === 'class-feature') {
+    if (type === 'spell' || type === 'item' || type === 'feat' || type === 'background' || type === 'race' || type === 'class-feature' || type === 'option') {
       fullText = (item.texts || []).join(' ') + ' ' + (item.detail || '');
     } else if (type === 'monster') {
       fullText = (item.description || '') + ' ' +

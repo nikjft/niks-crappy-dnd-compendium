@@ -38,7 +38,7 @@ window.fetch = (url) => {
 
 // In-memory IndexedDB mock
 const mockDB = {};
-const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races'];
+const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options'];
 STORES.forEach(store => { mockDB[store] = []; });
 
 window.STORES = STORES;
@@ -131,6 +131,25 @@ async function runTests() {
   console.log(`Detail panel header: ${detailTitle ? detailTitle.textContent : 'NOT FOUND'}`);
   if (!detailTitle) throw new Error("Spell detail pane failed to render.");
 
+  // Test Spells Typeahead Search
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    console.log("Typing 'Fire' in spells list search...");
+    searchInput.value = 'Fire';
+    const inputEvent = new window.Event('input');
+    searchInput.dispatchEvent(inputEvent);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    const searchedItems = document.querySelectorAll('#item-list .item-list-item button');
+    console.log(`Found ${searchedItems.length} spells after searching 'Fire'.`);
+    if (searchedItems.length === 0) throw new Error("No spells found for 'Fire' search.");
+    
+    // Clear search
+    searchInput.value = '';
+    searchInput.dispatchEvent(inputEvent);
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
   // Test Items
   await clickMenu('items');
   const itemFacetItems = document.querySelectorAll('#facet-list-1 .facet-item button');
@@ -158,11 +177,23 @@ async function runTests() {
   await clickMenu('monsters');
   const monsterFacetItems = document.querySelectorAll('#facet-list-1 .facet-item button');
   console.log(`Found ${monsterFacetItems.length} monster facets.`);
+  if (monsterFacetItems.length !== 3) throw new Error(`Expected 3 monster facets in Facet 1, got ${monsterFacetItems.length}`);
   
-  const crFacet = monsterFacetItems[1]; // Index 0 is 'All'
+  const crFacet = monsterFacetItems[1]; // Index 1 is 'By CR'
   console.log(`Clicking monster CR facet: ${crFacet.textContent.trim()}`);
   crFacet.click();
   await new Promise(resolve => setTimeout(resolve, 50));
+
+  const monsterFacet2Items = document.querySelectorAll('#facet-list-2 .facet-item button');
+  console.log(`Found ${monsterFacet2Items.length} CR sub-facets.`);
+  if (monsterFacet2Items.length === 0) throw new Error("No CR sub-facets rendered.");
+
+  const cr0Facet = Array.from(monsterFacet2Items).find(btn => btn.textContent.includes('0 '));
+  if (cr0Facet) {
+    console.log(`Clicking CR 0 sub-facet: ${cr0Facet.textContent.trim()}`);
+    cr0Facet.click();
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
 
   listItems = document.querySelectorAll('#item-list .item-list-item button');
   console.log(`Found ${listItems.length} monsters in list.`);
@@ -187,6 +218,23 @@ async function runTests() {
   const raceDetailTitle = document.querySelector('#detail-pane-content h1');
   console.log(`Detail panel race header: ${raceDetailTitle ? raceDetailTitle.textContent : 'NOT FOUND'}`);
   if (!raceDetailTitle) throw new Error("Race detail pane failed to render.");
+
+  // Test Options
+  await clickMenu('options');
+  const optionFacetItems = document.querySelectorAll('#facet-list-1 .facet-item button');
+  console.log(`Found ${optionFacetItems.length} option facets.`);
+  if (optionFacetItems.length === 0) throw new Error("No option facets rendered.");
+
+  listItems = document.querySelectorAll('#item-list .item-list-item button');
+  console.log(`Found ${listItems.length} options in list.`);
+  if (listItems.length === 0) throw new Error("No options rendered in list.");
+
+  console.log(`Clicking first option: ${listItems[0].querySelector('.item-title').textContent}`);
+  listItems[0].click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const optionDetailTitle = document.querySelector('#detail-pane-content h1');
+  console.log(`Detail panel option header: ${optionDetailTitle ? optionDetailTitle.textContent : 'NOT FOUND'}`);
+  if (!optionDetailTitle) throw new Error("Option detail pane failed to render.");
 
   // Test Universal Search
   await clickMenu('search');
