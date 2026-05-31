@@ -515,21 +515,21 @@ export function parseClass(element) {
   });
 
   return {
-    name: className,
-    hd: parseInt(getChildText(element, 'hd')) || 8,
-    spellAbility: getChildText(element, 'spellAbility'),
-    slotsReset: getChildText(element, 'slotsReset'),
-    wealth: getChildText(element, 'wealth'),
-    proficiency: getChildText(element, 'proficiency'),
-    armor: getChildText(element, 'armor'),
-    weapons: getChildText(element, 'weapons'),
-    tools: getChildText(element, 'tools'),
-    numSkills: parseInt(getChildText(element, 'numSkills')) || 0,
-    subclasses: Array.from(subclassesSet),
-    subclassEntities: subclassEntities,
-    autolevels: baseAutolevels,
-    features: featuresList,
-    slotsTable: autolevels.map(al => ({ level: al.level, slots: al.slots })).filter(al => al.slots)
+    classRecord: {
+      name: className,
+      hd: parseInt(getChildText(element, 'hd')) || 8,
+      spellAbility: getChildText(element, 'spellAbility'),
+      slotsReset: getChildText(element, 'slotsReset'),
+      wealth: getChildText(element, 'wealth'),
+      proficiency: getChildText(element, 'proficiency'),
+      armor: getChildText(element, 'armor'),
+      weapons: getChildText(element, 'weapons'),
+      tools: getChildText(element, 'tools'),
+      numSkills: parseInt(getChildText(element, 'numSkills')) || 0,
+      autolevels: baseAutolevels,
+      slotsTable: autolevels.map(al => ({ level: al.level, slots: al.slots })).filter(al => al.slots)
+    },
+    subclassRecords: subclassEntities
   };
 }
 
@@ -593,6 +593,7 @@ export function parseCompendiumXML(xmlText) {
     items: [],
     monsters: [],
     classes: [],
+    subclasses: [],
     feats: [],
     backgrounds: [],
     races: [],
@@ -646,9 +647,14 @@ export function parseCompendiumXML(xmlText) {
       case 'monster':
         result.monsters.push(parseMonster(node));
         break;
-      case 'class':
-        result.classes.push(parseClass(node));
+      case 'class': {
+        const parsed = parseClass(node);
+        result.classes.push(parsed.classRecord);
+        if (parsed.subclassRecords && parsed.subclassRecords.length > 0) {
+          result.subclasses.push(...parsed.subclassRecords);
+        }
         break;
+      }
       case 'feat':
         result.feats.push(parseFeat(node));
         break;

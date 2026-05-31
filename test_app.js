@@ -72,7 +72,7 @@ window.fetch = (url) => {
 
 // In-memory IndexedDB mock
 const mockDB = {};
-const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
+const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
 STORES.forEach(store => { mockDB[store] = []; });
 
 // App settings mock
@@ -82,7 +82,21 @@ const mockSyncMeta = {};
 
 window.STORES = STORES;
 
-window.openDB = () => Promise.resolve({});
+window.openDB = () => Promise.resolve({
+  transaction: (stores, mode) => {
+    const tx = {
+      objectStore: (storeName) => ({
+        clear: () => {
+          if (mockDB[storeName]) mockDB[storeName] = [];
+        }
+      }),
+      oncomplete: null,
+      onerror: null
+    };
+    setTimeout(() => { if (tx.oncomplete) tx.oncomplete(); }, 0);
+    return tx;
+  }
+});
 window.saveRecords = (storeName, records, opts = {}) => {
   console.log(`[Mock DB] saveRecords for ${storeName}: saving ${records.length} records`);
   mockDB[storeName] = records;
@@ -621,15 +635,15 @@ const x = 10;
     </compendium>
   `;
   const parsedSubRes = window.parseCompendiumXML(testSubXml);
-  const barb = parsedSubRes.classes[0];
-  console.log(`Parsed Barbarian subclasses: ${barb.subclasses.join(', ')}`);
-  if (!barb.subclasses.includes("Path of the Storm Herald (Legacy)")) {
+  const subclasses = parsedSubRes.subclasses;
+  console.log(`Parsed Barbarian subclasses: ${subclasses.map(s => s.name).join(', ')}`);
+  const subRecord = subclasses.find(s => s.name === "Path of the Storm Herald (Legacy)");
+  if (!subRecord) {
     throw new Error("Subclasses array does not include Path of the Storm Herald (Legacy)");
   }
-  const feature = barb.features[0];
-  console.log(`Parsed Feature subclass: "${feature.subclass}"`);
-  if (feature.subclass !== "Path of the Storm Herald (Legacy)") {
-    throw new Error(`Feature subclass attribute is incorrect. Got: "${feature.subclass}"`);
+  const feature = subRecord.autolevels[0].features[0];
+  if (feature.name !== "Level 6: Storm Soul (Path of the Storm Herald (Legacy))") {
+    throw new Error(`Feature name is incorrect. Got: "${feature.name}"`);
   }
 
   // Test Step 1: XML Schema & Ingestion Pipeline parser updates
@@ -720,18 +734,14 @@ const x = 10;
   console.log("Parsed Class:", JSON.stringify(testFighter));
   if (!testFighter) throw new Error("Test Fighter class not parsed.");
   
-  // Assert subclasses contains "Champion"
-  if (!testFighter.subclasses.includes("Champion")) {
-    throw new Error("subclasses array missing 'Champion'");
+  // Assert subclasses contains "Champion" in parsed subclasses
+  const championSub = parsedClassRes.subclasses.find(s => s.name === "Champion");
+  if (!championSub) {
+    throw new Error("subclasses missing 'Champion'");
   }
   
-  // Assert subclassEntities contains subclass Champion
-  if (!testFighter.subclassEntities || testFighter.subclassEntities.length !== 1) {
-    throw new Error(`Expected 1 subclassEntity, got: ${testFighter.subclassEntities ? testFighter.subclassEntities.length : 0}`);
-  }
-  const championSub = testFighter.subclassEntities[0];
-  if (championSub.name !== "Champion" || championSub.parentClass !== "Test Fighter") {
-    throw new Error(`Champion subclassEntity incorrect: ${JSON.stringify(championSub)}`);
+  if (championSub.parentClass !== "Test Fighter") {
+    throw new Error(`Champion parentClass incorrect: ${championSub.parentClass}`);
   }
   
   // Assert subclass autolevels extracted

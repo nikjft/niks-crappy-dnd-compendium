@@ -4,9 +4,9 @@
 //   v5: adds _sync_meta, _app_settings; adds _modified_at timestamps
 
 const DB_NAME = 'dnd_compendium_db';
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
-export const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
+export const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
 const META_STORE = '_sync_meta';
 const SETTINGS_STORE = '_app_settings';
 

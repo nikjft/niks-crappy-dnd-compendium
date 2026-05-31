@@ -348,6 +348,56 @@ async function loadAllRecordsCache() {
   for (const store of STORES) {
     allRecordsCache[store] = await getAllRecords(store);
   }
+
+  // Dynamically reconstruct class features and subclassEntities for backward compatibility in UI
+  if (allRecordsCache['classes'] && allRecordsCache['subclasses']) {
+    allRecordsCache['classes'].forEach(cls => {
+      const classSubclasses = allRecordsCache['subclasses'].filter(s => s.parentClass === cls.name);
+      
+      // 1. Populate subclasses name list
+      cls.subclasses = classSubclasses.map(s => s.name);
+      
+      // 2. Populate subclassEntities
+      cls.subclassEntities = classSubclasses;
+      
+      // 3. Reconstruct features (flat array of base + subclass features)
+      const featuresList = [];
+      
+      // Base class features
+      if (cls.autolevels) {
+        cls.autolevels.forEach(al => {
+          if (al.features) {
+            al.features.forEach(f => {
+              featuresList.push({
+                ...f,
+                level: al.level,
+                subclass: null
+              });
+            });
+          }
+        });
+      }
+      
+      // Subclass features
+      classSubclasses.forEach(sub => {
+        if (sub.autolevels) {
+          sub.autolevels.forEach(al => {
+            if (al.features) {
+              al.features.forEach(f => {
+                featuresList.push({
+                  ...f,
+                  level: al.level,
+                  subclass: sub.name
+                });
+              });
+            }
+          });
+        }
+      });
+      
+      cls.features = featuresList;
+    });
+  }
 }
 
 // Check if IndexedDB is empty and seed it from System_Reference_Document_5.5e.xml
@@ -358,9 +408,22 @@ async function checkAndSeedDatabase() {
       return;
     }
     const spells = await getAllRecords('spells');
-    if (spells.length === 0) {
-      showOverlay('Seeding Database...', 'Fetching and loading the default D&D System Reference Document. This takes a moment...');
+    const subclasses = await getAllRecords('subclasses');
+    if (spells.length === 0 || subclasses.length === 0) {
+      showOverlay('Seeding Database...', 'Updating database structure and seeding the D&D System Reference Document. This takes a moment...');
       
+      // Clear existing compendium stores to clean out nested structure
+      const COMPENDIUM_STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options'];
+      const db = await openDB();
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction(COMPENDIUM_STORES, 'readwrite');
+        COMPENDIUM_STORES.forEach(storeName => {
+          transaction.objectStore(storeName).clear();
+        });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = (e) => reject(e.target.error);
+      });
+
       const response = await fetch('./source-data/System_Reference_Document_5.5e.xml');
       if (!response.ok) {
         throw new Error('Failed to fetch SRD XML file.');
