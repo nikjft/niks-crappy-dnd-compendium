@@ -72,7 +72,7 @@ window.fetch = (url) => {
 
 // In-memory IndexedDB mock
 const mockDB = {};
-const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
+const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options', 'favorites', 'characters'];
 STORES.forEach(store => { mockDB[store] = []; });
 
 // App settings mock

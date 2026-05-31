@@ -214,7 +214,7 @@ async function mockGetStorageQuota() {
 // ── In-memory IndexedDB mock for overwrite guard test ──
 
 const mockStoreData = {};
-const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options'];
+const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options', 'characters'];
 STORES.forEach(s => { mockStoreData[s] = new Map(); });
 
 async function mockSaveRecords(storeName, records, opts = {}) {
