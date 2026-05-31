@@ -168,7 +168,42 @@ window.addEventListener('DOMContentLoaded', async () => {
   // 3. Seed and load data
   await checkAndSeedDatabase();
   await loadAllRecordsCache();
-  await loadCategory(currentCategory);
+
+  // Parse URL search parameters on load to restore state from deep links
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('category')) {
+    const category = params.get('category');
+    const pane = params.get('pane') || 'facet-1';
+    const facet1 = params.get('facet1') || 'All';
+    let facet2 = params.get('facet2') || 'All';
+    if (facet2 !== 'All' && !isNaN(facet2)) {
+      facet2 = parseInt(facet2, 10);
+    }
+    const itemName = params.get('item') || null;
+
+    const targetState = {
+      category,
+      pane,
+      selectedFacet1: facet1,
+      selectedFacet2: facet2,
+      selectedItemName: itemName
+    };
+
+    isFirstLoad = false;
+    await restoreState(targetState);
+    pushCurrentState(true);
+
+    // Synchronize sidebar active menu item highlights
+    menuItems.forEach(mi => {
+      if (mi.getAttribute('data-category') === category) {
+        mi.classList.add('active');
+      } else {
+        mi.classList.remove('active');
+      }
+    });
+  } else {
+    await loadCategory(currentCategory);
+  }
 });
 
 // Event Listeners Setup
@@ -671,6 +706,17 @@ function getPaneDepth(paneName) {
   return 0;
 }
 
+function getURLFromState(state) {
+  const params = new URLSearchParams();
+  if (state.category) params.set('category', state.category);
+  if (state.pane) params.set('pane', state.pane);
+  if (state.selectedFacet1 && state.selectedFacet1 !== 'All') params.set('facet1', state.selectedFacet1);
+  if (state.selectedFacet2 && state.selectedFacet2 !== 'All') params.set('facet2', state.selectedFacet2);
+  if (state.selectedItemName) params.set('item', state.selectedItemName);
+  const q = params.toString();
+  return q ? `?${q}` : window.location.pathname;
+}
+
 function pushCurrentState(replace = false) {
   const newPane = currentMobilePane;
   const newCategory = currentCategory;
@@ -697,11 +743,12 @@ function pushCurrentState(replace = false) {
   };
   
   lastHistoryState = state;
+  const url = getURLFromState(state);
   
   if (shouldReplace) {
-    window.history.replaceState(state, '');
+    window.history.replaceState(state, '', url);
   } else {
-    window.history.pushState(state, '');
+    window.history.pushState(state, '', url);
   }
 }
 

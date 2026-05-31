@@ -1025,6 +1025,44 @@ Level | Prepared Spells
   const eqListItem = favListItems.find(item => item.textContent.includes('Test Chain Mail'));
   if (!eqListItem) throw new Error("Chain Mail should be visible under Heavy Armor facet.");
 
+  // Test URL Deep-Linking & State Restoration
+  console.log("\n--- Running URL Deep-Linking & State Restoration Unit Tests ---");
+  
+  // Reconfigure JSDOM URL to simulate opening a deep link
+  dom.reconfigure({ url: "http://localhost/?category=spells&pane=detail&facet1=Cleric&facet2=1&item=Bless" });
+  console.log(`Current JSDOM URL search: ${window.location.search}`);
+  
+  // Trigger DOMContentLoaded event again to parse URL
+  console.log("Triggering DOMContentLoaded for deep link URL parsing...");
+  const dlEvent = new window.Event('DOMContentLoaded');
+  window.dispatchEvent(dlEvent);
+  
+  // Wait for parsing, database check, and restoreState to complete
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  console.log("Asserting history state after deep-link load...");
+  const dlState = window.history.state;
+  if (!dlState) {
+    throw new Error("No history state replaced on deep-link load");
+  }
+  if (dlState.category !== 'spells') {
+    throw new Error(`Expected category 'spells', got: '${dlState.category}'`);
+  }
+  if (dlState.selectedFacet1 !== 'Cleric') {
+    throw new Error(`Expected selectedFacet1 'Cleric', got: '${dlState.selectedFacet1}'`);
+  }
+  if (dlState.selectedFacet2 !== 1) {
+    throw new Error(`Expected selectedFacet2 1, got: '${dlState.selectedFacet2}'`);
+  }
+  if (dlState.selectedItemName !== 'Bless') {
+    throw new Error(`Expected selectedItemName 'Bless', got: '${dlState.selectedItemName}'`);
+  }
+  if (dlState.pane !== 'detail') {
+    throw new Error(`Expected pane 'detail', got: '${dlState.pane}'`);
+  }
+  
+  console.log("Deep link URL state restoration verified successfully!");
+
   console.log("\nALL TESTS PASSED SUCCESSFULLY!");
 }
 
