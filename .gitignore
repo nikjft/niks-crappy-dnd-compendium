@@ -40,3 +40,4 @@ Thumbs.db
 # Project-specific / user custom ignores
 source-data/WotC_5.5e+Legacy_5e_WotC.xml
 .DS_Store
+01_Players_Handbook_2024

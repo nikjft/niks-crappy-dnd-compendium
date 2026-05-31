@@ -135,6 +135,201 @@ function parseTrait(element) {
   };
 }
 
+const LEGACY_TARGET_MAP = {
+  'strength': 'str',
+  'dexterity': 'dex',
+  'constitution': 'con',
+  'intelligence': 'int',
+  'wisdom': 'wis',
+  'charisma': 'cha',
+  'strength score': 'str',
+  'dexterity score': 'dex',
+  'constitution score': 'con',
+  'intelligence score': 'int',
+  'wisdom score': 'wis',
+  'charisma score': 'cha',
+  'strength save': 'save.str',
+  'dexterity save': 'save.dex',
+  'constitution save': 'save.con',
+  'intelligence save': 'save.int',
+  'wisdom save': 'save.wis',
+  'charisma save': 'save.cha',
+  'saving throws': 'save.all',
+  'athletics': 'skill.athletics',
+  'acrobatics': 'skill.acrobatics',
+  'sleight of hand': 'skill.sleight_of_hand',
+  'stealth': 'skill.stealth',
+  'arcana': 'skill.arcana',
+  'history': 'skill.history',
+  'investigation': 'skill.investigation',
+  'nature': 'skill.nature',
+  'religion': 'skill.religion',
+  'animal handling': 'skill.animal_handling',
+  'insight': 'skill.insight',
+  'medicine': 'skill.medicine',
+  'perception': 'skill.perception',
+  'survival': 'skill.survival',
+  'deception': 'skill.deception',
+  'intimidation': 'skill.intimidation',
+  'performance': 'skill.performance',
+  'persuasion': 'skill.persuasion',
+  'passive perception': 'passive.perception',
+  'passive investigation': 'passive.investigation',
+  'passive insight': 'passive.insight',
+  'hp': 'hp.max',
+  'hit points': 'hp.max',
+  'ac': 'ac',
+  'armor class': 'ac',
+  'speed': 'speed',
+  'initiative': 'initiative',
+  'proficiency bonus': 'prof_bonus',
+  'melee damage': 'melee.damage',
+  'melee attacks': 'melee.attack',
+  'weapon damage': 'melee.damage',
+  'weapon attacks': 'melee.attack',
+  'ranged damage': 'ranged.damage',
+  'ranged attacks': 'ranged.attack',
+  'spell attack': 'spell.attack',
+  'spell dc': 'spell.dc'
+};
+
+function parseLegacyModifierText(category, textVal) {
+  const match = textVal.match(/^([\w\s]+?)\s*([+-]?)\s*(\d+|%[0-9]+|prof)$/i);
+  if (!match) return null;
+  
+  const rawTarget = match[1].toLowerCase().trim();
+  const sign = match[2];
+  let val = match[3];
+  
+  if (sign === '-') {
+    val = `-${val}`;
+  }
+  
+  let targetKey = LEGACY_TARGET_MAP[rawTarget] || rawTarget;
+  if (['str', 'dex', 'con', 'int', 'wis', 'cha'].includes(targetKey)) {
+    if (category === 'ability modifier') {
+      targetKey = `${targetKey}.mod`;
+    } else {
+      targetKey = `${targetKey}.score`;
+    }
+  }
+  
+  let modType = 'add';
+  if (category === 'set') {
+    modType = 'set';
+  }
+  
+  return {
+    target: targetKey,
+    type: modType,
+    value: val
+  };
+}
+
+function parseEngineModifiers(element) {
+  const modifiers = [];
+  
+  // 1. Prioritize new <engine_modifier> tags
+  const engineMods = getChildElements(element, 'engine_modifier');
+  if (engineMods.length > 0) {
+    engineMods.forEach(em => {
+      modifiers.push({
+        target: em.getAttribute('target') || '',
+        type: em.getAttribute('type') || 'add',
+        value: em.getAttribute('value') || ''
+      });
+    });
+  } else {
+    // 2. Fallback to legacy <modifier> tags
+    const legacyMods = getChildElements(element, 'modifier');
+    legacyMods.forEach(m => {
+      const category = m.getAttribute('category') || '';
+      const typeAttr = m.getAttribute('type') || '';
+      const textVal = m.textContent.trim();
+      
+      if (typeAttr) {
+        const normType = typeAttr.toLowerCase().trim();
+        let targetKey = LEGACY_TARGET_MAP[normType] || normType;
+        if (['str', 'dex', 'con', 'int', 'wis', 'cha'].includes(targetKey)) {
+          if (category === 'ability modifier') {
+            targetKey = `${targetKey}.mod`;
+          } else {
+            targetKey = `${targetKey}.score`;
+          }
+        }
+        
+        let modType = 'add';
+        if (category === 'set') {
+          modType = 'set';
+        } else if (category === 'ignore') {
+          modType = 'ignore';
+        }
+        
+        modifiers.push({
+          target: targetKey,
+          type: modType,
+          value: textVal
+        });
+      } else {
+        const parsed = parseLegacyModifierText(category, textVal);
+        if (parsed) {
+          modifiers.push(parsed);
+        }
+      }
+    });
+  }
+  
+  return modifiers;
+}
+
+function subclassFromRel(rel) {
+  if (!rel || !rel.startsWith('subclass.')) return null;
+  const parts = rel.substring(9).split(/[_-]/);
+  return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+
+function getAutolevelSubclass(al, className) {
+  if (al.rel && al.rel.startsWith('subclass.')) {
+    return subclassFromRel(al.rel);
+  }
+  
+  for (const c of al.counters) {
+    if (c.subclass) {
+      const sub = c.subclass.trim();
+      if (sub.toLowerCase() !== className.toLowerCase()) {
+        return sub;
+      }
+    }
+  }
+  
+  for (const feat of al.features) {
+    const subDefMatch = feat.name.match(/Subclass:\s*(.+)$/i);
+    if (subDefMatch) {
+      const possibleSub = subDefMatch[1].trim();
+      if (possibleSub.toLowerCase() !== className.toLowerCase()) {
+        return possibleSub;
+      }
+    }
+    
+    const archetypeMatch = feat.name.match(/(?:Martial Archetype|Primal Path|Divine Domain|Bard College|Druid Circle|Monastic Tradition|Sacred Oath|Ranger Archetype|Roguish Archetype|Sorcerous Origin|Otherworldly Patron|Arcane Tradition):\s*(.+)$/i);
+    if (archetypeMatch) {
+      const possibleSub = archetypeMatch[1].trim();
+      if (possibleSub.toLowerCase() !== className.toLowerCase()) {
+        return possibleSub;
+      }
+    }
+    
+    const possibleSub = extractParenthesizedSuffix(feat.name);
+    if (possibleSub) {
+      if (possibleSub.toLowerCase() !== className.toLowerCase()) {
+        return possibleSub;
+      }
+    }
+  }
+  
+  return null;
+}
+
 // Main parsing functions for each category
 export function parseSpell(element) {
   const schoolAbbrev = getChildText(element, 'school');
@@ -155,6 +350,7 @@ export function parseSpell(element) {
     classes: classesList,
     source: getChildText(element, 'source'),
     texts: getChildTexts(element, 'text'),
+    modifiers: parseEngineModifiers(element),
     rolls: getChildTexts(element, 'roll')
   };
 }
@@ -182,10 +378,7 @@ export function parseItem(element) {
     property: getChildText(element, 'property'),
     range: getChildText(element, 'range'),
     texts: getChildTexts(element, 'text'),
-    modifiers: getChildElements(element, 'modifier').map(m => ({
-      category: m.getAttribute('category') || '',
-      value: m.textContent.trim()
-    })),
+    modifiers: parseEngineModifiers(element),
     rolls: getChildTexts(element, 'roll')
   };
 }
@@ -231,8 +424,12 @@ export function parseMonster(element) {
 
 export function parseClass(element) {
   const className = getChildText(element, 'name');
+  
   const autolevels = getChildElements(element, 'autolevel').map(a => {
     const level = parseInt(a.getAttribute('level')) || 1;
+    const rel = a.getAttribute('rel') || '';
+    const optional = a.getAttribute('optional') === 'YES' || getChildText(a, 'optional') === 'true';
+    
     const features = getChildElements(a, 'feature').map(f => {
       const fName = getChildText(f, 'name');
       return {
@@ -240,67 +437,81 @@ export function parseClass(element) {
         texts: getChildTexts(f, 'text'),
         special: getChildText(f, 'special'),
         optional: f.getAttribute('optional') === 'YES',
-        modifiers: getChildElements(f, 'modifier').map(m => ({
-          category: m.getAttribute('category') || '',
-          value: m.textContent.trim()
-        }))
+        modifiers: parseEngineModifiers(f)
       };
     });
     
     const slots = getChildText(a, 'slots');
-    const counters = getChildElements(a, 'counter').map(c => ({
+    
+    const parseCounterEl = c => ({
       name: getChildText(c, 'name'),
       value: getChildText(c, 'value'),
       reset: getChildText(c, 'reset'),
-      subclass: getChildText(c, 'subclass')
-    }));
+      subclass: getChildText(c, 'subclass'),
+      rel: c.getAttribute('rel') || ''
+    });
+    const counters = [
+      ...getChildElements(a, 'counter').map(parseCounterEl),
+      ...getChildElements(a, 'usage_counter').map(parseCounterEl)
+    ];
 
-    return { level, features, slots, counters };
+    return { level, features, slots, counters, rel, optional };
   });
 
   // Extract subclasses list and tag subclass features
   const subclassesSet = new Set();
+  const subclassAutolevelsMap = {};
+  const baseAutolevels = [];
   const featuresList = [];
 
   autolevels.forEach(al => {
-    // Extract subclasses from counters if specified
-    al.counters.forEach(c => {
-      if (c.subclass) {
-        const sub = c.subclass.trim();
-        if (sub.toLowerCase() !== className.toLowerCase()) {
-          subclassesSet.add(sub);
+    const subName = getAutolevelSubclass(al, className);
+    
+    if (subName) {
+      subclassesSet.add(subName);
+      if (!subclassAutolevelsMap[subName]) {
+        subclassAutolevelsMap[subName] = [];
+      }
+      subclassAutolevelsMap[subName].push(al);
+    } else {
+      baseAutolevels.push(al);
+    }
+
+    // Still populate featuresList for backward compatibility in UI rendering!
+    al.features.forEach(feat => {
+      let featureSubclass = subName || null;
+      if (!featureSubclass) {
+        const subMatch = feat.name.match(/Subclass:\s*(.+)$/i) || 
+                         feat.name.match(/(?:Martial Archetype|Primal Path|Divine Domain|Bard College|Druid Circle|Monastic Tradition|Sacred Oath|Ranger Archetype|Roguish Archetype|Sorcerous Origin|Otherworldly Patron|Arcane Tradition):\s*(.+)$/i);
+        if (subMatch) {
+          featureSubclass = subMatch[1].trim();
+        } else {
+          featureSubclass = extractParenthesizedSuffix(feat.name);
+        }
+        if (featureSubclass && featureSubclass.toLowerCase() === className.toLowerCase()) {
+          featureSubclass = null;
         }
       }
-    });
 
-    al.features.forEach(feat => {
-      let subclass = null;
-
-      // 1. Check if this feature defines a subclass (e.g. "Barbarian Subclass: Path of the Berserker")
-      const subDefMatch = feat.name.match(/Subclass:\s*(.+)$/i);
-      if (subDefMatch) {
-        const possibleSub = subDefMatch[1].trim();
-        if (possibleSub.toLowerCase() !== className.toLowerCase()) {
-          subclass = possibleSub;
-          subclassesSet.add(subclass);
-        }
-      } else {
-        // 2. Check if feature belongs to a subclass via parenthesis suffix (e.g. "Frenzy (Path of the Berserker)")
-        const possibleSub = extractParenthesizedSuffix(feat.name);
-        if (possibleSub) {
-          if (possibleSub.toLowerCase() !== className.toLowerCase()) {
-            subclass = possibleSub;
-            subclassesSet.add(subclass);
-          }
-        }
+      if (featureSubclass) {
+        subclassesSet.add(featureSubclass);
       }
 
       featuresList.push({
         ...feat,
         level: al.level,
-        subclass: subclass
+        subclass: featureSubclass
       });
     });
+  });
+
+  // Construct subclass entities
+  const subclassEntities = Array.from(subclassesSet).map(subName => {
+    return {
+      name: subName,
+      parentClass: className,
+      autolevels: subclassAutolevelsMap[subName] || []
+    };
   });
 
   return {
@@ -315,6 +526,8 @@ export function parseClass(element) {
     tools: getChildText(element, 'tools'),
     numSkills: parseInt(getChildText(element, 'numSkills')) || 0,
     subclasses: Array.from(subclassesSet),
+    subclassEntities: subclassEntities,
+    autolevels: baseAutolevels,
     features: featuresList,
     slotsTable: autolevels.map(al => ({ level: al.level, slots: al.slots })).filter(al => al.slots)
   };
@@ -340,10 +553,7 @@ export function parseFeat(element) {
     category: category,
     texts: getChildTexts(element, 'text'),
     proficiency: getChildText(element, 'proficiency'),
-    modifiers: getChildElements(element, 'modifier').map(m => ({
-      category: m.getAttribute('category') || '',
-      value: m.textContent.trim()
-    }))
+    modifiers: parseEngineModifiers(element)
   };
 }
 
@@ -354,7 +564,8 @@ export function parseBackground(element) {
     tools: getChildText(element, 'tools'),
     languages: getChildText(element, 'languages'),
     texts: getChildTexts(element, 'text'),
-    traits: getChildElements(element, 'trait').map(parseTrait)
+    traits: getChildElements(element, 'trait').map(parseTrait),
+    modifiers: parseEngineModifiers(element)
   };
 }
 
@@ -367,7 +578,8 @@ export function parseRace(element) {
     spellAbility: getChildText(element, 'spellAbility'),
     ability: getChildText(element, 'ability'),
     languages: getChildText(element, 'languages'),
-    traits: getChildElements(element, 'trait').map(parseTrait)
+    traits: getChildElements(element, 'trait').map(parseTrait),
+    modifiers: parseEngineModifiers(element)
   };
 }
 

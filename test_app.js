@@ -621,6 +621,137 @@ const x = 10;
     throw new Error(`Feature subclass attribute is incorrect. Got: "${feature.subclass}"`);
   }
 
+  // Test Step 1: XML Schema & Ingestion Pipeline parser updates
+  console.log("\n--- Running Step 1: XML Schema & Ingestion Pipeline Tests ---");
+  
+  // Test 1: Background engine_modifier parsing
+  const testBgXml = `
+    <compendium>
+      <background>
+        <name>Acolyte Test</name>
+        <proficiency>Insight</proficiency>
+        <engine_modifier target="wis.score" type="add" value="2"/>
+        <engine_modifier target="cha.score" type="add" value="1"/>
+      </background>
+    </compendium>
+  `;
+  const parsedBgRes = window.parseCompendiumXML(testBgXml);
+  const acolyteTest = parsedBgRes.backgrounds[0];
+  console.log("Parsed Background:", JSON.stringify(acolyteTest));
+  if (!acolyteTest) throw new Error("Acolyte Test background not parsed.");
+  if (!acolyteTest.modifiers || acolyteTest.modifiers.length !== 2) {
+    throw new Error(`Expected 2 modifiers, got: ${acolyteTest.modifiers ? acolyteTest.modifiers.length : 0}`);
+  }
+  if (acolyteTest.modifiers[0].target !== 'wis.score' || acolyteTest.modifiers[0].value !== '2' || acolyteTest.modifiers[0].type !== 'add') {
+    throw new Error(`Incorrect first modifier parsed: ${JSON.stringify(acolyteTest.modifiers[0])}`);
+  }
+  if (acolyteTest.modifiers[1].target !== 'cha.score' || acolyteTest.modifiers[1].value !== '1' || acolyteTest.modifiers[1].type !== 'add') {
+    throw new Error(`Incorrect second modifier parsed: ${JSON.stringify(acolyteTest.modifiers[1])}`);
+  }
+  
+  // Test 2: Legacy modifier translation and parsing
+  const testItemXml = `
+    <compendium>
+      <item>
+        <name>Test Sword</name>
+        <type>M</type>
+        <modifier category="bonus">melee damage +2</modifier>
+        <modifier category="ability score">strength +1</modifier>
+        <modifier category="set" type="strength">19</modifier>
+      </item>
+    </compendium>
+  `;
+  const parsedItemRes = window.parseCompendiumXML(testItemXml);
+  const testSword = parsedItemRes.items[0];
+  console.log("Parsed Item modifiers:", JSON.stringify(testSword.modifiers));
+  if (!testSword || testSword.modifiers.length !== 3) {
+    throw new Error(`Expected 3 modifiers on Test Sword, got: ${testSword ? testSword.modifiers.length : 0}`);
+  }
+  if (testSword.modifiers[0].target !== 'melee.damage' || testSword.modifiers[0].value !== '2' || testSword.modifiers[0].type !== 'add') {
+    throw new Error(`Incorrect translated modifier 1: ${JSON.stringify(testSword.modifiers[0])}`);
+  }
+  if (testSword.modifiers[1].target !== 'str.score' || testSword.modifiers[1].value !== '1' || testSword.modifiers[1].type !== 'add') {
+    throw new Error(`Incorrect translated modifier 2: ${JSON.stringify(testSword.modifiers[1])}`);
+  }
+  if (testSword.modifiers[2].target !== 'str.score' || testSword.modifiers[2].value !== '19' || testSword.modifiers[2].type !== 'set') {
+    throw new Error(`Incorrect translated modifier 3: ${JSON.stringify(testSword.modifiers[2])}`);
+  }
+
+  // Test 3: Class & Subclass explicit relations and inheritance schema
+  const testClassXml = `
+    <compendium>
+      <class>
+        <name>Test Fighter</name>
+        <hd>10</hd>
+        <autolevel level="1">
+          <feature>
+            <name>Level 1: Fighting Style</name>
+            <text>Choose style.</text>
+          </feature>
+          <usage_counter rel="class.fighter.second_wind">
+            <name>Second Wind</name>
+            <value>1</value>
+            <reset>S</reset>
+          </usage_counter>
+        </autolevel>
+        <autolevel level="3" rel="subclass.champion" optional="YES">
+          <feature>
+            <name>Improved Critical</name>
+            <text>Crit on 19-20.</text>
+            <engine_modifier target="weapon.crit_range" type="set" value="19"/>
+          </feature>
+        </autolevel>
+      </class>
+    </compendium>
+  `;
+  const parsedClassRes = window.parseCompendiumXML(testClassXml);
+  const testFighter = parsedClassRes.classes[0];
+  console.log("Parsed Class:", JSON.stringify(testFighter));
+  if (!testFighter) throw new Error("Test Fighter class not parsed.");
+  
+  // Assert subclasses contains "Champion"
+  if (!testFighter.subclasses.includes("Champion")) {
+    throw new Error("subclasses array missing 'Champion'");
+  }
+  
+  // Assert subclassEntities contains subclass Champion
+  if (!testFighter.subclassEntities || testFighter.subclassEntities.length !== 1) {
+    throw new Error(`Expected 1 subclassEntity, got: ${testFighter.subclassEntities ? testFighter.subclassEntities.length : 0}`);
+  }
+  const championSub = testFighter.subclassEntities[0];
+  if (championSub.name !== "Champion" || championSub.parentClass !== "Test Fighter") {
+    throw new Error(`Champion subclassEntity incorrect: ${JSON.stringify(championSub)}`);
+  }
+  
+  // Assert subclass autolevels extracted
+  if (championSub.autolevels.length !== 1 || championSub.autolevels[0].level !== 3) {
+    throw new Error(`Expected 1 level 3 autolevel on subclass Champion, got: ${JSON.stringify(championSub.autolevels)}`);
+  }
+  
+  // Assert class direct autolevels contains base level 1 autolevel and excludes subclass autolevels
+  if (testFighter.autolevels.length !== 1 || testFighter.autolevels[0].level !== 1) {
+    throw new Error(`Expected 1 base autolevel, got: ${JSON.stringify(testFighter.autolevels)}`);
+  }
+  
+  // Assert usage_counter parsed correctly
+  const lvl1Counters = testFighter.autolevels[0].counters;
+  if (!lvl1Counters || lvl1Counters.length !== 1 || lvl1Counters[0].rel !== 'class.fighter.second_wind') {
+    throw new Error(`usage_counter rel missing or incorrect: ${JSON.stringify(lvl1Counters)}`);
+  }
+  
+  // Assert subclass autolevel optional parsed correctly
+  if (!championSub.autolevels[0].optional) {
+    throw new Error("Expected subclass autolevel to be marked as optional: true");
+  }
+  
+  // Assert engine_modifier inside feature parsed correctly
+  const champFeat = championSub.autolevels[0].features[0];
+  if (!champFeat.modifiers || champFeat.modifiers.length !== 1 || champFeat.modifiers[0].target !== 'weapon.crit_range') {
+    throw new Error(`engine_modifier inside feature incorrect: ${JSON.stringify(champFeat.modifiers)}`);
+  }
+
+  console.log("Step 1 unit tests passed successfully!");
+
   // Test New Settings Panel Sections
   console.log("\n--- Running New Settings Panel Tests ---");
 

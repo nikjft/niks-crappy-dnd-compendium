@@ -257,14 +257,20 @@
 
   <!-- End Restrictions -->
 
-  <!-- Shared Types -->
+  <xs:complexType name="engineModifierType">
+    <xs:attribute type="xs:string" name="target" use="required"/>
+    <xs:attribute type="xs:string" name="type" use="required"/>
+    <xs:attribute type="xs:string" name="value" use="required"/>
+  </xs:complexType>
 
-  <xs:complexType name="modifierType">
-    <xs:simpleContent>
-      <xs:extension base="modifierValue">
-        <xs:attribute type="categoryEnum" name="category"/>
-      </xs:extension>
-    </xs:simpleContent>
+  <xs:complexType name="usageCounterType">
+    <xs:choice maxOccurs="unbounded" minOccurs="0">
+      <xs:element type="xs:string" name="name"/>
+      <xs:element type="rollFormula" name="value"/>
+      <xs:element type="resetEnum" name="reset"/>
+      <xs:element type="xs:string" name="subclass"/>
+    </xs:choice>
+    <xs:attribute type="xs:string" name="rel" use="optional"/>
   </xs:complexType>
 
   <xs:complexType name="traitType">
@@ -277,6 +283,7 @@
       <xs:element type="attackType" name="attack" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="roll" name="roll" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="modifierType" name="modifier"/><!-- Not supported by Fight Club -->
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
     </xs:choice>
     <xs:attribute name="category" type="xs:string" use="optional"/><!-- Not supported by Fight Club -->
   </xs:complexType>
@@ -352,6 +359,7 @@
       <xs:element type="xs:string" name="text" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="xs:string" name="special" minOccurs="0"/><!-- Not supported by Fight Club -->
       <xs:element type="modifierType" name="modifier" minOccurs="0"/><!-- Not supported by Fight Club -->
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="roll" name="roll" maxOccurs="unbounded" minOccurs="0"/>
     </xs:choice>
   </xs:complexType>
@@ -368,6 +376,7 @@
       <xs:element type="xs:string" name="tools"/><!-- Not supported by Fight Club -->
       <xs:element type="xs:string" name="languages"/><!-- Not supported by Fight Club -->
       <xs:element type="modifierType" name="modifier"/>
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="traitType" name="trait" maxOccurs="unbounded" minOccurs="0"/>
     </xs:choice>
   </xs:complexType>
@@ -384,6 +393,7 @@
       <xs:element type="xs:string" name="text" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="abilityAndSkillList" name="proficiency" minOccurs="0"/>
       <xs:element type="modifierType" name="modifier" maxOccurs="unbounded" minOccurs="0"/>
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="xs:string" name="armor"/><!-- Not supported by Fight Club -->
       <xs:element type="xs:string" name="weapons"/><!-- Not supported by Fight Club -->
       <xs:element type="xs:string" name="tools"/><!-- Not supported by Fight Club -->
@@ -402,6 +412,7 @@
       <xs:element type="xs:string" name="text"/>
       <xs:element type="xs:string" name="special" minOccurs="0"/>
       <xs:element type="modifierType" name="modifier" maxOccurs="unbounded" minOccurs="0"/>
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="xs:string" name="proficiency"/>
       <xs:element type="xs:string" name="armor"/><!-- Not supported by Fight Club -->
       <xs:element type="xs:string" name="weapons"/><!-- Not supported by Fight Club -->
@@ -418,6 +429,7 @@
       <xs:element type="resetEnum" name="reset"/>
       <xs:element type="xs:string" name="subclass"/><!-- Not supported by Fight Club -->
     </xs:choice>
+    <xs:attribute type="xs:string" name="rel" use="optional"/>
   </xs:complexType>
 
   <xs:complexType name="autolevelType" mixed="true">
@@ -425,9 +437,12 @@
       <xs:element type="featureType" name="feature" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="slotsType" name="slots" minOccurs="0"/>
       <xs:element type="counterType" name="counter" minOccurs="0"/>
+      <xs:element type="usageCounterType" name="usage_counter" minOccurs="0"/>
+      <xs:element type="xs:string" name="optional" minOccurs="0"/>
     </xs:choice>
     <xs:attribute type="xs:integer" name="level" use="required"/>
     <xs:attribute type="boolean" name="scoreImprovement" use="optional"/>
+    <xs:attribute type="xs:string" name="rel" use="optional"/>
   </xs:complexType>
 
   <xs:complexType name="classType">
@@ -469,6 +484,7 @@
       <xs:element type="xs:string" name="range"/>
       <xs:element type="xs:string" name="text"/>
       <xs:element type="modifierType" name="modifier"/>
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="roll" name="roll" maxOccurs="unbounded" minOccurs="0"/>
     </xs:choice>
   </xs:complexType>
@@ -499,6 +515,7 @@
       <xs:element type="xs:string" name="conditionResist"/><!-- Not supported by Fight Club -->
       <xs:element type="xs:string" name="conditionImmune"/><!-- Not supported by Fight Club -->
       <xs:element type="modifierType" name="modifier" minOccurs="0"/>
+      <xs:element type="engineModifierType" name="engine_modifier" maxOccurs="unbounded" minOccurs="0"/>
       <xs:element type="traitType" name="trait" maxOccurs="unbounded" minOccurs="0"/>
     </xs:choice>
   </xs:complexType>
