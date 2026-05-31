@@ -250,6 +250,165 @@ async function runTests() {
   // Restore confirm mock
   window.confirm = originalConfirm;
 
+  // Test History State Navigation and Back Gestures
+  console.log("\n--- Running History Navigation and Back Gesture Tests ---");
+  
+  // Re-seed DB first since settings clear test cleared it
+  console.log("Re-seeding database for history tests...");
+  window.localStorage.removeItem('bypassAutoSeed');
+  await window.checkAndSeedDatabase();
+  await window.loadAllRecordsCache();
+  
+  // Reset navigation to spells
+  await clickMenu('spells');
+  
+  console.log("Initial state after loading spells category:");
+  console.log(`History length: ${window.history.length}`);
+  console.log("History state:", window.history.state);
+  
+  if (!window.history.state) {
+    throw new Error("No history state replaced on loadCategory");
+  }
+  if (window.history.state.category !== 'spells') {
+    throw new Error(`Expected category 'spells', got '${window.history.state.category}'`);
+  }
+  
+  const initialHistoryLength = window.history.length;
+
+  // Reset navigation to spells
+  await clickMenu('spells');
+  const baseHistoryLength = window.history.length;
+  
+  // 1. Click Wizard
+  const spellFacetItemsAfterReset = document.querySelectorAll('#facet-list-1 .facet-item button');
+  const wizardFacetBtn = Array.from(spellFacetItemsAfterReset).find(btn => btn.textContent.includes('Wizard'));
+  if (!wizardFacetBtn) throw new Error("Wizard facet button not found");
+  console.log("Clicking Wizard facet...");
+  wizardFacetBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  const historyLenAfterWizard = window.history.length;
+  if (historyLenAfterWizard <= baseHistoryLength) {
+    throw new Error("Wizard click did not push state");
+  }
+  const wizardState = window.history.state;
+  if (wizardState.selectedFacet1 !== 'Wizard' || wizardState.pane !== 'facet-2') {
+    throw new Error("Wizard state is incorrect");
+  }
+  
+  // 2. Click Cleric (sibling to Wizard)
+  const clericFacetBtn = Array.from(document.querySelectorAll('#facet-list-1 .facet-item button')).find(btn => btn.textContent.includes('Cleric'));
+  if (!clericFacetBtn) throw new Error("Cleric facet button not found");
+  console.log("Clicking Cleric facet (sibling of Wizard)...");
+  clericFacetBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  if (window.history.length !== historyLenAfterWizard) {
+    throw new Error("Cleric click should have replaced the state (no length increase)");
+  }
+  const clericState = window.history.state;
+  if (clericState.selectedFacet1 !== 'Cleric' || clericState.pane !== 'facet-2') {
+    throw new Error("Cleric state is incorrect");
+  }
+  
+  // 3. Click Level 2
+  const level2FacetBtn = Array.from(document.querySelectorAll('#facet-list-2 .facet-item button')).find(btn => btn.textContent.includes('Level 2'));
+  if (!level2FacetBtn) throw new Error("Level 2 facet button not found");
+  console.log("Clicking Level 2 facet...");
+  level2FacetBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  const historyLenAfterLevel2 = window.history.length;
+  if (historyLenAfterLevel2 <= historyLenAfterWizard) {
+    throw new Error("Level 2 click did not push state");
+  }
+  const level2State = window.history.state;
+  if (level2State.selectedFacet2 !== 2 || level2State.pane !== 'list') {
+    throw new Error("Level 2 state is incorrect");
+  }
+  
+  // 4. Click Level 1 (sibling to Level 2)
+  const level1FacetBtn = Array.from(document.querySelectorAll('#facet-list-2 .facet-item button')).find(btn => btn.textContent.includes('Level 1'));
+  if (!level1FacetBtn) throw new Error("Level 1 facet button not found");
+  console.log("Clicking Level 1 facet (sibling of Level 2)...");
+  level1FacetBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  if (window.history.length !== historyLenAfterLevel2) {
+    throw new Error("Level 1 click should have replaced the state (no length increase)");
+  }
+  const level1State = window.history.state;
+  if (level1State.selectedFacet2 !== 1 || level1State.pane !== 'list') {
+    throw new Error("Level 1 state is incorrect");
+  }
+
+  // 5. Click Bless (detail view)
+  const blessItemBtn = Array.from(document.querySelectorAll('#item-list .item-list-item button')).find(btn => btn.querySelector('.item-title').textContent === 'Bless');
+  if (!blessItemBtn) throw new Error("Bless spell button not found");
+  console.log("Clicking Bless spell item...");
+  blessItemBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  const historyLenAfterBless = window.history.length;
+  if (historyLenAfterBless <= historyLenAfterLevel2) {
+    throw new Error("Bless click did not push state");
+  }
+  const blessState = window.history.state;
+  if (blessState.selectedItemName !== 'Bless' || blessState.pane !== 'detail') {
+    throw new Error("Bless state is incorrect");
+  }
+  
+  // 6. Click Command (sibling detail view)
+  const commandItemBtn = Array.from(document.querySelectorAll('#item-list .item-list-item button')).find(btn => btn.querySelector('.item-title').textContent === 'Command');
+  if (!commandItemBtn) throw new Error("Command spell button not found");
+  console.log("Clicking Command spell item (sibling of Bless)...");
+  commandItemBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  if (window.history.length !== historyLenAfterBless) {
+    throw new Error("Command click should have replaced the state (no length increase)");
+  }
+  const commandState = window.history.state;
+  if (commandState.selectedItemName !== 'Command' || commandState.pane !== 'detail') {
+    throw new Error("Command state is incorrect");
+  }
+  
+  // 7. Click back to verify back sequence goes through hierarchy
+  console.log("\nGoing back from Command (detail)...");
+  const backDetailBtn = document.getElementById('back-detail');
+  backDetailBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  console.log("Active pane after back from detail:", window.history.state.pane);
+  console.log("Active state:", window.history.state);
+  if (window.history.state.pane !== 'list' || window.history.state.selectedFacet2 !== 1 || window.history.state.selectedItemName !== null) {
+    throw new Error("Expected to go back to Level 1 list view");
+  }
+  
+  console.log("\nGoing back from Level 1 (list)...");
+  const backListBtn = document.getElementById('back-list');
+  backListBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  console.log("Active pane after back from list:", window.history.state.pane);
+  console.log("Active state:", window.history.state);
+  if (window.history.state.pane !== 'facet-2' || window.history.state.selectedFacet1 !== 'Cleric' || window.history.state.selectedFacet2 !== 'All') {
+    throw new Error("Expected to go back to Cleric facet-2 view");
+  }
+
+  console.log("\nGoing back from Cleric (facet-2)...");
+  const backFacet2Btn = document.getElementById('back-facet-2');
+  backFacet2Btn.click();
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  console.log("Active pane after back from facet-2:", window.history.state.pane);
+  console.log("Active state:", window.history.state);
+  if (window.history.state.pane !== 'facet-1' || window.history.state.selectedFacet1 !== 'All') {
+    throw new Error("Expected to go back to All Spells facet-1 view");
+  }
+  
+  console.log("Back hierarchy sequence verified successfully!");
+
   // Test Markdown Parser Unit Tests
   console.log("\n--- Running Markdown Parser Unit Tests ---");
   const testMarkdown = `

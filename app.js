@@ -13,6 +13,10 @@ let selectedItem = null;
 // Mobile View State
 let currentMobilePane = 'facet-1'; // 'facet-1', 'facet-2', 'list', 'detail'
 
+// History Navigation State
+let isFirstLoad = true;
+let isNavigatingHistory = false;
+
 // DOM Elements
 const menuItems = document.querySelectorAll('.menu-item');
 const btnSettings = document.getElementById('btn-settings');
@@ -106,30 +110,62 @@ function setupEventListeners() {
   backFacet1.addEventListener('click', () => {
     // Left sidebar is always visible as icons on mobile
   });
-  backFacet2.addEventListener('click', () => showMobilePane('facet-1'));
-  backList.addEventListener('click', () => {
-    const query = searchInput.value.toLowerCase().trim();
-    const isGlobalSearch = query !== '' || searchChits.length > 0;
-    
-    if (isGlobalSearch) {
-      // Back button in search goes to category selection
-      if (hasFacet1()) showMobilePane('facet-1');
-      else showMobilePane('list');
-    } else {
-      if (hasFacet2()) {
-        showMobilePane('facet-2');
-      } else if (hasFacet1()) {
-        showMobilePane('facet-1');
+  backFacet2.addEventListener('click', () => window.history.back());
+  backList.addEventListener('click', () => window.history.back());
+  backDetail.addEventListener('click', () => window.history.back());
+
+  // History popstate navigation
+  window.addEventListener('popstate', async (e) => {
+    if (e.state) {
+      isNavigatingHistory = true;
+      try {
+        await restoreState(e.state);
+      } catch (err) {
+        console.error('Error restoring navigation state:', err);
+      } finally {
+        isNavigatingHistory = false;
       }
     }
   });
-  backDetail.addEventListener('click', () => {
-    if (currentCategory === 'settings') {
-      loadCategory('spells');
-    } else {
-      showMobilePane('list');
+
+  // Touch Swiping Gestures (Left-to-Right to go back)
+  let touchStartX = 0;
+  let touchStartY = 0;
+  const panesContainer = document.querySelector('.panes-container');
+
+  panesContainer.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, { passive: true });
+
+  panesContainer.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].screenX;
+    const touchEndY = e.changedTouches[0].screenY;
+    
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+    
+    // Swipe Right (Left-to-Right gesture to go Back)
+    if (deltaX > 75 && Math.abs(deltaY) < 40) {
+      const isMobile = window.innerWidth < 900;
+      if (isMobile) {
+        if (currentMobilePane === 'detail') {
+          backDetail.click();
+        } else if (currentMobilePane === 'list') {
+          backList.click();
+        } else if (currentMobilePane === 'facet-2') {
+          backFacet2.click();
+        } else if (currentMobilePane === 'facet-1') {
+          backFacet1.click();
+        }
+      } else {
+        // On desktop/tablet, if detail is open, close it
+        if (document.querySelector('.app-container').classList.contains('has-detail')) {
+          backDetail.click();
+        }
+      }
     }
-  });
+  }, { passive: true });
 }
 
 // Load all records across all stores into local memory cache
@@ -242,6 +278,7 @@ async function loadCategory(category) {
   
   // Clear details pane
   resetDetailsPane();
+  document.querySelector('.app-container').classList.remove('has-detail');
 
   // Handle universal search panel visibility toggles
   const controls = document.getElementById('universal-search-controls');
@@ -253,6 +290,14 @@ async function loadCategory(category) {
   if (category === 'search') {
     updatePaneVisibility();
     renderUniversalSearchPanel();
+    if (!isNavigatingHistory) {
+      if (isFirstLoad) {
+        pushCurrentState(true);
+        isFirstLoad = false;
+      } else {
+        pushCurrentState(false);
+      }
+    }
     return;
   }
 
@@ -279,6 +324,15 @@ async function loadCategory(category) {
     showMobilePane('facet-1');
   } else {
     showMobilePane('list');
+  }
+
+  if (!isNavigatingHistory) {
+    if (isFirstLoad) {
+      pushCurrentState(true);
+      isFirstLoad = false;
+    } else {
+      pushCurrentState(false);
+    }
   }
 }
 
@@ -318,6 +372,201 @@ function showMobilePane(paneName) {
       p.el.classList.remove('active-pane');
     }
   });
+}
+
+function getPaneDepth(paneName) {
+  if (paneName === 'facet-1') return 0;
+  if (paneName === 'facet-2') return 1;
+  if (paneName === 'list') return 2;
+  if (paneName === 'detail') return 3;
+  return 0;
+}
+
+function pushCurrentState(replace = false) {
+  const currentState = window.history.state;
+  const newPane = currentMobilePane;
+  const newCategory = currentCategory;
+  
+  let shouldReplace = replace;
+  
+  if (!shouldReplace && currentState) {
+    if (currentState.category === newCategory) {
+      const prevDepth = getPaneDepth(currentState.pane);
+      const newDepth = getPaneDepth(newPane);
+      
+      if (newDepth <= prevDepth) {
+        shouldReplace = true;
+      }
+    }
+  }
+
+  const state = {
+    category: newCategory,
+    pane: newPane,
+    selectedItemName: selectedItem ? selectedItem.name : null,
+    selectedFacet1: selectedFacet1,
+    selectedFacet2: selectedFacet2
+  };
+  if (shouldReplace) {
+    window.history.replaceState(state, '');
+  } else {
+    window.history.pushState(state, '');
+  }
+}
+
+async function restoreState(state) {
+  if (!state) return;
+  
+  // 1. If category changed, we need to load it (without pushing history!)
+  if (currentCategory !== state.category) {
+    currentCategory = state.category;
+    
+    // Update sidebar active highlight
+    menuItems.forEach(mi => {
+      if (mi.getAttribute('data-category') === state.category) {
+        mi.classList.add('active');
+      } else {
+        mi.classList.remove('active');
+      }
+    });
+
+    // Clear search chits/inputs if changing away
+    searchChits = [];
+    renderChits();
+    searchInput.value = '';
+    
+    if (state.category === 'settings') {
+      updatePaneVisibility();
+      renderSettingsPage();
+    } else if (state.category === 'search') {
+      updatePaneVisibility();
+      renderUniversalSearchPanel();
+    } else {
+      // Load records
+      currentRecords = allRecordsCache[state.category] || [];
+      if (currentRecords.length === 0) {
+        currentRecords = await getAllRecords(state.category);
+        allRecordsCache[state.category] = currentRecords;
+      }
+      renderFilterDropdowns();
+      updatePaneVisibility();
+    }
+  }
+
+  // 2. Restore facets
+  selectedFacet1 = state.selectedFacet1;
+  selectedFacet2 = state.selectedFacet2;
+
+  if (state.category !== 'settings' && state.category !== 'search') {
+    renderFacet1();
+    renderFacet2();
+    applyFilters();
+  }
+
+  // 3. Restore selected item
+  if (state.selectedItemName) {
+    // Find the item
+    let item = null;
+    if (state.category === 'classes') {
+      if (state.selectedItemName.endsWith(' Overview')) {
+        const className = state.selectedItemName.replace(' Overview', '');
+        const cls = currentRecords.find(c => c.name === className);
+        if (cls) {
+          item = {
+            name: `${cls.name} Overview`,
+            isOverview: true,
+            level: 0,
+            classData: cls,
+            categoryType: 'class-overview'
+          };
+        }
+      } else {
+        for (const cls of currentRecords) {
+          if (cls.features) {
+            const f = cls.features.find(feat => feat.name === state.selectedItemName);
+            if (f) {
+              item = {
+                ...f,
+                className: cls.name,
+                categoryType: 'class-feature'
+              };
+              break;
+            }
+          }
+        }
+      }
+    } else if (state.category === 'search') {
+      for (const store of STORES) {
+        if (store === 'classes') {
+          const recs = allRecordsCache[store] || [];
+          for (const cls of recs) {
+            if (`${cls.name} Overview` === state.selectedItemName) {
+              item = {
+                name: `${cls.name} Overview`,
+                isOverview: true,
+                level: 0,
+                classData: cls,
+                categoryType: 'class-overview'
+              };
+              break;
+            }
+            if (cls.features) {
+              const f = cls.features.find(feat => feat.name === state.selectedItemName);
+              if (f) {
+                item = {
+                  ...f,
+                  className: cls.name,
+                  categoryType: 'class-feature'
+                };
+                break;
+              }
+            }
+          }
+          if (item) break;
+        } else {
+          const recs = allRecordsCache[store] || [];
+          const found = recs.find(r => r.name === state.selectedItemName);
+          if (found) {
+            item = { ...found, categoryType: store.substring(0, store.length - 1) };
+            break;
+          }
+        }
+      }
+    } else {
+      const rec = currentRecords.find(r => r.name === state.selectedItemName);
+      if (rec) {
+        item = { ...rec, categoryType: state.category.substring(0, state.category.length - 1) };
+      }
+    }
+
+    if (item) {
+      selectedItem = item;
+      renderDetails(item, item.categoryType);
+      document.querySelector('.app-container').classList.add('has-detail');
+      
+      // Ensure active class on lists
+      const listItems = itemList.querySelectorAll('.item-list-item');
+      listItems.forEach(li => {
+        const titleEl = li.querySelector('.item-title');
+        if (titleEl && titleEl.textContent === item.name) {
+          li.classList.add('active');
+        } else {
+          li.classList.remove('active');
+        }
+      });
+    } else {
+      selectedItem = null;
+      resetDetailsPane();
+      document.querySelector('.app-container').classList.remove('has-detail');
+    }
+  } else {
+    selectedItem = null;
+    resetDetailsPane();
+    document.querySelector('.app-container').classList.remove('has-detail');
+  }
+
+  // 4. Restore mobile pane
+  showMobilePane(state.pane);
 }
 
 // Render Drilldown Facet 1 (Class, Category, CR, Type)
@@ -385,6 +634,7 @@ function renderFacet1() {
     applyFilters();
     if (hasFacet2()) showMobilePane('facet-2');
     else showMobilePane('list');
+    if (!isNavigatingHistory) pushCurrentState(false);
   });
 
   // Add dynamic values
@@ -411,6 +661,7 @@ function renderFacet1() {
       applyFilters();
       if (hasFacet2()) showMobilePane('facet-2');
       else showMobilePane('list');
+      if (!isNavigatingHistory) pushCurrentState(false);
     });
   });
 }
@@ -466,6 +717,7 @@ function renderFacet2() {
     renderFacet2();
     applyFilters();
     showMobilePane('list');
+    if (!isNavigatingHistory) pushCurrentState(false);
   });
 
   // Add dynamic values
@@ -499,6 +751,7 @@ function renderFacet2() {
       renderFacet2();
       applyFilters();
       showMobilePane('list');
+      if (!isNavigatingHistory) pushCurrentState(false);
     });
   });
 }
@@ -816,7 +1069,9 @@ function renderList(items, isGlobalSearch = false) {
 function selectItem(item) {
   selectedItem = item;
   renderDetails(item, item.categoryType);
+  document.querySelector('.app-container').classList.add('has-detail');
   showMobilePane('detail');
+  if (!isNavigatingHistory) pushCurrentState(false);
 }
 
 function resetDetailsPane() {
@@ -1441,6 +1696,8 @@ function showSettingsPanel() {
 
   // Switch to detail view on mobile
   showMobilePane('detail');
+
+  if (!isNavigatingHistory) pushCurrentState(false);
 }
 
 function renderSettingsPage() {
@@ -1646,6 +1903,7 @@ function renderUniversalSearchPanel() {
     uniInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         showMobilePane('list'); // Hitting enter takes you to results list on mobile
+        if (!isNavigatingHistory) pushCurrentState(false);
       }
     });
 
