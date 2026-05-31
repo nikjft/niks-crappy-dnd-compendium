@@ -203,6 +203,9 @@
             <button id="cs-btn-edit-char" class="cs-edit-btn" aria-label="Edit Character">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
             </button>
+            <button id="cs-btn-level-up" class="cs-edit-btn" aria-label="Level Up" title="Level Up" style="color: var(--accent-color); border-color: var(--accent-color);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+            </button>
           </div>
           <div id="cs-char-subtitle">Level 1 Fighter</div>
         </div>
@@ -410,7 +413,6 @@
           </div>
           <div style="display: flex; gap: 8px;">
             <button id="cs-btn-add-feature-list" class="cs-btn-small">+ Add Feature List</button>
-            <button id="cs-btn-add-feature" class="cs-btn-main">+ Add Feature/Trait</button>
           </div>
         </div>
         <div id="cs-features-lists-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
@@ -448,7 +450,6 @@
           </div>
           <div style="display: flex; gap: 8px;">
             <button id="cs-btn-add-item-list" class="cs-btn-small">+ Add Gear List</button>
-            <button id="cs-btn-add-item" class="cs-btn-main">+ Add Equipment</button>
           </div>
         </div>
 
@@ -461,7 +462,6 @@
           <div class="cs-spell-slots-grid" id="cs-spell-slots-grid" style="margin: 0; flex: 1;"></div>
           <div style="display: flex; gap: 8px; margin-left: 16px; flex-shrink: 0;">
             <button id="cs-btn-add-spell-list" class="cs-btn-small">+ Add Spell List</button>
-            <button id="cs-btn-add-spell" class="cs-btn-main">+ Add Spell</button>
           </div>
         </div>
 
@@ -472,7 +472,6 @@
       <section id="cs-tab-bestiary" class="cs-tab-panel">
         <div class="cs-bestiary-header" style="margin-bottom: 16px; display: flex; justify-content: flex-end; gap: 8px;">
           <button id="cs-btn-add-beast-list" class="cs-btn-small">+ Add Companion List</button>
-          <button id="cs-btn-add-beast" class="cs-btn-main">+ Add Companion/Summon</button>
         </div>
         <div id="cs-bestiary-lists-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
       </section>
@@ -819,6 +818,67 @@
         <button id="cs-note-btn-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color); width: auto; padding: 8px 16px; margin: 0; border-radius: 6px;">Cancel</button>
         <button id="cs-note-btn-save" class="settings-action-btn" style="width: auto; padding: 8px 24px; margin: 0; border-radius: 6px;">Save Note</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       CHARACTER CREATION WIZARD MODAL
+       5 steps: Basic Info → Species → Background → Class → Review
+  ═══════════════════════════════════════════════════════════ -->
+  <div id="cs-wizard-modal" class="overlay" style="display:none; justify-content:center; align-items:center; z-index:1200;">
+    <div class="cs-wizard-card">
+
+      <!-- Step indicator -->
+      <div class="cs-wizard-steps" id="cs-wizard-steps">
+        <div class="cs-wizard-step active" data-step="1"><span class="cs-wizard-step-num">1</span><span class="cs-wizard-step-label">Basics</span></div>
+        <div class="cs-wizard-step-line"></div>
+        <div class="cs-wizard-step" data-step="2"><span class="cs-wizard-step-num">2</span><span class="cs-wizard-step-label">Species</span></div>
+        <div class="cs-wizard-step-line"></div>
+        <div class="cs-wizard-step" data-step="3"><span class="cs-wizard-step-num">3</span><span class="cs-wizard-step-label">Background</span></div>
+        <div class="cs-wizard-step-line"></div>
+        <div class="cs-wizard-step" data-step="4"><span class="cs-wizard-step-num">4</span><span class="cs-wizard-step-label">Class</span></div>
+        <div class="cs-wizard-step-line"></div>
+        <div class="cs-wizard-step" data-step="5"><span class="cs-wizard-step-num">5</span><span class="cs-wizard-step-label">Review</span></div>
+      </div>
+
+      <!-- Step content area -->
+      <div class="cs-wizard-body" id="cs-wizard-body">
+        <!-- Rendered dynamically by renderWizardStep() -->
+      </div>
+
+      <!-- Footer nav -->
+      <div class="cs-wizard-footer">
+        <button id="cs-wizard-btn-cancel" class="settings-action-btn secondary-btn" style="background:var(--panel-bg-hover);color:var(--text-secondary);border:1px solid var(--border-color);width:auto;padding:8px 18px;margin:0;border-radius:6px;">Cancel</button>
+        <div style="display:flex;gap:12px;">
+          <button id="cs-wizard-btn-prev" class="settings-action-btn secondary-btn" style="background:var(--panel-bg-hover);color:var(--text-secondary);border:1px solid var(--border-color);width:auto;padding:8px 18px;margin:0;border-radius:6px;" disabled>← Back</button>
+          <button id="cs-wizard-btn-next" class="settings-action-btn" style="width:auto;padding:8px 24px;margin:0;border-radius:6px;">Next →</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       LEVEL UP MODAL
+  ═══════════════════════════════════════════════════════════ -->
+  <div id="cs-levelup-modal" class="overlay" style="display:none; justify-content:center; align-items:center; z-index:1200;">
+    <div class="overlay-card cs-modal-card" style="text-align:left;width:90vw;max-width:900px;max-height:90vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:12px;background-color:var(--bg-color);">
+
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid var(--border-color);background-color:var(--panel-bg);flex-shrink:0;">
+        <h2 id="cs-levelup-title" style="color:var(--text-primary);margin:0;font-family:var(--font-header);font-size:20px;">Level Up</h2>
+        <button id="cs-levelup-btn-close" class="cs-btn-small active" style="font-size:13px;padding:6px 14px;border-radius:6px;">Close</button>
+      </div>
+
+      <!-- Body (rendered dynamically) -->
+      <div id="cs-levelup-body" style="flex:1;overflow-y:auto;padding:24px;"></div>
+
+      <!-- Footer -->
+      <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid var(--border-color);background-color:var(--panel-bg);flex-shrink:0;">
+        <button id="cs-levelup-btn-cancel" class="settings-action-btn secondary-btn" style="background:var(--panel-bg-hover);color:var(--text-secondary);border:1px solid var(--border-color);width:auto;padding:8px 18px;margin:0;border-radius:6px;">Cancel</button>
+        <button id="cs-levelup-btn-apply" class="settings-action-btn" style="width:auto;padding:8px 28px;margin:0;border-radius:6px;">Apply Level Up</button>
+      </div>
+
     </div>
   </div>
 

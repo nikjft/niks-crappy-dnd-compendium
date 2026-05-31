@@ -64,7 +64,7 @@ complex math of Character Sheets.*
     custom `<text>` table formats (e.g., `Cleric Level | Spells`) into
     standard markdown/HTML tables.
 
-## Phase 4: Character Sheet Logic Engine (Headless)
+## Phase 4: Character Sheet Logic Engine (Headless) [DONE]
 
 *Why here? The data is clean and stored securely. Now we build the
 "brain" of the character sheet in total isolation, ensuring it works
@@ -85,7 +85,7 @@ perfectly before drawing a single UI component.*
     STR, an item giving +1 AC) into the headless engine and assert the
     final state dictionary is mathematically perfect.
 
-## Phase 5: Character Sheet Architecture & UI
+## Phase 5: Character Sheet Architecture & UI [DONE]
 
 *Why here? The engine is bulletproof, and the data is ready. Building
 the UI is now just wiring components to a finished logic board.*
@@ -105,7 +105,7 @@ the UI is now just wiring components to a finished logic board.*
 4.  **Read-Only UI (The View):** Build the Stats, Skills, and Combat
     tabs. Bind them directly to the engine's output dictionary.
 
-## Phase 6: Character Sheet Advanced Mechanics
+## Phase 6: Character Sheet Advanced Mechanics [DONE]
 
 *Why here? These are the finishing touches that make the app feel like a
 premium tool rather than just a digital piece of paper.*

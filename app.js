@@ -2807,6 +2807,7 @@ function createNewCharacterTemplate(name, charClass, subclass, level, species, b
     options: [],
     bestiary: [],
     modifiers: [],
+    classes: [],
     notes: {
       backstory: '',
       alignment: '',
@@ -2902,7 +2903,7 @@ function renderCharactersRoster(chars) {
     </div>
   `;
   createCard.addEventListener('click', () => {
-    showCharacterCreatorModal();
+    openWizard();
   });
   grid.appendChild(createCard);
   
@@ -3040,6 +3041,36 @@ async function saveCharacterCreatorModal() {
     characterToEdit.baseStats = baseStats;
     characterToEdit._modified_at = new Date().toISOString();
     
+    // Sync the classes array structure
+    if (!characterToEdit.classes) {
+      characterToEdit.classes = [];
+    }
+    if (characterToEdit.classes.length <= 1) {
+      const classRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === charClass.toLowerCase());
+      characterToEdit.classes = [{
+        name: charClass,
+        level: level,
+        subclass: subclass || null,
+        hd: classRecord ? parseInt(classRecord.hd) || 8 : 8,
+        spellAbility: classRecord ? classRecord.spellAbility || null : null,
+        featureListId: characterToEdit.featureLists?.[0]?.id || generateId(),
+        subclassListId: null,
+        spellListId: characterToEdit.spellLists?.[0]?.id || null,
+        subclassSpellListId: null
+      }];
+    } else {
+      const firstClass = characterToEdit.classes[0];
+      firstClass.name = charClass;
+      firstClass.subclass = subclass || null;
+      const otherClassesSum = characterToEdit.classes.slice(1).reduce((sum, c) => sum + c.level, 0);
+      if (level > otherClassesSum) {
+        firstClass.level = level - otherClassesSum;
+      } else {
+        firstClass.level = 1;
+        characterToEdit.level = 1 + otherClassesSum;
+      }
+    }
+    
     await saveCharacterToDb(characterToEdit);
     document.getElementById('cs-creator-modal').style.display = 'none';
     
@@ -3091,6 +3122,1623 @@ async function saveCharacterCreatorModal() {
   }
 }
 
+// ─── Character Creation Wizard ───────────────────────────────────────────────
+let wizardState = null;
+
+function openWizard() {
+  wizardState = {
+    step: 1,
+    basics: {
+      name: '',
+      alignment: 'Neutral',
+      age: '',
+      height: '',
+      weight: '',
+      stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }
+    },
+    species: null,
+    speciesLanguages: [],
+    speciesSkills: [],
+    background: null,
+    backgroundStats: { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 },
+    backgroundSkills: [],
+    backgroundLanguages: [],
+    classRecord: null,
+    classSkills: [],
+    classHpGain: 10,
+    classFeaturesChosen: []
+  };
+
+  const modal = document.getElementById('cs-wizard-modal');
+  modal.style.display = 'flex';
+  renderWizardStep(1);
+}
+
+function renderWizardStep(stepNum) {
+  wizardState.step = stepNum;
+  
+  // Update step indicators
+  const steps = document.querySelectorAll('#cs-wizard-steps .cs-wizard-step');
+  steps.forEach((el, idx) => {
+    const s = idx + 1;
+    el.classList.remove('active', 'done');
+    if (s === stepNum) {
+      el.classList.add('active');
+    } else if (s < stepNum) {
+      el.classList.add('done');
+    }
+  });
+
+  const stepLines = document.querySelectorAll('#cs-wizard-steps .cs-wizard-step-line');
+  stepLines.forEach((el, idx) => {
+    const s = idx + 1;
+    el.classList.remove('done');
+    if (s < stepNum) {
+      el.classList.add('done');
+    }
+  });
+
+  // Render step body
+  const body = document.getElementById('cs-wizard-body');
+  body.innerHTML = '';
+
+  if (stepNum === 1) renderWizardStep1(body);
+  else if (stepNum === 2) renderWizardStep2(body);
+  else if (stepNum === 3) renderWizardStep3(body);
+  else if (stepNum === 4) renderWizardStep4(body);
+  else if (stepNum === 5) renderWizardStep5(body);
+
+  // Update footer nav buttons
+  const prevBtn = document.getElementById('cs-wizard-btn-prev');
+  const nextBtn = document.getElementById('cs-wizard-btn-next');
+
+  prevBtn.disabled = stepNum === 1;
+  nextBtn.textContent = stepNum === 5 ? 'Create Character' : 'Next →';
+}
+
+function renderWizardStep1(body) {
+  body.innerHTML = `
+    <div style="padding: 24px; display: flex; flex-direction: column; gap: 20px; max-width: 800px; margin: 0 auto; width: 100%; box-sizing: border-box;">
+      <h2 style="font-family: var(--font-header); font-size: 22px; color: var(--accent-color); margin-bottom: 8px;">Basic Character Info</h2>
+      
+      <div class="cs-form-group">
+        <label for="wizard-basics-name" style="font-weight: 600;">Character Name <span style="color: var(--error-color);">*</span></label>
+        <input type="text" id="wizard-basics-name" class="settings-input" placeholder="e.g. Katherine Ironheart" value="${wizardState.basics.name}" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="cs-form-group">
+          <label for="wizard-basics-alignment">Alignment</label>
+          <select id="wizard-basics-alignment" class="settings-input">
+            <option value="Lawful Good" ${wizardState.basics.alignment === 'Lawful Good' ? 'selected' : ''}>Lawful Good</option>
+            <option value="Neutral Good" ${wizardState.basics.alignment === 'Neutral Good' ? 'selected' : ''}>Neutral Good</option>
+            <option value="Chaotic Good" ${wizardState.basics.alignment === 'Chaotic Good' ? 'selected' : ''}>Chaotic Good</option>
+            <option value="Lawful Neutral" ${wizardState.basics.alignment === 'Lawful Neutral' ? 'selected' : ''}>Lawful Neutral</option>
+            <option value="Neutral" ${wizardState.basics.alignment === 'Neutral' ? 'selected' : ''}>Neutral</option>
+            <option value="Chaotic Neutral" ${wizardState.basics.alignment === 'Chaotic Neutral' ? 'selected' : ''}>Chaotic Neutral</option>
+            <option value="Lawful Evil" ${wizardState.basics.alignment === 'Lawful Evil' ? 'selected' : ''}>Lawful Evil</option>
+            <option value="Neutral Evil" ${wizardState.basics.alignment === 'Neutral Evil' ? 'selected' : ''}>Neutral Evil</option>
+            <option value="Chaotic Evil" ${wizardState.basics.alignment === 'Chaotic Evil' ? 'selected' : ''}>Chaotic Evil</option>
+          </select>
+        </div>
+        <div class="cs-form-group">
+          <label for="wizard-basics-age">Age</label>
+          <input type="text" id="wizard-basics-age" class="settings-input" placeholder="e.g. 25" value="${wizardState.basics.age}">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="cs-form-group">
+          <label for="wizard-basics-height">Height</label>
+          <input type="text" id="wizard-basics-height" class="settings-input" placeholder="e.g. 5'11\\"" value="${wizardState.basics.height}">
+        </div>
+        <div class="cs-form-group">
+          <label for="wizard-basics-weight">Weight</label>
+          <input type="text" id="wizard-basics-weight" class="settings-input" placeholder="e.g. 165 lbs" value="${wizardState.basics.weight}">
+        </div>
+      </div>
+
+      <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 style="font-family: var(--font-header); font-size: 18px; color: var(--accent-color); margin: 0;">Ability Scores</h3>
+          <button type="button" class="cs-wizard-standard-array-btn" id="wizard-basics-std-array">Use Standard Array (15, 14, 13, 12, 10, 8)</button>
+        </div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Manual entry. Use the point-buy budget as a guide if desired.</p>
+        
+        <div class="cs-wizard-stats-grid">
+          ${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(attr => {
+            const val = wizardState.basics.stats[attr];
+            const mod = Math.floor((val - 10) / 2);
+            return `
+              <div class="cs-wizard-stat-cell">
+                <span class="cs-wizard-stat-label">${attr}</span>
+                <input type="number" class="cs-wizard-stat-input wizard-stat-input" data-attr="${attr}" min="1" max="30" value="${val}">
+                <span class="cs-wizard-stat-mod" id="wizard-basics-mod-${attr}">${mod >= 0 ? '+' + mod : mod}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        
+        <div style="background: var(--panel-bg); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 14px; font-weight: 600;">Point Buy Budget (27 Total):</span>
+          <span id="wizard-basics-pointbuy-budget" style="font-family: var(--font-header); font-size: 16px; font-weight: 700; color: var(--accent-color);">27 points remaining</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Wire up listeners
+  const nameInput = body.querySelector('#wizard-basics-name');
+  nameInput.oninput = () => { wizardState.basics.name = nameInput.value; };
+  
+  const alignSelect = body.querySelector('#wizard-basics-alignment');
+  alignSelect.onchange = () => { wizardState.basics.alignment = alignSelect.value; };
+
+  const ageInput = body.querySelector('#wizard-basics-age');
+  ageInput.oninput = () => { wizardState.basics.age = ageInput.value; };
+
+  const heightInput = body.querySelector('#wizard-basics-height');
+  heightInput.oninput = () => { wizardState.basics.height = heightInput.value; };
+
+  const weightInput = body.querySelector('#wizard-basics-weight');
+  weightInput.oninput = () => { wizardState.basics.weight = weightInput.value; };
+
+  const updateBudgetAndMods = () => {
+    const budgetSpan = body.querySelector('#wizard-basics-pointbuy-budget');
+    const remaining = calculatePointBuyRemaining(wizardState.basics.stats);
+    budgetSpan.textContent = remaining >= 0 
+      ? `${remaining} points remaining` 
+      : `${Math.abs(remaining)} points over budget!`;
+    budgetSpan.style.color = remaining >= 0 ? 'var(--accent-color)' : 'var(--error-color)';
+
+    ['str', 'dex', 'con', 'int', 'wis', 'cha'].forEach(attr => {
+      const val = wizardState.basics.stats[attr];
+      const mod = Math.floor((val - 10) / 2);
+      const modSpan = body.querySelector(`#wizard-basics-mod-${attr}`);
+      if (modSpan) modSpan.textContent = mod >= 0 ? '+' + mod : mod;
+    });
+  };
+
+  const statInputs = body.querySelectorAll('.wizard-stat-input');
+  statInputs.forEach(input => {
+    input.oninput = () => {
+      const attr = input.getAttribute('data-attr');
+      const val = Math.max(1, Math.min(30, parseInt(input.value) || 10));
+      wizardState.basics.stats[attr] = val;
+      updateBudgetAndMods();
+    };
+  });
+
+  body.querySelector('#wizard-basics-std-array').onclick = () => {
+    const arr = [15, 14, 13, 12, 10, 8];
+    const attrs = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+    attrs.forEach((attr, idx) => {
+      wizardState.basics.stats[attr] = arr[idx];
+      const inp = body.querySelector(`.wizard-stat-input[data-attr="${attr}"]`);
+      if (inp) inp.value = arr[idx];
+    });
+    updateBudgetAndMods();
+  };
+
+  updateBudgetAndMods();
+}
+
+function renderWizardStep2(body) {
+  const races = allRecordsCache['races'] || [];
+  let selectedRace = wizardState.species;
+  
+  body.className = 'cs-wizard-body cs-wizard-two-pane';
+  body.innerHTML = `
+    <div class="cs-wizard-list-pane">
+      <div class="cs-wizard-list-search">
+        <input type="text" placeholder="Search Species..." class="settings-input" id="wizard-species-search" style="margin:0;">
+      </div>
+      <div class="cs-wizard-list-scroll" id="wizard-species-list"></div>
+    </div>
+    <div class="cs-wizard-detail-pane" id="wizard-species-detail"></div>
+  `;
+
+  const listContainer = body.querySelector('#wizard-species-list');
+  const searchInput = body.querySelector('#wizard-species-search');
+
+  const renderList = (query) => {
+    listContainer.innerHTML = '';
+    const filtered = races.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+    filtered.sort((a,b) => a.name.localeCompare(b.name));
+    
+    filtered.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'cs-wizard-list-item' + (selectedRace === r ? ' active' : '');
+      div.innerHTML = `
+        <div class="cs-wizard-list-item-name">${r.name}</div>
+        <div class="cs-wizard-list-item-sub">Speed: ${r.speed} ft · Size: ${r.size || 'Medium'}</div>
+      `;
+      div.onclick = () => {
+        selectedRace = r;
+        wizardState.species = r;
+        // Reset selections for this race
+        wizardState.speciesLanguages = r.languages ? r.languages.split(',').map(s => s.trim()) : ['Common'];
+        wizardState.speciesSkills = r.proficiency ? r.proficiency.split(',').map(s => s.trim()) : [];
+        renderList(searchInput.value);
+        renderDetail();
+      };
+      listContainer.appendChild(div);
+    });
+  };
+
+  const renderDetail = () => {
+    const detail = body.querySelector('#wizard-species-detail');
+    if (!selectedRace) {
+      detail.innerHTML = `
+        <div class="cs-wizard-detail-placeholder">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <p>Select a species from the list to preview traits and choices.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const traitsHtml = selectedRace.traits && selectedRace.traits.length > 0
+      ? `
+        <h4 class="cs-wizard-section-title">Species Traits</h4>
+        <div class="cs-wizard-feature-list">
+          ${selectedRace.traits.map(t => `
+            <div class="cs-wizard-feature-item">
+              <div>
+                <div class="cs-wizard-feature-item-name">${t.name}</div>
+                <div class="cs-wizard-feature-item-desc">${t.texts ? t.texts.join('<br>') : ''}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `
+      : '';
+
+    // Skills
+    const skillList = ['athletics', 'acrobatics', 'sleight_of_hand', 'stealth', 'arcana', 'history', 'investigation', 'nature', 'religion', 'animal_handling', 'insight', 'medicine', 'perception', 'survival', 'deception', 'intimidation', 'performance', 'persuasion'];
+    
+    // Check if the race proficiency contains choices or is comma-separated
+    const autoSkills = selectedRace.proficiency ? selectedRace.proficiency.split(',').map(s => s.trim().toLowerCase()) : [];
+    
+    const skillsHtml = `
+      <h4 class="cs-wizard-section-title" style="margin-top:20px;">Species Skills & Languages</h4>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Toggle skills or languages as granted by species (pre-selected by default).</p>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+        <div>
+          <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Skill Proficiencies</label>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border-color);padding:8px;border-radius:6px;background:var(--panel-bg);">
+            ${skillList.map(s => {
+              const label = s.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+              const isChecked = wizardState.speciesSkills.some(x => x.toLowerCase() === s.toLowerCase() || x.toLowerCase() === label.toLowerCase());
+              return `
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                  <input type="checkbox" class="wizard-species-skill-chk" data-skill="${s}" ${isChecked ? 'checked' : ''}>
+                  ${label}
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Languages</label>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;border:1px solid var(--border-color);padding:8px;border-radius:6px;background:var(--panel-bg);">
+            ${['Common', 'Elvish', 'Dwarvish', 'Halfling', 'Giant', 'Gnomish', 'Goblin', 'Orc', 'Abyssal', 'Celestial', 'Draconic', 'Undercommon'].map(l => {
+              const isChecked = wizardState.speciesLanguages.some(x => x.toLowerCase() === l.toLowerCase());
+              return `
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                  <input type="checkbox" class="wizard-species-lang-chk" data-lang="${l}" ${isChecked ? 'checked' : ''}>
+                  ${l}
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+
+    detail.innerHTML = `
+      <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
+        <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedRace.name}</h3>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Size: ${selectedRace.size || 'Medium'} · Base Speed: ${selectedRace.speed} ft</div>
+      </div>
+      
+      ${traitsHtml}
+      ${skillsHtml}
+    `;
+
+    // Wire listeners
+    detail.querySelectorAll('.wizard-species-skill-chk').forEach(chk => {
+      chk.onchange = () => {
+        const skill = chk.getAttribute('data-skill');
+        const label = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        if (chk.checked) {
+          if (!wizardState.speciesSkills.includes(label)) wizardState.speciesSkills.push(label);
+        } else {
+          wizardState.speciesSkills = wizardState.speciesSkills.filter(x => x.toLowerCase() !== skill.toLowerCase() && x.toLowerCase() !== label.toLowerCase());
+        }
+      };
+    });
+
+    detail.querySelectorAll('.wizard-species-lang-chk').forEach(chk => {
+      chk.onchange = () => {
+        const lang = chk.getAttribute('data-lang');
+        if (chk.checked) {
+          if (!wizardState.speciesLanguages.includes(lang)) wizardState.speciesLanguages.push(lang);
+        } else {
+          wizardState.speciesLanguages = wizardState.speciesLanguages.filter(x => x.toLowerCase() !== lang.toLowerCase());
+        }
+      };
+    });
+  };
+
+  searchInput.oninput = (e) => renderList(e.target.value);
+  renderList('');
+  renderDetail();
+}
+
+function renderWizardStep3(body) {
+  const bgs = allRecordsCache['backgrounds'] || [];
+  let selectedBg = wizardState.background;
+
+  body.className = 'cs-wizard-body cs-wizard-two-pane';
+  body.innerHTML = `
+    <div class="cs-wizard-list-pane">
+      <div class="cs-wizard-list-search">
+        <input type="text" placeholder="Search Backgrounds..." class="settings-input" id="wizard-bg-search" style="margin:0;">
+      </div>
+      <div class="cs-wizard-list-scroll" id="wizard-bg-list"></div>
+    </div>
+    <div class="cs-wizard-detail-pane" id="wizard-bg-detail"></div>
+  `;
+
+  const listContainer = body.querySelector('#wizard-bg-list');
+  const searchInput = body.querySelector('#wizard-bg-search');
+
+  const renderList = (query) => {
+    listContainer.innerHTML = '';
+    const filtered = bgs.filter(b => b.name.toLowerCase().includes(query.toLowerCase()));
+    filtered.sort((a,b) => a.name.localeCompare(b.name));
+
+    filtered.forEach(b => {
+      const div = document.createElement('div');
+      div.className = 'cs-wizard-list-item' + (selectedBg === b ? ' active' : '');
+      div.innerHTML = `
+        <div class="cs-wizard-list-item-name">${b.name}</div>
+        <div class="cs-wizard-list-item-sub">Skills: ${b.proficiency || 'None'}</div>
+      `;
+      div.onclick = () => {
+        selectedBg = b;
+        wizardState.background = b;
+        
+        // Reset and pre-fill background Stats ASI to +1 on all stats (as per user comment)
+        wizardState.backgroundStats = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
+        if (b.modifiers) {
+          b.modifiers.forEach(m => {
+            if (m.target && m.target.endsWith('.score') && m.type === 'add') {
+              const attr = m.target.split('.')[0];
+              wizardState.backgroundStats[attr] = 1; // Default to +1 as requested
+            }
+          });
+        }
+        // Fallback: If no modifiers exist, prefill standard +1 on 3 attributes (e.g. str, dex, con)
+        const activeAsis = Object.values(wizardState.backgroundStats).reduce((a,b)=>a+b, 0);
+        if (activeAsis === 0) {
+          wizardState.backgroundStats.str = 1;
+          wizardState.backgroundStats.dex = 1;
+          wizardState.backgroundStats.con = 1;
+        }
+
+        wizardState.backgroundSkills = b.proficiency ? b.proficiency.split(',').map(s => s.trim().toLowerCase()) : [];
+        wizardState.backgroundLanguages = b.languages ? b.languages.split(',').map(s => s.trim()) : [];
+        
+        renderList(searchInput.value);
+        renderDetail();
+      };
+      listContainer.appendChild(div);
+    });
+  };
+
+  const renderDetail = () => {
+    const detail = body.querySelector('#wizard-bg-detail');
+    if (!selectedBg) {
+      detail.innerHTML = `
+        <div class="cs-wizard-detail-placeholder">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <p>Select a background from the list to preview details and customize attributes.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const traitHtml = selectedBg.traits && selectedBg.traits.length > 0
+      ? `
+        <h4 class="cs-wizard-section-title">Background Feat / Feature</h4>
+        <div class="cs-wizard-feature-list">
+          ${selectedBg.traits.map(t => `
+            <div class="cs-wizard-feature-item">
+              <div>
+                <div class="cs-wizard-feature-item-name">${t.name}</div>
+                <div class="cs-wizard-feature-item-desc">${t.texts ? t.texts.join('<br>') : ''}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `
+      : '';
+
+    const textDesc = selectedBg.texts && selectedBg.texts.length > 0
+      ? `<div style="font-size:13px;line-height:1.5;margin-bottom:16px;color:var(--text-secondary);">${selectedBg.texts.join('<br>')}</div>`
+      : '';
+
+    // ASI customization (checkboxes/buttons, no policing of total points, as per user request)
+    const statsASIHtml = `
+      <h4 class="cs-wizard-section-title" style="margin-top:20px;">Attribute Adjustments (Background ASI)</h4>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Increase or decrease attributes as desired. No restrictions are policed.</p>
+      <div class="cs-wizard-asi-grid">
+        ${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(attr => {
+          const val = wizardState.backgroundStats[attr] || 0;
+          return `
+            <div class="cs-wizard-asi-btn ${val > 0 ? 'selected' : ''}" id="wizard-bg-asi-btn-${attr}">
+              <span class="cs-wizard-asi-btn-label">${attr}</span>
+              <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px;">
+                <button type="button" class="cs-btn-small btn-bg-asi-dec" data-attr="${attr}" style="padding:2px 8px;font-size:12px;">−</button>
+                <span class="cs-wizard-asi-btn-val" id="wizard-bg-asi-val-${attr}">${val >= 0 ? '+' + val : val}</span>
+                <button type="button" class="cs-btn-small btn-bg-asi-inc" data-attr="${attr}" style="padding:2px 8px;font-size:12px;">+</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    // Skills
+    const skillList = ['athletics', 'acrobatics', 'sleight_of_hand', 'stealth', 'arcana', 'history', 'investigation', 'nature', 'religion', 'animal_handling', 'insight', 'medicine', 'perception', 'survival', 'deception', 'intimidation', 'performance', 'persuasion'];
+    
+    const skillsHtml = `
+      <h4 class="cs-wizard-section-title" style="margin-top:20px;">Skill Proficiencies & Languages</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Skill Proficiencies</label>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;border:1px solid var(--border-color);padding:8px;border-radius:6px;background:var(--panel-bg);">
+            ${skillList.map(s => {
+              const label = s.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+              const isChecked = wizardState.backgroundSkills.some(x => x.toLowerCase() === s.toLowerCase() || x.toLowerCase() === label.toLowerCase());
+              return `
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                  <input type="checkbox" class="wizard-bg-skill-chk" data-skill="${s}" ${isChecked ? 'checked' : ''}>
+                  ${label}
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+        <div>
+          <label style="font-weight:600;font-size:13px;display:block;margin-bottom:6px;">Languages / Tools</label>
+          <div style="font-size:13px;color:var(--text-secondary);background:var(--panel-bg);border:1px solid var(--border-color);border-radius:6px;padding:12px;line-height:1.4;">
+            <strong>Tools:</strong> ${selectedBg.tools || 'None'}<br>
+            <strong>Languages:</strong> ${selectedBg.languages || 'None'}
+            <div style="margin-top:10px;">
+              <input type="text" placeholder="Enter custom language/tool..." class="settings-input" id="wizard-bg-lang-custom" style="margin:0;font-size:12px;padding:6px 10px;">
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    detail.innerHTML = `
+      <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
+        <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedBg.name}</h3>
+      </div>
+      
+      ${textDesc}
+      ${traitHtml}
+      ${statsASIHtml}
+      ${skillsHtml}
+    `;
+
+    // Wire listeners
+    detail.querySelectorAll('.btn-bg-asi-dec').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const attr = btn.getAttribute('data-attr');
+        wizardState.backgroundStats[attr] = Math.max(-5, (wizardState.backgroundStats[attr] || 0) - 1);
+        const card = detail.querySelector(`#wizard-bg-asi-btn-${attr}`);
+        const valSpan = detail.querySelector(`#wizard-bg-asi-val-${attr}`);
+        valSpan.textContent = wizardState.backgroundStats[attr] >= 0 ? '+' + wizardState.backgroundStats[attr] : wizardState.backgroundStats[attr];
+        card.classList.toggle('selected', wizardState.backgroundStats[attr] !== 0);
+      };
+    });
+
+    detail.querySelectorAll('.btn-bg-asi-inc').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const attr = btn.getAttribute('data-attr');
+        wizardState.backgroundStats[attr] = Math.min(10, (wizardState.backgroundStats[attr] || 0) + 1);
+        const card = detail.querySelector(`#wizard-bg-asi-btn-${attr}`);
+        const valSpan = detail.querySelector(`#wizard-bg-asi-val-${attr}`);
+        valSpan.textContent = wizardState.backgroundStats[attr] >= 0 ? '+' + wizardState.backgroundStats[attr] : wizardState.backgroundStats[attr];
+        card.classList.toggle('selected', wizardState.backgroundStats[attr] !== 0);
+      };
+    });
+
+    detail.querySelectorAll('.wizard-bg-skill-chk').forEach(chk => {
+      chk.onchange = () => {
+        const skill = chk.getAttribute('data-skill');
+        const label = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        if (chk.checked) {
+          if (!wizardState.backgroundSkills.includes(label)) wizardState.backgroundSkills.push(label);
+        } else {
+          wizardState.backgroundSkills = wizardState.backgroundSkills.filter(x => x.toLowerCase() !== skill.toLowerCase() && x.toLowerCase() !== label.toLowerCase());
+        }
+      };
+    });
+
+    const customLangInput = detail.querySelector('#wizard-bg-lang-custom');
+    if (customLangInput) {
+      customLangInput.value = wizardState.backgroundLanguages.join(', ');
+      customLangInput.oninput = () => {
+        wizardState.backgroundLanguages = customLangInput.value.split(',').map(s => s.trim()).filter(Boolean);
+      };
+    }
+  };
+
+  searchInput.oninput = (e) => renderList(e.target.value);
+  renderList('');
+  renderDetail();
+}
+
+function renderWizardStep4(body) {
+  const classes = allRecordsCache['classes'] || [];
+  let selectedClass = wizardState.classRecord;
+
+  body.className = 'cs-wizard-body cs-wizard-two-pane';
+  body.innerHTML = `
+    <div class="cs-wizard-list-pane">
+      <div class="cs-wizard-list-search">
+        <input type="text" placeholder="Search Classes..." class="settings-input" id="wizard-class-search" style="margin:0;">
+      </div>
+      <div class="cs-wizard-list-scroll" id="wizard-class-list"></div>
+    </div>
+    <div class="cs-wizard-detail-pane" id="wizard-class-detail"></div>
+  `;
+
+  const listContainer = body.querySelector('#wizard-class-list');
+  const searchInput = body.querySelector('#wizard-class-search');
+
+  const renderList = (query) => {
+    listContainer.innerHTML = '';
+    const filtered = classes.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+    filtered.sort((a,b) => a.name.localeCompare(b.name));
+
+    filtered.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'cs-wizard-list-item' + (selectedClass === c ? ' active' : '');
+      div.innerHTML = `
+        <div class="cs-wizard-list-item-name">${c.name}</div>
+        <div class="cs-wizard-list-item-sub">Hit Die: d${c.hd} · Saves: ${getClassSkillsAndSaves(c).saves.join(', ')}</div>
+      `;
+      div.onclick = () => {
+        selectedClass = c;
+        wizardState.classRecord = c;
+        
+        wizardState.classHpGain = c.hd;
+        
+        // Find level 1 features
+        const lvl1 = c.autolevels?.find(al => al.level === 1);
+        wizardState.classFeaturesChosen = lvl1 ? lvl1.features.filter(f => !f.optional).map(f => f.name) : [];
+        
+        wizardState.classSkills = [];
+
+        renderList(searchInput.value);
+        renderDetail();
+      };
+      listContainer.appendChild(div);
+    });
+  };
+
+  const renderDetail = () => {
+    const detail = body.querySelector('#wizard-class-detail');
+    if (!selectedClass) {
+      detail.innerHTML = `
+        <div class="cs-wizard-detail-placeholder">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <p>Select a character class from the list to preview traits and configure skills.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const { saves, skills: classApprovedSkills } = getClassSkillsAndSaves(selectedClass);
+    const numSkills = selectedClass.numSkills || 2;
+
+    const hpPromptHtml = `
+      <h4 class="cs-wizard-section-title">Hit Points at Level 1</h4>
+      <div class="cs-wizard-hp-prompt">
+        <div>
+          <span class="cs-wizard-hp-die-label">Hit Die:</span>
+          <span class="cs-wizard-hp-die">d${selectedClass.hd}</span>
+        </div>
+        <div class="cs-wizard-hp-input-wrap">
+          <label style="font-size:12px;color:var(--text-muted);">Base HP Max:</label>
+          <input type="number" class="cs-wizard-hp-input" id="wizard-class-hp-input" min="1" max="100" value="${wizardState.classHpGain}">
+        </div>
+      </div>
+    `;
+
+    // Skills selection: list only class-approved skills, letting them select numSkills (optional checkbox selection)
+    const skillsHtml = classApprovedSkills.length > 0
+      ? `
+        <h4 class="cs-wizard-section-title" style="margin-top:20px;">Class Skills (Choose ${numSkills})</h4>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;" id="wizard-class-skills-selected-lbl">0 of ${numSkills} selected</p>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;background:var(--panel-bg);border:1px solid var(--border-color);border-radius:8px;padding:12px;">
+          ${classApprovedSkills.map(s => {
+            const key = getSkillKey(s);
+            const isChecked = wizardState.classSkills.includes(s);
+            return `
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" class="wizard-class-skill-chk" data-skill="${s}" ${isChecked ? 'checked' : ''}>
+                ${s}
+              </label>
+            `;
+          }).join('')}
+        </div>
+      `
+      : '';
+
+    // Level 1 Features
+    const lvl1 = selectedClass.autolevels?.find(al => al.level === 1);
+    const featuresHtml = lvl1 && lvl1.features && lvl1.features.length > 0
+      ? `
+        <h4 class="cs-wizard-section-title" style="margin-top:20px;">Level 1 Features</h4>
+        <div class="cs-wizard-feature-list">
+          ${lvl1.features.map(f => {
+            const isChecked = wizardState.classFeaturesChosen.includes(f.name);
+            const badge = f.optional ? `<span class="cs-wizard-feature-badge optional-badge">Optional</span>` : '';
+            return `
+              <div class="cs-wizard-feature-item ${f.optional ? 'optional' : ''} ${isChecked ? 'checked' : ''}" id="wizard-class-feat-item-${f.name.replace(/[^a-zA-Z0-9]/g,'')}">
+                <input type="checkbox" class="wizard-class-feature-chk" data-name="${f.name}" ${isChecked ? 'checked' : ''}>
+                <div style="margin-left:4px;">
+                  <div class="cs-wizard-feature-item-name">${f.name} ${badge}</div>
+                  <div class="cs-wizard-feature-item-desc">${f.texts ? f.texts.join('<br>') : ''}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `
+      : '';
+
+    detail.innerHTML = `
+      <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
+        <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedClass.name}</h3>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Saving Throws: ${saves.join(', ')} · Spellcaster Ability: ${selectedClass.spellAbility || 'None'}</div>
+      </div>
+      
+      ${hpPromptHtml}
+      ${skillsHtml}
+      ${featuresHtml}
+    `;
+
+    // Wire listeners
+    const hpInput = detail.querySelector('#wizard-class-hp-input');
+    hpInput.oninput = () => { wizardState.classHpGain = Math.max(1, parseInt(hpInput.value) || 1); };
+
+    const updateSkillLabel = () => {
+      const lbl = detail.querySelector('#wizard-class-skills-selected-lbl');
+      if (lbl) {
+        lbl.textContent = `${wizardState.classSkills.length} of ${numSkills} selected`;
+        lbl.style.color = wizardState.classSkills.length === numSkills ? 'var(--success-color)' : 'var(--text-muted)';
+      }
+    };
+
+    detail.querySelectorAll('.wizard-class-skill-chk').forEach(chk => {
+      chk.onchange = () => {
+        const skill = chk.getAttribute('data-skill');
+        if (chk.checked) {
+          if (!wizardState.classSkills.includes(skill)) wizardState.classSkills.push(skill);
+        } else {
+          wizardState.classSkills = wizardState.classSkills.filter(x => x !== skill);
+        }
+        updateSkillLabel();
+      };
+    });
+
+    detail.querySelectorAll('.wizard-class-feature-chk').forEach(chk => {
+      chk.onchange = () => {
+        const name = chk.getAttribute('data-name');
+        const card = detail.querySelector(`#wizard-class-feat-item-${name.replace(/[^a-zA-Z0-9]/g,'')}`);
+        if (chk.checked) {
+          if (!wizardState.classFeaturesChosen.includes(name)) wizardState.classFeaturesChosen.push(name);
+          if (card) card.classList.add('checked');
+        } else {
+          wizardState.classFeaturesChosen = wizardState.classFeaturesChosen.filter(x => x !== name);
+          if (card) card.classList.remove('checked');
+        }
+      };
+    });
+
+    updateSkillLabel();
+  };
+
+  searchInput.oninput = (e) => renderList(e.target.value);
+  renderList('');
+  renderDetail();
+}
+
+function renderWizardStep5(body) {
+  body.innerHTML = `
+    <div class="cs-wizard-review-grid" style="max-width: 900px; margin: 0 auto; width: 100%;">
+      <div style="grid-column: 1 / -1; margin-bottom: 8px;">
+        <h2 style="font-family: var(--font-header); font-size: 22px; color: var(--accent-color); margin: 0;">Review Character Details</h2>
+        <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">Look over your character info before finalized creation.</p>
+      </div>
+
+      <div class="cs-wizard-review-card">
+        <h4>Identity & Profile</h4>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Name</span><span class="cs-wizard-review-val">${wizardState.basics.name}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Species</span><span class="cs-wizard-review-val">${wizardState.species ? wizardState.species.name : 'Custom Species'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Background</span><span class="cs-wizard-review-val">${wizardState.background ? wizardState.background.name : 'Custom Background'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Class</span><span class="cs-wizard-review-val">Level 1 ${wizardState.classRecord ? wizardState.classRecord.name : 'Custom Class'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Alignment</span><span class="cs-wizard-review-val">${wizardState.basics.alignment || 'Neutral'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Age/Height/Weight</span><span class="cs-wizard-review-val">${wizardState.basics.age || '—'} / ${wizardState.basics.height || '—'} / ${wizardState.basics.weight || '—'}</span></div>
+      </div>
+
+      <div class="cs-wizard-review-card">
+        <h4>Base Ability Scores</h4>
+        <div class="cs-wizard-review-stats">
+          ${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(attr => {
+            const base = wizardState.basics.stats[attr] || 10;
+            const bgBonus = wizardState.backgroundStats[attr] || 0;
+            const total = base + bgBonus;
+            const mod = Math.floor((total - 10) / 2);
+            return `
+              <div class="cs-wizard-review-stat">
+                <div class="cs-wizard-review-stat-label">${attr}</div>
+                <div class="cs-wizard-review-stat-val">${total}</div>
+                <div style="font-size:11px;color:var(--text-muted);">${mod >= 0 ? '+' + mod : mod} (${base}${bgBonus !== 0 ? (bgBonus > 0 ? '+' + bgBonus : bgBonus) : ''})</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+        <div class="cs-wizard-review-row" style="margin-top:16px;"><span class="cs-wizard-review-key">HP at Level 1</span><span class="cs-wizard-review-val">${wizardState.classHpGain}</span></div>
+      </div>
+
+      <div class="cs-wizard-review-card" style="grid-column: 1 / -1;">
+        <h4>Proficiencies & Features</h4>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Species Skills</span><span class="cs-wizard-review-val">${wizardState.speciesSkills.join(', ') || 'None'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Background Skills</span><span class="cs-wizard-review-val">${wizardState.backgroundSkills.join(', ') || 'None'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Class Skills</span><span class="cs-wizard-review-val">${wizardState.classSkills.join(', ') || 'None'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Languages</span><span class="cs-wizard-review-val">${[...new Set([...wizardState.speciesLanguages, ...wizardState.backgroundLanguages])].join(', ') || 'None'}</span></div>
+        <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Active Class Features</span><span class="cs-wizard-review-val">${wizardState.classFeaturesChosen.join(', ') || 'None'}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function handleWizardNext() {
+  if (wizardState.step === 1) {
+    if (!wizardState.basics.name.trim()) {
+      alert('Name is required.');
+      return;
+    }
+    renderWizardStep(2);
+  } else if (wizardState.step === 2) {
+    if (!wizardState.species) {
+      alert('Please select a species.');
+      return;
+    }
+    renderWizardStep(3);
+  } else if (wizardState.step === 3) {
+    if (!wizardState.background) {
+      alert('Please select a background.');
+      return;
+    }
+    renderWizardStep(4);
+  } else if (wizardState.step === 4) {
+    if (!wizardState.classRecord) {
+      alert('Please select a class.');
+      return;
+    }
+    renderWizardStep(5);
+  } else if (wizardState.step === 5) {
+    applyWizardResult();
+  }
+}
+
+function handleWizardBack() {
+  if (wizardState.step > 1) {
+    renderWizardStep(wizardState.step - 1);
+  }
+}
+
+function closeWizard() {
+  document.getElementById('cs-wizard-modal').style.display = 'none';
+  wizardState = null;
+}
+
+async function applyWizardResult() {
+  const name = wizardState.basics.name.trim();
+  const baseStats = { ...wizardState.basics.stats };
+  
+  const speciesName = wizardState.species ? wizardState.species.name : '';
+  const backgroundName = wizardState.background ? wizardState.background.name : '';
+  const className = wizardState.classRecord ? wizardState.classRecord.name : '';
+  const spellAbility = wizardState.classRecord ? (wizardState.classRecord.spellAbility || null) : null;
+  const baseHp = parseInt(wizardState.classHpGain) || 10;
+  
+  const newChar = createNewCharacterTemplate(
+    name,
+    className,
+    '',
+    1,
+    speciesName,
+    backgroundName,
+    baseStats,
+    spellAbility ? spellAbility.toLowerCase() : 'wis',
+    baseHp,
+    wizardState.species ? parseInt(wizardState.species.speed) || 30 : 30
+  );
+
+  newChar.notes.alignment = wizardState.basics.alignment;
+  newChar.notes.age = wizardState.basics.age;
+  newChar.notes.height = wizardState.basics.height;
+  newChar.notes.weight = wizardState.basics.weight;
+
+  // Initialize character lists
+  ensureCharacterLists(newChar);
+
+  // 1. Create Species features and modifiers
+  const speciesListId = newChar.featureLists.push({ id: generateId(), name: `Species: ${speciesName}` }) - 1;
+  const speciesListDef = newChar.featureLists[speciesListId];
+  
+  if (wizardState.species) {
+    // Add all traits
+    if (wizardState.species.traits) {
+      wizardState.species.traits.forEach(t => {
+        newChar.features.push({
+          name: t.name,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          listId: speciesListDef.id,
+          texts: t.texts || [],
+          modifiers: JSON.parse(JSON.stringify(t.modifiers || []))
+        });
+      });
+    }
+
+    // Add Species skills as active modifiers
+    if (wizardState.speciesSkills.length > 0) {
+      const skillMods = wizardState.speciesSkills.map(s => ({
+        target: `skill.${getSkillKey(s)}.prof`,
+        type: 'max',
+        value: '1'
+      }));
+      newChar.features.push({
+        name: `${speciesName} Proficiencies`,
+        active: true,
+        favorite: false,
+        selected: true,
+        id: generateId(),
+        listId: speciesListDef.id,
+        texts: [`Grants proficiency in: ${wizardState.speciesSkills.join(', ')}`],
+        modifiers: skillMods
+      });
+    }
+
+    // Add Languages
+    if (wizardState.speciesLanguages.length > 0) {
+      newChar.features.push({
+        name: `${speciesName} Languages`,
+        active: true,
+        favorite: false,
+        selected: true,
+        id: generateId(),
+        listId: speciesListDef.id,
+        texts: [`Languages: ${wizardState.speciesLanguages.join(', ')}`]
+      });
+    }
+  }
+
+  // 2. Create Background features and modifiers
+  const bgListId = newChar.featureLists.push({ id: generateId(), name: `Background: ${backgroundName}` }) - 1;
+  const bgListDef = newChar.featureLists[bgListId];
+
+  if (wizardState.background) {
+    // Background traits
+    if (wizardState.background.traits) {
+      wizardState.background.traits.forEach(t => {
+        newChar.features.push({
+          name: t.name,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          listId: bgListDef.id,
+          texts: t.texts || [],
+          modifiers: JSON.parse(JSON.stringify(t.modifiers || []))
+        });
+      });
+    }
+
+    // Background ASI modifiers (based on what user entered)
+    const asiMods = [];
+    Object.keys(wizardState.backgroundStats).forEach(attr => {
+      const val = wizardState.backgroundStats[attr];
+      if (val !== 0) {
+        asiMods.push({
+          target: `${attr}.score`,
+          type: 'add',
+          value: val
+        });
+      }
+    });
+
+    if (asiMods.length > 0) {
+      newChar.features.push({
+        name: `Background Ability Adjustments`,
+        active: true,
+        favorite: false,
+        selected: true,
+        id: generateId(),
+        listId: bgListDef.id,
+        texts: ['Adjustments chosen during character creation.'],
+        modifiers: asiMods
+      });
+    }
+
+    // Background skills
+    if (wizardState.backgroundSkills.length > 0) {
+      const skillMods = wizardState.backgroundSkills.map(s => ({
+        target: `skill.${getSkillKey(s)}.prof`,
+        type: 'max',
+        value: '1'
+      }));
+      newChar.features.push({
+        name: `${backgroundName} Proficiencies`,
+        active: true,
+        favorite: false,
+        selected: true,
+        id: generateId(),
+        listId: bgListDef.id,
+        texts: [`Grants proficiency in: ${wizardState.backgroundSkills.join(', ')}`],
+        modifiers: skillMods
+      });
+    }
+  }
+
+  // 3. Create Class features and modifiers
+  const classListId = newChar.featureLists.push({ id: generateId(), name: `Class: ${className}` }) - 1;
+  const classListDef = newChar.featureLists[classListId];
+
+  // Set saving throw proficiencies
+  const { saves: classSaves } = getClassSkillsAndSaves(wizardState.classRecord);
+  classSaves.forEach(s => {
+    const key = attrMap[s] || s.toLowerCase().slice(0,3);
+    newChar.savesProficiency[key] = 1;
+  });
+
+  // Set class skills in skillsProficiency directly
+  wizardState.classSkills.forEach(s => {
+    const key = getSkillKey(s);
+    newChar.skillsProficiency[key] = 1;
+  });
+
+  // Level 1 Features
+  const lvl1 = wizardState.classRecord.autolevels?.find(al => al.level === 1);
+  if (lvl1 && lvl1.features) {
+    lvl1.features.forEach(f => {
+      if (wizardState.classFeaturesChosen.includes(f.name)) {
+        newChar.features.push({
+          name: f.name,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          listId: classListDef.id,
+          texts: f.texts || [],
+          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+        });
+      }
+    });
+
+    // Copy counters
+    if (lvl1.counters) {
+      lvl1.counters.forEach(c => {
+        newChar.counters.push({
+          name: c.name,
+          max: parseInt(c.value) || 1,
+          value: parseInt(c.value) || 1,
+          reset_short: c.reset === 'S',
+          reset_long: c.reset === 'L' || c.reset === 'S',
+          id: generateId(),
+          classTag: className
+        });
+      });
+    }
+  }
+
+  // If spellcaster class, create spell list
+  let classSpellListId = null;
+  if (spellAbility) {
+    const listName = `${className} Spells`;
+    newChar.spellLists.push({
+      id: generateId(),
+      name: listName,
+      spellcastingAbility: spellAbility.toLowerCase()
+    });
+    classSpellListId = newChar.spellLists[newChar.spellLists.length - 1].id;
+  }
+
+  // Set classes array entry
+  newChar.classes = [
+    {
+      name: className,
+      level: 1,
+      subclass: null,
+      hd: wizardState.classRecord.hd || 8,
+      spellAbility: spellAbility ? spellAbility.toLowerCase() : null,
+      featureListId: classListDef.id,
+      subclassListId: null,
+      spellListId: classSpellListId,
+      subclassSpellListId: null
+    }
+  ];
+
+  await saveCharacterToDb(newChar);
+  closeWizard();
+  
+  await refreshCharactersList();
+  openCharacterSheet(newChar);
+}
+
+// Helper maps
+const attrMap = { 'Strength': 'str', 'Dexterity': 'dex', 'Constitution': 'con', 'Intelligence': 'int', 'Wisdom': 'wis', 'Charisma': 'cha' };
+const POINT_BUY_COSTS = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
+
+function getSkillKey(skillName) {
+  return skillName.toLowerCase().replace(/[^a-z0-9]+/g, '_').trim();
+}
+
+function calculatePointBuyRemaining(stats) {
+  let spent = 0;
+  for (const attr of ['str', 'dex', 'con', 'int', 'wis', 'cha']) {
+    const score = stats[attr] || 8;
+    if (score < 8) spent += 0;
+    else if (score > 15) spent += 9;
+    else spent += POINT_BUY_COSTS[score] || 0;
+  }
+  return 27 - spent;
+}
+
+function getClassSkillsAndSaves(classRecord) {
+  if (!classRecord || !classRecord.proficiency) {
+    return { saves: [], skills: [] };
+  }
+  const parts = classRecord.proficiency.split(',').map(s => s.trim());
+  const attributesFull = ['Strength', 'Dexterity', 'Constitution', 'Intelligence', 'Wisdom', 'Charisma'];
+  const saves = parts.filter(p => attributesFull.includes(p));
+  const skills = parts.filter(p => !attributesFull.includes(p));
+  return { saves, skills };
+}
+
+// ─── Level Up Flow ───────────────────────────────────────────────────────────
+let levelUpState = null;
+
+function openLevelUpModal(char) {
+  ensureCharacterLists(char);
+  
+  levelUpState = {
+    char: char,
+    step: 'choose_class', // 'choose_class' | 'level_details'
+    selectedClassEntry: null,
+    newMulticlassRecord: null,
+    hpRoll: 5,
+    chosenFeatures: [],
+    selectedSubclass: null,
+    statIncreases: { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 }
+  };
+
+  const modal = document.getElementById('cs-levelup-modal');
+  modal.style.display = 'flex';
+  renderLevelUpModal();
+}
+
+function renderLevelUpModal() {
+  const body = document.getElementById('cs-levelup-body');
+  body.innerHTML = '';
+
+  const applyBtn = document.getElementById('cs-levelup-btn-apply');
+  applyBtn.style.display = levelUpState.step === 'level_details' ? '' : 'none';
+
+  if (levelUpState.step === 'choose_class') {
+    renderLevelUpChooseClass(body);
+  } else if (levelUpState.step === 'level_details') {
+    renderLevelUpDetails(body);
+  }
+}
+
+function renderLevelUpChooseClass(body) {
+  const currentClasses = levelUpState.char.classes || [];
+  const allClasses = allRecordsCache['classes'] || [];
+
+  // Filter multiclass options to classes not already taken (or allow multiclassing into anything)
+  const multiclassOptions = allClasses.filter(c => !currentClasses.some(cc => cc.name.toLowerCase() === c.name.toLowerCase()));
+
+  body.innerHTML = `
+    <h3 style="font-family:var(--font-header);font-size:18px;margin-bottom:12px;color:var(--text-primary);">Level Up / Multiclass Selection</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Choose a class to gain a level in, or select a new class to multiclass.</p>
+    
+    <h4 class="cs-levelup-section-title">Current Classes</h4>
+    <div class="cs-levelup-classes">
+      ${currentClasses.map(cc => `
+        <div class="cs-levelup-class-card" data-class="${cc.name}">
+          <div class="cs-levelup-class-name">${cc.name}</div>
+          <div class="cs-levelup-class-level">Level ${cc.level}</div>
+          <button type="button" class="cs-btn-main btn-lvlup-select" data-class="${cc.name}" style="margin-top:12px;padding:6px;width:100%;">Level Up (+1)</button>
+        </div>
+      `).join('')}
+    </div>
+
+    <h4 class="cs-levelup-section-title" style="margin-top:28px;">Multiclass (Add New Class)</h4>
+    <div class="cs-levelup-classes">
+      ${multiclassOptions.map(c => `
+        <div class="cs-levelup-class-card cs-levelup-add-class-card" data-class="${c.name}">
+          <div class="cs-levelup-class-name">+ ${c.name}</div>
+          <div class="cs-levelup-class-level">Hit Die: d${c.hd}</div>
+          <button type="button" class="cs-btn-small btn-lvlup-multi-select" data-class="${c.name}" style="margin-top:12px;padding:6px;width:100%;">Add Class</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // Wire buttons
+  body.querySelectorAll('.btn-lvlup-select').forEach(btn => {
+    btn.onclick = () => {
+      const clsName = btn.getAttribute('data-class');
+      levelUpState.selectedClassEntry = currentClasses.find(cc => cc.name === clsName);
+      levelUpState.newMulticlassRecord = null;
+      
+      const classRecord = allClasses.find(c => c.name.toLowerCase() === clsName.toLowerCase());
+      levelUpState.hpRoll = Math.floor((classRecord ? classRecord.hd : 8) / 2) + 1;
+      
+      levelUpState.step = 'level_details';
+      renderLevelUpModal();
+    };
+  });
+
+  body.querySelectorAll('.btn-lvlup-multi-select').forEach(btn => {
+    btn.onclick = () => {
+      const clsName = btn.getAttribute('data-class');
+      levelUpState.newMulticlassRecord = allClasses.find(c => c.name === clsName);
+      levelUpState.selectedClassEntry = null;
+      levelUpState.hpRoll = Math.floor(levelUpState.newMulticlassRecord.hd / 2) + 1;
+      
+      levelUpState.step = 'level_details';
+      renderLevelUpModal();
+    };
+  });
+}
+
+function renderLevelUpDetails(body) {
+  const isMulticlass = !!levelUpState.newMulticlassRecord;
+  const classRecord = isMulticlass 
+    ? levelUpState.newMulticlassRecord 
+    : allRecordsCache['classes']?.find(c => c.name.toLowerCase() === levelUpState.selectedClassEntry.name.toLowerCase());
+    
+  const currentLevel = isMulticlass ? 0 : levelUpState.selectedClassEntry.level;
+  const targetLevel = currentLevel + 1;
+  const hd = classRecord ? classRecord.hd : 8;
+
+  // Find autolevel details for target level
+  const al = classRecord ? classRecord.autolevels?.find(a => a.level === targetLevel) : null;
+  const features = al ? al.features : [];
+  
+  // Update state with level up features (checked by default, excluding optional features)
+  levelUpState.chosenFeatures = features.filter(f => !f.optional).map(f => f.name);
+
+  // Check if subclass choice is required (typically level 3 and no subclass selected yet)
+  const needsSubclass = targetLevel === 3 && (isMulticlass || !levelUpState.selectedClassEntry.subclass);
+
+  // Check if level grants ASI (contains features like "Ability Score Improvement" or "Feat")
+  const hasASI = features.some(f => f.name.includes('Ability Score') || f.name.includes('Feat') || f.name.includes('Improvement') || f.name.includes('Increase') || f.name.includes('ASI'));
+
+  let subclassHtml = '';
+  if (needsSubclass) {
+    const subclasses = allRecordsCache['subclasses']?.filter(s => s.parentClass.toLowerCase() === classRecord.name.toLowerCase()) || [];
+    subclassHtml = `
+      <div class="cs-levelup-section">
+        <h4 class="cs-levelup-section-title">Select Subclass / Archetype</h4>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">This class unlocks a subclass at Level 3. Select one from below:</p>
+        <div class="cs-levelup-subclass-picker">
+          <div class="cs-levelup-subclass-list">
+            ${subclasses.map((s, idx) => `
+              <div class="cs-levelup-subclass-item ${levelUpState.selectedSubclass === s ? 'active' : ''}" data-idx="${idx}">${s.name}</div>
+            `).join('')}
+          </div>
+          <div class="cs-levelup-subclass-detail" id="levelup-subclass-detail-pane">
+            <div style="text-align:center;color:var(--text-muted);padding-top:40px;">Select a subclass to view details.</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const hpGainHtml = `
+    <div class="cs-levelup-section">
+      <h4 class="cs-levelup-section-title">Hit Point Increase</h4>
+      <div class="cs-wizard-hp-prompt" style="margin-top:0;">
+        <div>
+          <span class="cs-wizard-hp-die-label">Hit Die:</span>
+          <span class="cs-wizard-hp-die">d${hd}</span>
+        </div>
+        <div class="cs-wizard-hp-input-wrap">
+          <label style="font-size:12px;color:var(--text-muted);">HP gained this level:</label>
+          <input type="number" class="cs-wizard-hp-input" id="levelup-hp-input" min="1" max="100" value="${levelUpState.hpRoll}">
+        </div>
+      </div>
+    </div>
+  `;
+
+  const featuresHtml = features.length > 0
+    ? `
+      <div class="cs-levelup-section">
+        <h4 class="cs-levelup-section-title">Features Gained at Level ${targetLevel}</h4>
+        <div class="cs-levelup-feature-list">
+          ${features.map(f => {
+            const isChecked = levelUpState.chosenFeatures.includes(f.name);
+            const badge = f.optional ? `<span class="cs-levelup-feature-badge">Optional</span>` : '';
+            return `
+              <div class="cs-levelup-feature-item ${f.optional ? 'optional' : ''} ${isChecked ? 'checked' : ''}" id="levelup-feat-item-${f.name.replace(/[^a-zA-Z0-9]/g,'')}">
+                <input type="checkbox" class="wizard-class-feature-chk" data-name="${f.name}" ${isChecked ? 'checked' : ''}>
+                <div style="margin-left:4px;">
+                  <div class="cs-levelup-feature-name">${f.name} ${badge}</div>
+                  <div class="cs-levelup-feature-desc">${f.texts ? f.texts.join('<br>') : ''}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  // ASI Section (honor system, allows adding direct points to base stats or feat choice)
+  const asiHtml = hasASI
+    ? `
+      <div class="cs-levelup-section">
+        <h4 class="cs-levelup-section-title">Ability Score Improvement / Feat</h4>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">This level grants an Ability Score Improvement or Feat. You can adjust your base stats below directly, or leave them at 0 if you are taking a feat on your sheet.</p>
+        <div class="cs-wizard-asi-grid">
+          ${['str', 'dex', 'con', 'int', 'wis', 'cha'].map(attr => {
+            const val = levelUpState.statIncreases[attr] || 0;
+            return `
+              <div class="cs-wizard-asi-btn ${val > 0 ? 'selected' : ''}" id="levelup-asi-btn-${attr}">
+                <span class="cs-wizard-asi-btn-label">${attr}</span>
+                <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:4px;">
+                  <button type="button" class="cs-btn-small btn-lvl-asi-dec" data-attr="${attr}" style="padding:2px 8px;font-size:12px;">−</button>
+                  <span class="cs-wizard-asi-btn-val" id="levelup-asi-val-${attr}">${val >= 0 ? '+' + val : val}</span>
+                  <button type="button" class="cs-btn-small btn-lvl-asi-inc" data-attr="${attr}" style="padding:2px 8px;font-size:12px;">+</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  body.innerHTML = `
+    <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">Level up to ${classRecord.name} Level ${targetLevel}</h3>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${isMulticlass ? 'Starting as a multiclass character.' : 'Advancing your class level.'}</div>
+      </div>
+      <button type="button" class="cs-btn-small" id="levelup-btn-back" style="font-size:12px;">← Back to Classes</button>
+    </div>
+
+    ${hpGainHtml}
+    ${subclassHtml}
+    ${asiHtml}
+    ${featuresHtml}
+  `;
+
+  // Wire HP input
+  const hpInput = body.querySelector('#levelup-hp-input');
+  hpInput.oninput = () => { levelUpState.hpRoll = Math.max(1, parseInt(hpInput.value) || 1); };
+
+  // Wire Back Button
+  body.querySelector('#levelup-btn-back').onclick = () => {
+    levelUpState.step = 'choose_class';
+    renderLevelUpModal();
+  };
+
+  // Wire Subclass Picker
+  if (needsSubclass) {
+    const subclasses = allRecordsCache['subclasses']?.filter(s => s.parentClass.toLowerCase() === classRecord.name.toLowerCase()) || [];
+    const items = body.querySelectorAll('.cs-levelup-subclass-item');
+    const detailPane = body.querySelector('#levelup-subclass-detail-pane');
+
+    const selectSubclass = (idx) => {
+      const sub = subclasses[idx];
+      levelUpState.selectedSubclass = sub;
+      items.forEach((item, i) => {
+        item.classList.toggle('active', i === idx);
+      });
+
+      // Show subclass features preview
+      const subLvl3 = sub.autolevels?.find(al => al.level === 3);
+      const subTraits = subLvl3 ? subLvl3.features : [];
+
+      detailPane.innerHTML = `
+        <h4 style="margin:0 0 4px 0;font-size:15px;color:var(--accent-color);font-family:var(--font-header);">${sub.name}</h4>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Subclass of ${classRecord.name}</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${subTraits.map(t => `
+            <div style="background:var(--panel-bg-hover);border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;">
+              <strong style="font-size:13px;display:block;color:var(--text-primary);">${t.name}</strong>
+              <span style="font-size:12px;color:var(--text-secondary);line-height:1.4;margin-top:2px;display:block;">${t.texts ? t.texts.join('<br>') : ''}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    };
+
+    items.forEach(item => {
+      item.onclick = () => {
+        const idx = parseInt(item.getAttribute('data-idx'));
+        selectSubclass(idx);
+      };
+    });
+
+    if (levelUpState.selectedSubclass) {
+      const activeIdx = subclasses.findIndex(s => s === levelUpState.selectedSubclass);
+      if (activeIdx >= 0) selectSubclass(activeIdx);
+    }
+  }
+
+  // Wire ASI Dec/Inc buttons
+  if (hasASI) {
+    body.querySelectorAll('.btn-lvl-asi-dec').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const attr = btn.getAttribute('data-attr');
+        levelUpState.statIncreases[attr] = Math.max(-5, (levelUpState.statIncreases[attr] || 0) - 1);
+        const card = body.querySelector(`#levelup-asi-btn-${attr}`);
+        const valSpan = body.querySelector(`#levelup-asi-val-${attr}`);
+        valSpan.textContent = levelUpState.statIncreases[attr] >= 0 ? '+' + levelUpState.statIncreases[attr] : levelUpState.statIncreases[attr];
+        card.classList.toggle('selected', levelUpState.statIncreases[attr] !== 0);
+      };
+    });
+
+    body.querySelectorAll('.btn-lvl-asi-inc').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const attr = btn.getAttribute('data-attr');
+        levelUpState.statIncreases[attr] = Math.min(5, (levelUpState.statIncreases[attr] || 0) + 1);
+        const card = body.querySelector(`#levelup-asi-btn-${attr}`);
+        const valSpan = body.querySelector(`#levelup-asi-val-${attr}`);
+        valSpan.textContent = levelUpState.statIncreases[attr] >= 0 ? '+' + levelUpState.statIncreases[attr] : levelUpState.statIncreases[attr];
+        card.classList.toggle('selected', levelUpState.statIncreases[attr] !== 0);
+      };
+    });
+  }
+
+  // Wire feature chks
+  body.querySelectorAll('.wizard-class-feature-chk').forEach(chk => {
+    chk.onchange = () => {
+      const name = chk.getAttribute('data-name');
+      const card = body.querySelector(`#levelup-feat-item-${name.replace(/[^a-zA-Z0-9]/g,'')}`);
+      if (chk.checked) {
+        if (!levelUpState.chosenFeatures.includes(name)) levelUpState.chosenFeatures.push(name);
+        if (card) card.classList.add('checked');
+      } else {
+        levelUpState.chosenFeatures = levelUpState.chosenFeatures.filter(x => x !== name);
+        if (card) card.classList.remove('checked');
+      }
+    };
+  });
+}
+
+function handleLevelUpApply() {
+  if (!levelUpState || levelUpState.step !== 'level_details') return;
+
+  const isMulticlass = !!levelUpState.newMulticlassRecord;
+  const classRecord = isMulticlass 
+    ? levelUpState.newMulticlassRecord 
+    : allRecordsCache['classes']?.find(c => c.name.toLowerCase() === levelUpState.selectedClassEntry.name.toLowerCase());
+    
+  const currentLevel = isMulticlass ? 0 : levelUpState.selectedClassEntry.level;
+  const targetLevel = currentLevel + 1;
+  const hd = classRecord ? classRecord.hd : 8;
+
+  // If level 3 subclass choice required, verify one is selected
+  const needsSubclass = targetLevel === 3 && (isMulticlass || !levelUpState.selectedClassEntry.subclass);
+  if (needsSubclass && !levelUpState.selectedSubclass) {
+    alert('Please select a subclass.');
+    return;
+  }
+
+  applyLevelUp(
+    levelUpState.char,
+    levelUpState.selectedClassEntry,
+    classRecord,
+    targetLevel,
+    levelUpState.chosenFeatures,
+    levelUpState.hpRoll,
+    levelUpState.selectedSubclass,
+    levelUpState.statIncreases
+  );
+}
+
+async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chosenFeatures, hpGain, selectedSubclass, statIncreases) {
+  const isMulticlass = !existingEntry;
+  const className = classRecord.name;
+  
+  // 1. Increment total level
+  char.level = (char.level || 1) + 1;
+  char.baseHpMax = (char.baseHpMax || 10) + hpGain;
+  char.hp.current = (char.hp.current || 10) + hpGain;
+
+  // 2. Adjust baseStats if any statIncreases selected (ASI / Feat)
+  if (statIncreases) {
+    Object.keys(statIncreases).forEach(attr => {
+      const val = statIncreases[attr] || 0;
+      if (val !== 0) {
+        char.baseStats[attr] = (char.baseStats[attr] || 10) + val;
+      }
+    });
+  }
+
+  // 3. Find or create feature list for this class
+  let classListId = existingEntry ? existingEntry.featureListId : null;
+  let classSpellListId = existingEntry ? existingEntry.spellListId : null;
+
+  if (isMulticlass) {
+    // Add new Class Feature List
+    char.featureLists.push({ id: generateId(), name: `Class: ${className}` });
+    const classListDef = char.featureLists[char.featureLists.length - 1];
+    classListId = classListDef.id;
+
+    // Check if new class has spellcasting and create spell list
+    if (classRecord.spellAbility) {
+      char.spellLists.push({
+        id: generateId(),
+        name: `${className} Spells`,
+        spellcastingAbility: classRecord.spellAbility.toLowerCase()
+      });
+      classSpellListId = char.spellLists[char.spellLists.length - 1].id;
+    }
+  }
+
+  // 4. Add level features to feature list
+  const al = classRecord.autolevels?.find(a => a.level === targetLevel);
+  if (al && al.features) {
+    al.features.forEach(f => {
+      if (chosenFeatures.includes(f.name)) {
+        // Skip saving throw proficiency features if it is a multiclass character (as per user comment)
+        if (isMulticlass && f.name.toLowerCase().includes('saving throw')) {
+          return; 
+        }
+
+        char.features.push({
+          name: f.name,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          listId: classListId,
+          texts: f.texts || [],
+          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+        });
+      }
+    });
+  }
+
+  // Copy counters
+  if (al && al.counters) {
+    al.counters.forEach(c => {
+      const existingCounter = char.counters?.find(cc => cc.name === c.name);
+      if (!existingCounter) {
+        char.counters.push({
+          name: c.name,
+          max: parseInt(c.value) || 1,
+          value: parseInt(c.value) || 1,
+          reset_short: c.reset === 'S',
+          reset_long: c.reset === 'L' || c.reset === 'S',
+          id: generateId(),
+          classTag: className
+        });
+      } else {
+        // Increment/update existing counter value
+        existingCounter.max = parseInt(c.value) || existingCounter.max;
+        existingCounter.value = existingCounter.max;
+      }
+    });
+  }
+
+  // 5. Handle subclass selection
+  let subclassFeatureListId = existingEntry ? existingEntry.subclassListId : null;
+  let subclassSpellListId = existingEntry ? existingEntry.subclassSpellListId : null;
+
+  if (selectedSubclass) {
+    // Add Subclass Feature List
+    char.featureLists.push({ id: generateId(), name: `Subclass: ${selectedSubclass.name}` });
+    const subclassListDef = char.featureLists[char.featureLists.length - 1];
+    subclassFeatureListId = subclassListDef.id;
+
+    // Add subclass level 3 features
+    const subLvl3 = selectedSubclass.autolevels?.find(a => a.level === 3);
+    if (subLvl3 && subLvl3.features) {
+      subLvl3.features.forEach(f => {
+        char.features.push({
+          name: f.name,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          listId: subclassFeatureListId,
+          texts: f.texts || [],
+          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+        });
+      });
+    }
+
+    // Set top-level subclass field for backwards compatibility
+    char.subclass = selectedSubclass.name;
+    
+    // Subclass spellcasting (e.g. Arcane Trickster, Eldritch Knight)
+    const spellAbility = selectedSubclass.spellAbility || classRecord.spellAbility;
+    if (spellAbility && !classSpellListId) {
+      char.spellLists.push({
+        id: generateId(),
+        name: `${selectedSubclass.name} Spells`,
+        spellcastingAbility: spellAbility.toLowerCase()
+      });
+      subclassSpellListId = char.spellLists[char.spellLists.length - 1].id;
+    }
+  }
+
+  // 6. Update class entry inside classes array
+  if (isMulticlass) {
+    char.classes.push({
+      name: className,
+      level: 1,
+      subclass: selectedSubclass ? selectedSubclass.name : null,
+      hd: classRecord.hd || 8,
+      spellAbility: classRecord.spellAbility ? classRecord.spellAbility.toLowerCase() : null,
+      featureListId: classListId,
+      subclassListId: subclassFeatureListId,
+      spellListId: classSpellListId,
+      subclassSpellListId: subclassSpellListId
+    });
+  } else {
+    existingEntry.level = targetLevel;
+    if (selectedSubclass) {
+      existingEntry.subclass = selectedSubclass.name;
+      existingEntry.subclassListId = subclassFeatureListId;
+      existingEntry.subclassSpellListId = subclassSpellListId;
+    }
+  }
+
+  // Update top-level class/level for compatibility
+  // In multiclass, display class subtitle as a combined string (e.g. Fighter 3 / Wizard 1)
+  const classSubtitle = char.classes.map(cc => `${cc.name} ${cc.level}`).join(' / ');
+  char.class = char.classes[0].name; // primary class remains first class
+  
+  char._modified_at = new Date().toISOString();
+
+  await saveCharacterToDb(char);
+  document.getElementById('cs-levelup-modal').style.display = 'none';
+
+  if (currentCharacter && currentCharacter.name === char.name) {
+    currentCharacter = char;
+    renderCharacterSheetUI();
+  }
+  await refreshCharactersList();
+}
+
 // ─── Picker State ────────────────────────────────────────────────────────────
 let pickerCategory = '';         // 'feats' | 'items' | 'spells' | 'monsters'
 let pickerTargetListId = null;   // listId to add into (null = default/first list)
@@ -3104,6 +4752,22 @@ function ensureCharacterLists(char) {
   if (!char.itemLists)     char.itemLists     = [{ id: generateId(), name: 'Inventory' }];
   if (!char.spellLists)    char.spellLists    = [{ id: generateId(), name: 'Spells', spellcastingAbility: char.spellcastingAbility || 'wis' }];
   if (!char.bestiaryLists) char.bestiaryLists = [{ id: generateId(), name: 'Companions & Summons' }];
+  
+  if (!char.classes) char.classes = [];
+  if (char.classes.length === 0 && char.class) {
+    const classRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === char.class.toLowerCase());
+    char.classes.push({
+      name: char.class,
+      level: parseInt(char.level) || 1,
+      subclass: char.subclass || null,
+      hd: classRecord ? parseInt(classRecord.hd) || 8 : 8,
+      spellAbility: classRecord ? classRecord.spellAbility || null : null,
+      featureListId: char.featureLists[0]?.id || generateId(),
+      subclassListId: null,
+      spellListId: char.spellLists[0]?.id || null,
+      subclassSpellListId: null
+    });
+  }
 
   // Assign default listId to legacy items that lack one
   const assignListIds = (arr, lists) => {
@@ -3137,6 +4801,7 @@ const SVG_PACK   = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 const SVG_TRASH  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
 const SVG_SYNC   = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>`;
 const SVG_COG    = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+const SVG_PLUS   = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 
 // ─── Single row renderer ───────────────────────────────────────────────────────
 /**
@@ -3273,11 +4938,18 @@ function renderListSection(container, listDef, items, type, state, opts = {}) {
       <h3>${listDef.name}</h3>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="cs-list-section-header-meta">${headerMeta}</span>
+        <button class="cs-list-row-btn btn-add-to-list" title="Add to List" data-list-id="${listDef.id}">${SVG_PLUS}</button>
         <button class="cs-list-row-btn btn-config-list" title="Configure List" data-list-id="${listDef.id}">${SVG_COG}</button>
       </div>
     </div>
     <div class="cs-list-section-body"></div>
   `;
+
+  section.querySelector('.btn-add-to-list').onclick = (e) => {
+    e.stopPropagation();
+    const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
+    openPicker(catMap[type], listDef.id);
+  };
 
   section.querySelector('.btn-config-list').onclick = (e) => {
     e.stopPropagation();
@@ -3666,7 +5338,19 @@ function renderCharacterSheetUI() {
 
   // ── Header ──────────────────────────────────────────────────────────────────
   document.getElementById('cs-char-name').textContent = currentCharacter.name;
-  document.getElementById('cs-char-subtitle').textContent = `Level ${currentCharacter.level} ${currentCharacter.class || 'Fighter'}${currentCharacter.subclass ? ' (' + currentCharacter.subclass + ')' : ''}`;
+  let classText = '';
+  if (currentCharacter.classes && currentCharacter.classes.length > 0) {
+    if (currentCharacter.classes.length === 1) {
+      const cc = currentCharacter.classes[0];
+      classText = `Level ${cc.level} ${cc.name}${cc.subclass ? ' (' + cc.subclass + ')' : ''}`;
+    } else {
+      const totalLevel = currentCharacter.classes.reduce((sum, c) => sum + c.level, 0);
+      classText = `Level ${totalLevel} ` + currentCharacter.classes.map(cc => `${cc.name} ${cc.level}${cc.subclass ? ' (' + cc.subclass + ')' : ''}`).join(' / ');
+    }
+  } else {
+    classText = `Level ${currentCharacter.level} ${currentCharacter.class || 'Fighter'}${currentCharacter.subclass ? ' (' + currentCharacter.subclass + ')' : ''}`;
+  }
+  document.getElementById('cs-char-subtitle').textContent = classText;
   document.getElementById('cs-hp-current').textContent = currentCharacter.hp.current;
   document.getElementById('cs-hp-max').textContent = state['hp.max'];
   document.getElementById('cs-hp-temp-display').textContent = currentCharacter.hp.temp || 0;
@@ -4028,6 +5712,22 @@ function saveNote() {
 function setupCharacterSheetEvents() {
   document.getElementById('cs-btn-back').onclick = () => closeCharacterSheet();
   document.getElementById('cs-btn-edit-char').onclick = () => { if (currentCharacter) showCharacterCreatorModal(currentCharacter); };
+  
+  const levelUpBtn = document.getElementById('cs-btn-level-up');
+  if (levelUpBtn) {
+    levelUpBtn.onclick = () => { if (currentCharacter) openLevelUpModal(currentCharacter); };
+  }
+
+  // Wizard modal event listeners
+  document.getElementById('cs-wizard-btn-cancel').onclick = () => closeWizard();
+  document.getElementById('cs-wizard-btn-prev').onclick   = () => handleWizardBack();
+  document.getElementById('cs-wizard-btn-next').onclick   = () => handleWizardNext();
+
+  // Level Up modal event listeners
+  document.getElementById('cs-levelup-btn-close').onclick  = () => { document.getElementById('cs-levelup-modal').style.display = 'none'; };
+  document.getElementById('cs-levelup-btn-cancel').onclick = () => { document.getElementById('cs-levelup-modal').style.display = 'none'; };
+  document.getElementById('cs-levelup-btn-apply').onclick  = () => handleLevelUpApply();
+
   document.getElementById('cs-btn-inspiration').onclick = () => {
     if (currentCharacter) { currentCharacter.inspiration = !currentCharacter.inspiration; saveCurrentCharacterAndRefresh(); }
   };
@@ -4127,12 +5827,6 @@ function setupCharacterSheetEvents() {
     saveCurrentCharacterAndRefresh();
   };
   document.getElementById('cs-temp-hp-cancel').onclick = () => { document.getElementById('cs-temp-hp-modal').style.display = 'none'; };
-
-  // Add feature/item/spell buttons (open pickers; no target list)
-  document.getElementById('cs-btn-add-feature').onclick = () => openPicker('feats');
-  document.getElementById('cs-btn-add-item').onclick    = () => openPicker('items');
-  document.getElementById('cs-btn-add-spell').onclick   = () => openPicker('spells');
-  document.getElementById('cs-btn-add-beast').onclick   = () => openPicker('monsters');
 
   // Add new list buttons
   document.getElementById('cs-btn-add-feature-list').onclick = () => {

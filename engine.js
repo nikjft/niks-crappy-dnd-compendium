@@ -165,7 +165,8 @@ export function calculateCharacterState(character) {
   for (const skill of Object.keys(skillAttrs)) {
     const defaultAttr = skillAttrs[skill];
     const overriddenAttr = skillsAttrOverride[skill] || defaultAttr;
-    const profMultiplier = parseFloat(skillsProf[skill]) || 0; // 0, 0.5, 1, 2
+    const baseProfMultiplier = parseFloat(skillsProf[skill]) || 0; // 0, 0.5, 1, 2
+    const profMultiplier = resolveTarget(`skill.${skill}.prof`, baseProfMultiplier);
     const baseSkillVal = state[`${overriddenAttr}.mod`] + profMultiplier * state['prof_bonus'];
     state[`skill.${skill}`] = resolveTarget(`skill.${skill}`, baseSkillVal);
   }
