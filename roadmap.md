@@ -8,7 +8,7 @@ blocking UI threads. Avoid rewriting logic by ensuring state management
 and data schemas are finalized *before* building complex user
 interfaces.
 
-## Phase 1: The Robust Storage Foundation (Local-First Sync)
+## Phase 1: The Robust Storage Foundation (Local-First Sync) [DONE]
 
 *Why here? Building character sheets relies heavily on saving state. If
 we build characters on standard `localStorage` now, we will have to
@@ -47,13 +47,7 @@ data before we build the engine that calculates it.*
 2.  **Parser Update:** Update the ingestion script to map these new XML
     tags into a strictly typed JSON schema.
 
-3.  **5eTools JSON Support (Optional parallel track):** Build the
-    ingestion adapter for 5eTools JSON, normalizing it into the *same*
-    internal JSON schema used by the XML parser.
 
-4.  **Multiple Database Support:** Implement the UI and routing logic to
-    switch between active compendium databases (e.g., switching between
-    a "Standard 5e" db and a "Homebrew 5.5e" db).
 
 ## Phase 3: Global Compendium Features
 
@@ -131,3 +125,14 @@ premium tool rather than just a digital piece of paper.*
 
 4.  **Bestiary:** Add the final list type for tracking summons and
     temporary forms.
+
+
+## Phase 7: Tits
+
+3.  **5eTools JSON Support (Optional parallel track):** Build the
+    ingestion adapter for 5eTools JSON, normalizing it into the *same*
+    internal JSON schema used by the XML parser.
+
+4.  **Multiple Database Support:** Implement the UI and routing logic to
+    switch between active compendium databases (e.g., switching between
+    a "Standard 5e" db and a "Homebrew 5.5e" db).
