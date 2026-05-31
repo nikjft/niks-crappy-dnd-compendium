@@ -1,4 +1,4 @@
-import { openDB, saveRecords, getAllRecords, clearDatabase, exportAllData, importAllData, STORES } from './db.js';
+import { openDB, saveRecords, getAllRecords, clearDatabase, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting } from './db.js';
 import { parseCompendiumXML, ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
 import { initStorage, storageHealth, getStorageQuota, onQuotaWarning, onPersistenceResult } from './storage.js';
 import { initSync, syncNow, scheduleDebouncedSync, syncState, onSyncStatusChange, startDropboxOAuth, unlinkDropbox, isDropboxLinked, refreshAccessToken } from './sync.js';
@@ -1743,9 +1743,15 @@ function renderSettingsPage() {
           </div>
 
           <div class="settings-option" id="dropbox-link-section">
-            <h3>Dropbox App Key</h3>
-            <p>Create a Dropbox App at <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener" style="color: var(--accent-color);">dropbox.com/developers/apps</a> with <strong>App folder</strong> access. Paste your <strong>App Key</strong> (not the secret) below.</p>
-            <input type="text" class="settings-input" id="dropbox-app-key-input" placeholder="e.g. abc123xyz456" autocomplete="off" spellcheck="false">
+            <div id="dropbox-config-fields">
+              <h3>Dropbox App Key</h3>
+              <p>Create a Dropbox App at <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener" style="color: var(--accent-color);">dropbox.com/developers/apps</a> with <strong>App folder</strong> access. Paste your <strong>App Key</strong> (not the secret) below.</p>
+              <input type="text" class="settings-input" id="dropbox-app-key-input" placeholder="e.g. abc123xyz456" autocomplete="off" spellcheck="false" style="margin-bottom: 12px;">
+
+              <h3>OAuth Redirect URI (Optional / Configurable)</h3>
+              <p>Make sure this matches one of the <strong>Redirect URIs</strong> registered in your Dropbox App settings. Defaults to this application's current URL.</p>
+              <input type="text" class="settings-input" id="dropbox-redirect-uri-input" placeholder="e.g. http://localhost:3000/" autocomplete="off" spellcheck="false" style="margin-bottom: 16px;">
+            </div>
             <div class="settings-btn-row">
               <button class="settings-action-btn" id="settings-btn-link-dropbox">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 10l5.5 3.5L17.5 10 12 6.5zm5.5 5.5L6.5 12 2 14.5 12 21l10-6.5L17.5 12zm0-12L2 9.5 6.5 12 12 8.5 17.5 12 22 9.5z"/></svg>
@@ -1905,17 +1911,28 @@ async function _setupDropboxLinkUI() {
   const linkBtn = document.getElementById('settings-btn-link-dropbox');
   const unlinkBtn = document.getElementById('settings-btn-unlink-dropbox');
   const keyInput = document.getElementById('dropbox-app-key-input');
+  const redirectInput = document.getElementById('dropbox-redirect-uri-input');
+  const configFields = document.getElementById('dropbox-config-fields');
 
-  if (!linkBtn || !unlinkBtn || !keyInput) return;
+  if (!linkBtn || !unlinkBtn || !keyInput || !redirectInput) return;
+
+  // Pre-populate saved values if they exist
+  const savedKey = await getAppSetting('dropbox_app_key');
+  if (savedKey) {
+    keyInput.value = savedKey;
+  }
+
+  const savedRedirect = await getAppSetting('oauth_redirect_uri');
+  redirectInput.value = savedRedirect || (window.location.origin + window.location.pathname);
 
   if (linked) {
     linkBtn.style.display = 'none';
     unlinkBtn.style.display = '';
-    keyInput.style.display = 'none';
+    if (configFields) configFields.style.display = 'none';
   } else {
     linkBtn.style.display = '';
     unlinkBtn.style.display = 'none';
-    keyInput.style.display = '';
+    if (configFields) configFields.style.display = '';
   }
 
   linkBtn.addEventListener('click', async () => {
@@ -1924,9 +1941,8 @@ async function _setupDropboxLinkUI() {
       alert('Please enter your Dropbox App Key first.');
       return;
     }
+    const redirectUri = redirectInput.value.trim() || (window.location.origin + window.location.pathname);
     try {
-      // Redirect URI is this page's origin + pathname
-      const redirectUri = window.location.origin + window.location.pathname;
       await startDropboxOAuth(appKey, redirectUri);
       // Page will redirect to Dropbox — no further action needed here
     } catch (err) {

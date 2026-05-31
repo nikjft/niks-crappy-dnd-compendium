@@ -644,6 +644,10 @@ const x = 10;
   if (!dropboxKeyInput) throw new Error("dropbox-app-key-input not found in Settings panel.");
   console.log("  ✓ Dropbox App Key input present");
 
+  const dropboxRedirectInput = document.getElementById('dropbox-redirect-uri-input');
+  if (!dropboxRedirectInput) throw new Error("dropbox-redirect-uri-input not found in Settings panel.");
+  console.log("  ✓ Dropbox Redirect URI input present");
+
   const linkDropboxBtn = document.getElementById('settings-btn-link-dropbox');
   if (!linkDropboxBtn) throw new Error("settings-btn-link-dropbox not found in Settings panel.");
   console.log("  ✓ Link Dropbox button present");
