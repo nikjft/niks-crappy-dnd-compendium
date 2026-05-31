@@ -33,7 +33,7 @@ sync.*
 4.  **Sync UX/UI:** Add the offline/online banners, sync settings panel,
     and manual backup overrides.
 
-## Phase 2: Data Schema & Ingestion Pipeline
+## Phase 2: Data Schema & Ingestion Pipeline [DONE]
 
 *Why here? The Character Sheet's calculation engine needs specific data
 (modifiers, subclass relationships). We must update how the app reads
@@ -49,7 +49,7 @@ data before we build the engine that calculates it.*
 
 
 
-## Phase 3: Global Compendium Features
+## Phase 3: Global Compendium Features [DONE]
 
 *Why here? These features validate the Phase 1 storage and Phase 2 data
 structures using simpler, read-only UI components before tackling the
@@ -59,8 +59,6 @@ complex math of Character Sheets.*
     item/spell/feature and view them in a consolidated list. (This paves
     the way for the "Lists" architecture needed for characters).
 
-2.  **Rules Reference:** Add the static UI tab for standard conditions
-    and rules.
 
 3.  **Display Tables Markdown:** Update the text parser to convert the
     custom `<text>` table formats (e.g., `Cleric Level | Spells`) into
@@ -136,3 +134,7 @@ premium tool rather than just a digital piece of paper.*
 4.  **Multiple Database Support:** Implement the UI and routing logic to
     switch between active compendium databases (e.g., switching between
     a "Standard 5e" db and a "Homebrew 5.5e" db).
+
+
+    2.  **Rules Reference:** Add the static UI tab for standard conditions
+    and rules.
