@@ -72,7 +72,7 @@ window.fetch = (url) => {
 
 // In-memory IndexedDB mock
 const mockDB = {};
-const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options'];
+const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
 STORES.forEach(store => { mockDB[store] = []; });
 
 // App settings mock
@@ -88,9 +88,20 @@ window.saveRecords = (storeName, records, opts = {}) => {
   mockDB[storeName] = records;
   return Promise.resolve();
 };
+window.saveRecord = (storeName, record) => {
+  console.log(`[Mock DB] saveRecord for ${storeName}: saving record ${record.name}`);
+  if (!mockDB[storeName]) mockDB[storeName] = [];
+  const idx = mockDB[storeName].findIndex(r => r.name === record.name);
+  if (idx >= 0) {
+    mockDB[storeName][idx] = record;
+  } else {
+    mockDB[storeName].push(record);
+  }
+  return Promise.resolve(record);
+};
 window.getAllRecords = (storeName) => {
-  console.log(`[Mock DB] getAllRecords for ${storeName}: returning ${mockDB[storeName].length} records`);
-  return Promise.resolve(mockDB[storeName]);
+  console.log(`[Mock DB] getAllRecords for ${storeName}: returning ${mockDB[storeName] ? mockDB[storeName].length : 0} records`);
+  return Promise.resolve(mockDB[storeName] || []);
 };
 window.clearDatabase = () => {
   console.log(`[Mock DB] clearDatabase called`);
@@ -172,7 +183,7 @@ async function runTests() {
   console.log("\n--- Checking database seeding ---");
   STORES.forEach(store => {
     console.log(`Store '${store}': ${mockDB[store].length} records loaded.`);
-    if (mockDB[store].length === 0) {
+    if (store !== 'favorites' && mockDB[store].length === 0) {
       throw new Error(`Seeding failed for store: ${store}`);
     }
   });
@@ -830,6 +841,179 @@ const x = 10;
   const resetCacheBtn = document.getElementById('settings-btn-reset-cache');
   if (!resetCacheBtn) throw new Error("settings-btn-reset-cache not found after refactor.");
   console.log("  ✓ Reset Cache button present");
+
+  // --- Running Phase 3: Global Bookmarks & Display Tables Tests ---
+  console.log("\n--- Running Phase 3: Bookmarks & Table Markdown Unit Tests ---");
+
+  // 1. Test Custom Table Preprocessing and Parsing
+  const customTableMarkdown = `
+Cleric Level | Prepared Spells
+3 | Aid, Bless, Cure Wounds
+5 | Mass Healing Word, Revivify
+  `;
+  const parsedTableHtml = window.parseMarkdown(customTableMarkdown.trim());
+  console.log("Parsed custom table HTML:\n", parsedTableHtml);
+  if (!parsedTableHtml.includes('<table class="markdown-table">')) throw new Error("Custom table parsing failed to create table element.");
+  if (!parsedTableHtml.includes('<th>Cleric Level</th>')) throw new Error("Custom table header parsing failed.");
+  if (!parsedTableHtml.includes('<td>Aid, Bless, Cure Wounds</td>')) throw new Error("Custom table cell parsing failed.");
+
+  // Test custom table parsing with blank lines
+  const customTableWithBlanks = `
+Level | Prepared Spells
+
+3 | Aid, Bless
+
+5 | Revivify
+  `;
+  const parsedBlanksHtml = window.parseMarkdown(customTableWithBlanks.trim());
+  console.log("Parsed custom table with blanks HTML:\n", parsedBlanksHtml);
+  if (!parsedBlanksHtml.includes('<table class="markdown-table">')) throw new Error("Custom table with blanks failed to parse.");
+  if (!parsedBlanksHtml.includes('<th>Level</th>')) throw new Error("Custom table with blanks header failed.");
+  if (!parsedBlanksHtml.includes('<td>Aid, Bless</td>')) throw new Error("Custom table with blanks cell failed.");
+
+  // 2. Test Bookmarks/Favorites toggling & caching
+  console.log("Testing bookmarks functionality...");
+  
+  // Set up dummy spell and test active state
+  const testSpell = {
+    name: "Test Fireball Spell",
+    level: 3,
+    school: "Evocation",
+    categoryType: "spell"
+  };
+
+  // Mock allRecordsCache initialization
+  window.allRecordsCache['favorites'] = [];
+  window.allRecordsCache['spells'] = [testSpell];
+  
+  // Navigate to spells category so currentCategory is set correctly
+  await window.loadCategory('spells');
+  
+  // Simulate selecting the item
+  window.selectItem(testSpell);
+  
+  // Verify favorite toggle button is shown and not active
+  const favoriteBtn = document.getElementById('btn-favorite');
+  if (!favoriteBtn) throw new Error("Favorite button not found in detail header.");
+  if (favoriteBtn.style.display === 'none') throw new Error("Favorite button should be visible when an item is selected.");
+  if (favoriteBtn.classList.contains('active')) throw new Error("Favorite button should not be active initially.");
+  
+  // Simulate clicking favorite
+  favoriteBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Verify it is favorited
+  if (!favoriteBtn.classList.contains('active')) throw new Error("Favorite button should be active after clicking.");
+  const isFav = window.isItemFavorited(testSpell, "spell");
+  if (!isFav) throw new Error("isItemFavorited returned false after favoriting.");
+  
+  // Check that the favorite record is saved in mockDB
+  const favStore = mockDB['favorites'];
+  if (!favStore || favStore.length === 0) throw new Error("Favorite record not saved to database.");
+  const savedFav = favStore.find(f => f.name === "spells:Test Fireball Spell");
+  if (!savedFav) throw new Error("Favorite record key is incorrect.");
+  if (savedFav._deleted) throw new Error("Favorite record should not be marked as deleted.");
+  
+  // Simulate clicking favorite again to unfavorite (soft delete)
+  favoriteBtn.click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // Verify it is soft-deleted
+  if (favoriteBtn.classList.contains('active')) throw new Error("Favorite button should not be active after unfavoriting.");
+  if (window.isItemFavorited(testSpell, "spell")) throw new Error("isItemFavorited returned true after soft delete.");
+  const updatedFav = favStore.find(f => f.name === "spells:Test Fireball Spell");
+  if (!updatedFav || !updatedFav._deleted) throw new Error("Favorite record should be soft-deleted in database.");
+
+  // Test resolving favorites in applyFilters
+  // Let's create a favorite record that is active
+  const activeFav = {
+    name: "spells:Test Fireball Spell",
+    category: "spells",
+    itemName: "Test Fireball Spell",
+    className: "",
+    featureName: "",
+    _deleted: false,
+    _modified_at: new Date().toISOString()
+  };
+  mockDB['favorites'] = [activeFav];
+  window.allRecordsCache['favorites'] = [activeFav];
+  
+  // Navigate to favorites category
+  await window.loadCategory('favorites');
+  
+  // Verify Facet 1 is populated with "Spells"
+  const facetItems = Array.from(document.getElementById('facet-list-1').querySelectorAll('.facet-item'));
+  const spellFacet = facetItems.find(item => item.textContent.includes('Spells'));
+  if (!spellFacet) throw new Error("Facet 1 does not contain 'Spells' category for favorites.");
+  
+  // Verify list has our favorited spell
+  let favListItems = Array.from(document.getElementById('item-list').querySelectorAll('.item-list-item'));
+  let spellListItem = favListItems.find(item => item.textContent.includes('Test Fireball Spell'));
+  if (!spellListItem) throw new Error("Item list does not contain favorited spell.");
+
+  // Simulate selecting "Spells" in Facet 1
+  spellFacet.querySelector('button').click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  // Facet 2 should be active now (since spells has Level hierarchy)
+  const facet2Pane = document.getElementById('pane-facet-2');
+  if (facet2Pane.style.display === 'none') throw new Error("Facet 2 pane should be visible when Spells is selected in favorites.");
+
+  // Facet 2 should have "Level 3" option
+  const facet2Items = Array.from(document.getElementById('facet-list-2').querySelectorAll('.facet-item'));
+  const lvl3Facet = facet2Items.find(item => item.textContent.includes('Level 3'));
+  if (!lvl3Facet) throw new Error("Facet 2 does not contain Level 3 for favorited spells.");
+
+  // Verify selecting Level 3 retains item
+  lvl3Facet.querySelector('button').click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  favListItems = Array.from(document.getElementById('item-list').querySelectorAll('.item-list-item'));
+  spellListItem = favListItems.find(item => item.textContent.includes('Test Fireball Spell'));
+  if (!spellListItem) throw new Error("Spell item should be visible when Level 3 is selected.");
+
+  // Add dummy equipment and check hierarchy as well
+  const testItem = {
+    name: "Test Chain Mail",
+    type: "Heavy Armor",
+    categoryType: "item",
+    value: 75
+  };
+  window.allRecordsCache['items'] = [testItem];
+
+  const itemFav = {
+    name: "items:Test Chain Mail",
+    category: "items",
+    itemName: "Test Chain Mail",
+    className: "",
+    featureName: "",
+    _deleted: false,
+    _modified_at: new Date().toISOString()
+  };
+  mockDB['favorites'].push(itemFav);
+  window.allRecordsCache['favorites'].push(itemFav);
+
+  // Reload category
+  await window.loadCategory('favorites');
+
+  // Select Equipment in Facet 1
+  const facetItemsEq = Array.from(document.getElementById('facet-list-1').querySelectorAll('.facet-item'));
+  const eqFacet = facetItemsEq.find(item => item.textContent.includes('Equipment'));
+  if (!eqFacet) throw new Error("Facet 1 does not contain Equipment for favorites.");
+  eqFacet.querySelector('button').click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  // Facet 2 should show "Heavy Armor"
+  const facet2ItemsEq = Array.from(document.getElementById('facet-list-2').querySelectorAll('.facet-item'));
+  const heavyArmorFacet = facet2ItemsEq.find(item => item.textContent.includes('Heavy Armor'));
+  if (!heavyArmorFacet) throw new Error("Facet 2 does not contain Heavy Armor for favorited equipment.");
+
+  heavyArmorFacet.querySelector('button').click();
+  await new Promise(resolve => setTimeout(resolve, 50));
+
+  favListItems = Array.from(document.getElementById('item-list').querySelectorAll('.item-list-item'));
+  const eqListItem = favListItems.find(item => item.textContent.includes('Test Chain Mail'));
+  if (!eqListItem) throw new Error("Chain Mail should be visible under Heavy Armor facet.");
 
   console.log("\nALL TESTS PASSED SUCCESSFULLY!");
 }

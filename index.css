@@ -1481,3 +1481,44 @@ h1, h2, h3, h4, h5, h6 {
   justify-content: flex-end;
   flex-wrap: wrap;
 }
+
+/* Favorite/Bookmark Button */
+.favorite-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  transition: background-color 0.2s, color 0.2s, transform 0.1s;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.favorite-btn:hover {
+  background-color: var(--panel-bg-hover);
+  color: var(--accent-color);
+}
+
+.favorite-btn:active {
+  transform: scale(0.9);
+}
+
+.favorite-btn svg {
+  transition: fill 0.2s, stroke 0.2s;
+  flex-shrink: 0;
+}
+
+.favorite-btn.active {
+  color: var(--accent-color);
+}
+
+.favorite-btn.active svg {
+  fill: var(--accent-color);
+  stroke: var(--accent-color);
+}
+

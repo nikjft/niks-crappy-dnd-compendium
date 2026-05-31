@@ -1,4 +1,4 @@
-import { openDB, saveRecords, getAllRecords, clearDatabase, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting } from './db.js';
+import { openDB, saveRecords, saveRecord, getAllRecords, clearDatabase, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting } from './db.js';
 import { parseCompendiumXML, ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
 import { initStorage, storageHealth, getStorageQuota, onQuotaWarning, onPersistenceResult } from './storage.js';
 import { initSync, syncNow, scheduleDebouncedSync, syncState, onSyncStatusChange, startDropboxOAuth, unlinkDropbox, isDropboxLinked, refreshAccessToken } from './sync.js';
@@ -8,6 +8,7 @@ import { handleSyncStateChange, showConflictModal, renderSyncStatusBadge, render
 let currentCategory = 'races';
 let currentRecords = []; // Records for the currently selected browsing category
 let allRecordsCache = {}; // Cache of all records across all categories for universal search
+if (typeof window !== 'undefined') window.allRecordsCache = allRecordsCache;
 let selectedFacet1 = 'All';
 let selectedFacet2 = 'All';
 let searchChits = []; // e.g. [{ field: 'school', value: 'conjuration' }]
@@ -52,6 +53,94 @@ const backFacet1 = document.getElementById('back-facet-1');
 const backFacet2 = document.getElementById('back-facet-2');
 const backList = document.getElementById('back-list');
 const backDetail = document.getElementById('back-detail');
+const btnFavorite = document.getElementById('btn-favorite');
+
+const FAVORITES_GROUP_NAMES = {
+  'spells': 'Spells',
+  'items': 'Equipment',
+  'monsters': 'Bestiary',
+  'classes': 'Classes',
+  'backgrounds': 'Backgrounds',
+  'races': 'Races',
+  'options': 'Options',
+  'feats': 'Feats',
+  'features': 'Class Features'
+};
+
+function getStoreNameForCategory(category) {
+  if (category === 'spell') return 'spells';
+  if (category === 'item') return 'items';
+  if (category === 'monster') return 'monsters';
+  if (category === 'feat') return 'feats';
+  if (category === 'background') return 'backgrounds';
+  if (category === 'race') return 'races';
+  if (category === 'option') return 'options';
+  if (category === 'class' || category === 'class-overview' || category === 'classes') return 'classes';
+  if (category === 'class-feature') return 'classes';
+  return category;
+}
+
+function getFavoriteKey(item, category) {
+  const store = getStoreNameForCategory(category);
+  if (category === 'class-feature') {
+    return `features:${item.className}:${item.name}`;
+  }
+  const name = item.name || item.itemName;
+  return `${store}:${name}`;
+}
+
+function isItemFavorited(item, category) {
+  if (!item) return false;
+  const key = getFavoriteKey(item, category);
+  const fav = allRecordsCache['favorites']?.find(f => f.name === key);
+  return fav && !fav._deleted;
+}
+
+function resolveFavoriteItem(fav) {
+  if (fav.category === 'classes' && fav.featureName) {
+    const cls = allRecordsCache['classes']?.find(c => c.name === fav.className);
+    if (cls) {
+      const feature = cls.features?.find(f => f.name === fav.featureName);
+      if (feature) {
+        return {
+          ...feature,
+          className: cls.name,
+          categoryType: 'class-feature',
+          favoriteNameKey: fav.name
+        };
+      }
+    }
+    return null;
+  }
+  
+  if (fav.category === 'features') {
+    const cls = allRecordsCache['classes']?.find(c => c.name === fav.className);
+    if (cls) {
+      const feature = cls.features?.find(f => f.name === fav.featureName);
+      if (feature) {
+        return {
+          ...feature,
+          className: cls.name,
+          categoryType: 'class-feature',
+          favoriteNameKey: fav.name
+        };
+      }
+    }
+    return null;
+  }
+
+  const full = allRecordsCache[fav.category]?.find(item => item.name === fav.itemName);
+  if (full) {
+    let catType = fav.category.substring(0, fav.category.length - 1);
+    if (fav.category === 'classes') catType = 'class-overview';
+    return {
+      ...full,
+      categoryType: catType,
+      favoriteNameKey: fav.name
+    };
+  }
+  return null;
+}
 
 // Initialize Application
 window.addEventListener('DOMContentLoaded', async () => {
@@ -170,6 +259,88 @@ function setupEventListeners() {
       }
     }
   }, { passive: true });
+
+  // Favorite toggle button click handler
+  if (btnFavorite) {
+    btnFavorite.addEventListener('click', async () => {
+      if (!selectedItem) return;
+      const isFav = isItemFavorited(selectedItem, selectedItem.categoryType);
+      const key = getFavoriteKey(selectedItem, selectedItem.categoryType);
+      
+      let favRecord;
+      if (isFav) {
+        // Soft delete (tombstone)
+        const store = getStoreNameForCategory(selectedItem.categoryType);
+        favRecord = {
+          name: key,
+          category: store === 'classes' && selectedItem.categoryType === 'class-feature' ? 'features' : store,
+          itemName: selectedItem.name,
+          className: selectedItem.className || '',
+          featureName: selectedItem.categoryType === 'class-feature' ? selectedItem.name : '',
+          _deleted: true,
+          _modified_at: new Date().toISOString()
+        };
+      } else {
+        // Create/restore favorite
+        const store = getStoreNameForCategory(selectedItem.categoryType);
+        favRecord = {
+          name: key,
+          category: store === 'classes' && selectedItem.categoryType === 'class-feature' ? 'features' : store,
+          itemName: selectedItem.name,
+          className: selectedItem.className || '',
+          featureName: selectedItem.categoryType === 'class-feature' ? selectedItem.name : '',
+          _deleted: false,
+          _modified_at: new Date().toISOString()
+        };
+      }
+      
+      // Save to DB and memory cache
+      await saveRecord('favorites', favRecord);
+      
+      // Update cache
+      if (!allRecordsCache['favorites']) {
+        allRecordsCache['favorites'] = [];
+      }
+      const existingIdx = allRecordsCache['favorites'].findIndex(f => f.name === key);
+      if (existingIdx >= 0) {
+        allRecordsCache['favorites'][existingIdx] = favRecord;
+      } else {
+        allRecordsCache['favorites'].push(favRecord);
+      }
+
+      // Update button appearance
+      updateFavoriteButtonUI();
+
+      // If currentCategory is favorites, reload the category to update the lists
+      if (currentCategory === 'favorites') {
+        const prevFacet1 = selectedFacet1;
+        await loadCategory('favorites');
+        selectedFacet1 = prevFacet1;
+        renderFacet1();
+        applyFilters();
+      }
+
+      // Sync changes
+      scheduleDebouncedSync();
+    });
+  }
+}
+
+function updateFavoriteButtonUI() {
+  if (!btnFavorite) return;
+  if (!selectedItem || currentCategory === 'settings' || currentCategory === 'search') {
+    btnFavorite.style.display = 'none';
+    return;
+  }
+  
+  // Show button and check if active
+  btnFavorite.style.display = 'flex';
+  const isFav = isItemFavorited(selectedItem, selectedItem.categoryType);
+  if (isFav) {
+    btnFavorite.classList.add('active');
+  } else {
+    btnFavorite.classList.remove('active');
+  }
 }
 
 // Load all records across all stores into local memory cache
@@ -341,10 +512,19 @@ async function loadCategory(category) {
   }
 
   // Load records from DB cache
-  currentRecords = allRecordsCache[category] || [];
-  if (currentRecords.length === 0) {
-    currentRecords = await getAllRecords(category);
-    allRecordsCache[category] = currentRecords;
+  if (category === 'favorites') {
+    let rawFavorites = allRecordsCache[category];
+    if (!rawFavorites) {
+      rawFavorites = await getAllRecords(category);
+      allRecordsCache[category] = rawFavorites;
+    }
+    currentRecords = rawFavorites.filter(f => !f._deleted);
+  } else {
+    currentRecords = allRecordsCache[category] || [];
+    if (currentRecords.length === 0) {
+      currentRecords = await getAllRecords(category);
+      allRecordsCache[category] = currentRecords;
+    }
   }
   
   // Render search filter dropdowns
@@ -382,6 +562,9 @@ function hasFacet1() {
 function hasFacet2() {
   if (currentCategory === 'monsters') {
     return selectedFacet1 === 'By CR' || selectedFacet1 === 'By Type';
+  }
+  if (currentCategory === 'favorites') {
+    return selectedFacet1 === 'spells' || selectedFacet1 === 'items' || selectedFacet1 === 'monsters' || selectedFacet1 === 'classes';
   }
   return currentCategory === 'spells' || currentCategory === 'classes';
 }
@@ -672,6 +855,13 @@ function renderFacet1() {
       }
     });
     values = Array.from(types).sort();
+  } else if (currentCategory === 'favorites') {
+    facetName = 'Category';
+    const cats = new Set();
+    currentRecords.forEach(f => {
+      if (f.category) cats.add(f.category);
+    });
+    values = Array.from(cats).sort();
   }
 
   facetTitle1.textContent = facetName;
@@ -692,6 +882,7 @@ function renderFacet1() {
   // Add dynamic values
   values.forEach(val => {
     let count = 0;
+    let displayVal = val;
     if (currentCategory === 'spells') {
       count = currentRecords.filter(s => s.classes && s.classes.includes(val)).length;
     } else if (currentCategory === 'classes') {
@@ -705,9 +896,12 @@ function renderFacet1() {
       count = currentRecords.length;
     } else if (currentCategory === 'options') {
       count = currentRecords.filter(o => o.classes && o.classes.includes(val)).length;
+    } else if (currentCategory === 'favorites') {
+      count = currentRecords.filter(f => f.category === val).length;
+      displayVal = FAVORITES_GROUP_NAMES[val] || (val.charAt(0).toUpperCase() + val.slice(1));
     }
 
-    appendFacetItem(facetList1, val, val, count, selectedFacet1 === val, (clickedVal) => {
+    appendFacetItem(facetList1, val, displayVal, count, selectedFacet1 === val, (clickedVal) => {
       selectedFacet1 = clickedVal;
       selectedFacet2 = 'All'; // Reset facet 2
       renderFacet1();
@@ -736,6 +930,8 @@ function renderFacet2() {
       recordsFacet1 = currentRecords.filter(c => c.name === selectedFacet1);
     } else if (currentCategory === 'monsters') {
       // recordsFacet1 remains currentRecords
+    } else if (currentCategory === 'favorites') {
+      recordsFacet1 = currentRecords.filter(f => f.category === selectedFacet1);
     }
   }
 
@@ -780,6 +976,49 @@ function renderFacet2() {
       });
       values = Array.from(types).sort();
     }
+  } else if (currentCategory === 'favorites') {
+    if (selectedFacet1 === 'spells') {
+      facetName = 'Level';
+      const levels = new Set();
+      recordsFacet1.forEach(fav => {
+        const item = resolveFavoriteItem(fav);
+        if (item && item.level !== undefined) levels.add(item.level);
+      });
+      values = Array.from(levels).sort((a, b) => a - b);
+    } else if (selectedFacet1 === 'items') {
+      facetName = 'Type';
+      const types = new Set();
+      recordsFacet1.forEach(fav => {
+        const item = resolveFavoriteItem(fav);
+        if (item && item.type) types.add(item.type);
+      });
+      values = Array.from(types).sort();
+    } else if (selectedFacet1 === 'monsters') {
+      facetName = 'CR';
+      const crs = new Set();
+      recordsFacet1.forEach(fav => {
+        const item = resolveFavoriteItem(fav);
+        if (item && item.cr !== undefined) crs.add(item.cr.toString());
+      });
+      values = Array.from(crs).sort((a, b) => {
+        const parseCR = (cr) => {
+          if (cr && typeof cr === 'string' && cr.includes('/')) {
+            const parts = cr.split('/');
+            return parseFloat(parts[0]) / parseFloat(parts[1]);
+          }
+          return parseFloat(cr) || 0;
+        };
+        return parseCR(a) - parseCR(b);
+      });
+    } else if (selectedFacet1 === 'classes') {
+      facetName = 'Class';
+      const classes = new Set();
+      recordsFacet1.forEach(fav => {
+        if (fav.className) classes.add(fav.className);
+        else if (fav.itemName) classes.add(fav.itemName);
+      });
+      values = Array.from(classes).sort();
+    }
   }
 
   facetTitle2.textContent = facetName;
@@ -820,6 +1059,31 @@ function renderFacet2() {
         count = recordsFacet1.filter(m => m.cr && m.cr.toString() === val).length;
       } else if (selectedFacet1 === 'By Type') {
         count = recordsFacet1.filter(m => m.type && m.type.toLowerCase() === val).length;
+      }
+    } else if (currentCategory === 'favorites') {
+      if (selectedFacet1 === 'spells') {
+        count = recordsFacet1.filter(fav => {
+          const item = resolveFavoriteItem(fav);
+          return item && item.level === val;
+        }).length;
+        label = val === 0 ? 'Cantrip' : `Level ${val}`;
+      } else if (selectedFacet1 === 'items') {
+        count = recordsFacet1.filter(fav => {
+          const item = resolveFavoriteItem(fav);
+          return item && item.type === val;
+        }).length;
+        label = val;
+      } else if (selectedFacet1 === 'monsters') {
+        count = recordsFacet1.filter(fav => {
+          const item = resolveFavoriteItem(fav);
+          return item && item.cr !== undefined && item.cr.toString() === val;
+        }).length;
+        label = `CR ${val}`;
+      } else if (selectedFacet1 === 'classes') {
+        count = recordsFacet1.filter(fav => {
+          return fav.className === val || fav.itemName === val;
+        }).length;
+        label = val;
       }
     }
 
@@ -881,6 +1145,8 @@ function applyFilters() {
         // Grouping facet only, no direct filter
       } else if (currentCategory === 'options') {
         if (!record.classes || !record.classes.includes(selectedFacet1)) return false;
+      } else if (currentCategory === 'favorites') {
+        if (record.category !== selectedFacet1) return false;
       }
     }
 
@@ -895,6 +1161,19 @@ function applyFilters() {
           if (record.cr !== selectedFacet2) return false;
         } else if (selectedFacet1 === 'By Type') {
           if (!record.type || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
+        }
+      } else if (currentCategory === 'favorites') {
+        if (selectedFacet1 === 'spells') {
+          const item = resolveFavoriteItem(record);
+          if (!item || item.level !== parseInt(selectedFacet2)) return false;
+        } else if (selectedFacet1 === 'items') {
+          const item = resolveFavoriteItem(record);
+          if (!item || item.type !== selectedFacet2) return false;
+        } else if (selectedFacet1 === 'monsters') {
+          const item = resolveFavoriteItem(record);
+          if (!item || item.cr === undefined || item.cr.toString() !== selectedFacet2) return false;
+        } else if (selectedFacet1 === 'classes') {
+          if (record.className !== selectedFacet2 && record.itemName !== selectedFacet2) return false;
         }
       }
     }
@@ -928,6 +1207,13 @@ function applyFilters() {
             categoryType: 'class-feature'
           });
         });
+      }
+    });
+  } else if (currentCategory === 'favorites') {
+    filteredRecords.forEach(fav => {
+      const fullItem = resolveFavoriteItem(fav);
+      if (fullItem) {
+        itemsToRender.push(fullItem);
       }
     });
   } else {
@@ -1000,6 +1286,7 @@ function renderList(items, isGlobalSearch = false) {
   let displayCategory = currentCategory;
   if (currentCategory === 'items') displayCategory = 'Equipment';
   else if (currentCategory === 'monsters') displayCategory = 'Bestiary';
+  else if (currentCategory === 'favorites') displayCategory = 'Bookmarks';
   else displayCategory = displayCategory.charAt(0).toUpperCase() + displayCategory.slice(1);
 
   listTitle.textContent = isGlobalSearch ? `Search Results (${items.length})` : `${displayCategory} (${items.length})`;
@@ -1065,12 +1352,15 @@ function renderList(items, isGlobalSearch = false) {
 function selectItem(item) {
   selectedItem = item;
   renderDetails(item, item.categoryType);
+  updateFavoriteButtonUI();
   document.querySelector('.app-container').classList.add('has-detail');
   showMobilePane('detail');
   if (!isNavigatingHistory) pushCurrentState(false);
 }
 
 function resetDetailsPane() {
+  selectedItem = null;
+  updateFavoriteButtonUI();
   detailPaneContent.innerHTML = `
     <div class="detail-view-container">
       <div style="text-align: center; margin-top: 80px; color: var(--text-muted)">
@@ -1113,8 +1403,94 @@ function parseInlineMarkdown(text) {
   return res;
 }
 
+function preprocessCustomTables(text) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  const processedLines = [];
+  let inCodeBlock = false;
+  let i = 0;
+
+  while (i < lines.length) {
+    let line = lines[i];
+
+    if (line.trim().startsWith('```')) {
+      inCodeBlock = !inCodeBlock;
+      processedLines.push(line);
+      i++;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      processedLines.push(line);
+      i++;
+      continue;
+    }
+
+    const isCustomTableRow = (l) => {
+      const trimmed = l.trim();
+      return trimmed.includes('|') && !(trimmed.startsWith('|') && trimmed.endsWith('|'));
+    };
+
+    if (isCustomTableRow(line)) {
+      const tableLines = [];
+      while (i < lines.length) {
+        let currentLine = lines[i];
+        if (currentLine.trim() === '') {
+          let lookAhead = i + 1;
+          while (lookAhead < lines.length && lines[lookAhead].trim() === '') {
+            lookAhead++;
+          }
+          if (lookAhead < lines.length && isCustomTableRow(lines[lookAhead])) {
+            i = lookAhead;
+            currentLine = lines[i];
+          } else {
+            break;
+          }
+        }
+
+        if (isCustomTableRow(currentLine)) {
+          tableLines.push(currentLine);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      if (tableLines.length >= 2) {
+        const headerRow = tableLines[0];
+        const headerCells = headerRow.split('|').map(c => c.trim());
+        const numCols = headerCells.length;
+
+        processedLines.push('| ' + headerCells.join(' | ') + ' |');
+        
+        const separator = Array(numCols).fill('---').join(' | ');
+        processedLines.push('| ' + separator + ' |');
+
+        for (let k = 1; k < tableLines.length; k++) {
+          const rowCells = tableLines[k].split('|').map(c => c.trim());
+          while (rowCells.length < numCols) rowCells.push('');
+          if (rowCells.length > numCols) rowCells.length = numCols;
+          processedLines.push('| ' + rowCells.join(' | ') + ' |');
+        }
+      } else {
+        for (const tl of tableLines) {
+          processedLines.push(tl);
+        }
+      }
+    } else {
+      processedLines.push(line);
+      i++;
+    }
+  }
+
+  return processedLines.join('\n');
+}
+
 function parseMarkdown(text) {
   if (!text) return '';
+  
+  // Convert custom tables (e.g. "Cleric Level | Spells") to standard markdown tables
+  text = preprocessCustomTables(text);
 
   const lines = text.split('\n');
   let html = '';
@@ -1686,6 +2062,7 @@ function renderDetails(item, category = currentCategory) {
   }
 
   detailPaneContent.innerHTML = html;
+  updateFavoriteButtonUI();
 }
 
 // Settings Control Panel Handlers

@@ -4,9 +4,9 @@
 //   v5: adds _sync_meta, _app_settings; adds _modified_at timestamps
 
 const DB_NAME = 'dnd_compendium_db';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
-export const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options'];
+export const STORES = ['spells', 'items', 'monsters', 'classes', 'feats', 'backgrounds', 'races', 'options', 'favorites'];
 const META_STORE = '_sync_meta';
 const SETTINGS_STORE = '_app_settings';
 
@@ -21,12 +21,11 @@ export function openDB() {
       const db = e.target.result;
       const oldVersion = e.oldVersion;
 
-      // Create / recreate compendium stores
+      // Create compendium stores if they don't exist
       STORES.forEach(storeName => {
-        if (db.objectStoreNames.contains(storeName)) {
-          db.deleteObjectStore(storeName);
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.createObjectStore(storeName, { keyPath: 'name' });
         }
-        db.createObjectStore(storeName, { keyPath: 'name' });
       });
 
       // Sync metadata store (per-store sync state)
