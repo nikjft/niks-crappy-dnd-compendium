@@ -2769,4 +2769,209 @@ h1, h2, h3, h4, h5, h6 {
   100% { transform: scale(1); }
 }
 
+/* ── Character Sheet Enhancements Styles ── */
+
+/* 3-Pane Picker Layout */
+.cs-picker-layout {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+.cs-picker-facets {
+  flex-shrink: 0;
+}
+.cs-picker-facet-group h4 {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.cs-picker-list-pane {
+  flex-shrink: 0;
+}
+.cs-picker-detail-pane {
+  flex: 1;
+}
+
+.cs-picker-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border-radius: 6px;
+  margin-bottom: 4px;
+}
+.cs-picker-row:hover {
+  background-color: var(--panel-bg-hover);
+}
+.cs-picker-row.active {
+  background-color: var(--accent-muted);
+  border-left: 3px solid var(--accent-color);
+}
+
+/* Picker state badge */
+.cs-picker-state-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+.cs-picker-state-badge.active {
+  background-color: var(--success-color);
+  color: #fff;
+}
+.cs-picker-state-badge.carried {
+  background-color: var(--accent-color);
+  color: var(--bg-color);
+}
+.cs-picker-state-badge.stored {
+  background-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* List styling with single column & toggles */
+.cs-list-section {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.cs-list-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+  cursor: pointer;
+}
+.cs-list-section-header:hover h3 {
+  color: var(--accent-color);
+}
+.cs-list-section-header h3 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin: 0;
+  font-family: var(--font-header);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cs-list-section-header-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background-color: var(--bg-color);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+}
+.cs-list-row-interactive {
+  cursor: pointer;
+}
+.cs-list-row-interactive:hover .cs-list-row-name {
+  color: var(--accent-color);
+}
+
+/* Inline SVG toggles */
+.cs-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+.cs-toggle-btn:hover {
+  background-color: var(--panel-bg-hover);
+  color: var(--text-primary);
+}
+.cs-toggle-btn.active {
+  color: var(--accent-color);
+}
+.cs-toggle-btn.active.equip {
+  color: var(--success-color);
+}
+.cs-toggle-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.cs-toggle-btn.active svg {
+  fill: currentColor;
+}
+
+/* Freeform Notes List */
+.cs-note-card {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s;
+}
+.cs-note-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.cs-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cs-note-title {
+  font-weight: 600;
+  color: var(--accent-color);
+  font-size: 15px;
+  font-family: var(--font-header);
+}
+.cs-note-content {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.cs-note-content p {
+  margin: 0 0 8px 0;
+}
+.cs-note-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Layout modifications for 3 panes on tablet/mobile */
+@media (max-width: 900px) {
+  .cs-picker-layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .cs-picker-facets {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    gap: 12px !important;
+    padding: 12px !important;
+  }
+  .cs-picker-facet-group {
+    flex: 1;
+    min-width: 150px;
+  }
+  .cs-picker-list-pane {
+    width: 100% !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border-color);
+    height: 35vh;
+  }
+  .cs-picker-detail-pane {
+    height: 35vh;
+  }
+}
+
+
 

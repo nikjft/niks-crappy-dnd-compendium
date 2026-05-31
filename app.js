@@ -1788,8 +1788,8 @@ function parseMarkdown(text) {
   return html;
 }
 
-// Render full detailed view for the e-Reader panel
-function renderDetails(item, category = currentCategory) {
+// Get HTML for detailed view of an entry
+function getDetailHTML(item, category = currentCategory) {
   let html = '';
 
   const formatText = (texts) => {
@@ -2187,7 +2187,12 @@ function renderDetails(item, category = currentCategory) {
     `;
   }
 
-  detailPaneContent.innerHTML = html;
+  return html;
+}
+
+// Render full detailed view for the e-Reader panel
+function renderDetails(item, category = currentCategory) {
+  detailPaneContent.innerHTML = getDetailHTML(item, category);
   updateFavoriteButtonUI();
 }
 
@@ -3086,166 +3091,541 @@ async function saveCharacterCreatorModal() {
   }
 }
 
-let pickerCategory = '';
-function openPicker(category) {
-  pickerCategory = category;
+// ─── Picker State ────────────────────────────────────────────────────────────
+let pickerCategory = '';         // 'feats' | 'items' | 'spells' | 'monsters'
+let pickerTargetListId = null;   // listId to add into (null = default/first list)
+let pickerSelectedRecord = null; // currently previewed record in picker detail pane
+let pickerFacet1Value = 'All';
+let pickerFacet2Value = 'All';
+
+// ─── List Helpers ─────────────────────────────────────────────────────────────
+function ensureCharacterLists(char) {
+  if (!char.featureLists)  char.featureLists  = [{ id: generateId(), name: 'Features & Traits' }];
+  if (!char.itemLists)     char.itemLists     = [{ id: generateId(), name: 'Inventory' }];
+  if (!char.spellLists)    char.spellLists    = [{ id: generateId(), name: 'Spells', spellcastingAbility: char.spellcastingAbility || 'wis' }];
+  if (!char.bestiaryLists) char.bestiaryLists = [{ id: generateId(), name: 'Companions & Summons' }];
+
+  // Assign default listId to legacy items that lack one
+  const assignListIds = (arr, lists) => {
+    if (!arr || !lists.length) return;
+    const defaultId = lists[0].id;
+    arr.forEach(item => { if (!item.listId) item.listId = defaultId; });
+  };
+  assignListIds(char.features, char.featureLists);
+  assignListIds(char.equipment, char.itemLists);
+  assignListIds(char.spells, char.spellLists);
+  assignListIds(char.bestiary, char.bestiaryLists);
+}
+
+function getItemsForList(arr, listId) {
+  return (arr || []).filter(i => i.listId === listId);
+}
+
+/** Sort: active first → carried (selected) second → other; then alphabetical within each group */
+function sortListItems(items) {
+  return [...items].sort((a, b) => {
+    const rank = i => i.active ? 0 : (i.selected ? 1 : 2);
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+}
+
+// ─── SVG icons ───────────────────────────────────────────────────────────────
+const SVG_SHIELD = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+const SVG_PACK   = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>`;
+const SVG_TRASH  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+const SVG_SYNC   = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>`;
+const SVG_COG    = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+
+// ─── Single row renderer ───────────────────────────────────────────────────────
+/**
+ * Renders a single-column list row with shield/pack toggles.
+ * @param {object} item   - The item object from the character
+ * @param {string} type   - 'feature' | 'item' | 'spell' | 'beast'
+ * @param {object} opts   - { onActive, onCarried, onDelete, onSync, showSpellPrep, spellLevel }
+ */
+function renderListRow(item, type, opts = {}) {
+  const isActive   = !!item.active;
+  const isCarried  = !!item.selected;
+  const row = document.createElement('div');
+  row.className = 'cs-list-row cs-list-row-interactive';
+
+  let sub = '';
+  if (type === 'item') sub = `${item.weight || 0} lbs · ${item.type || 'Gear'}`;
+  else if (type === 'spell') sub = `${item.level === 0 ? 'Cantrip' : 'Level ' + item.level} · ${item.time || '1 Action'}`;
+  else if (type === 'feature') sub = `${item.category || ''}`;
+  else if (type === 'beast') sub = item.size ? `${item.size} ${item.type || ''}` : (item.notes || '');
+
+  const syncBtn  = item.compendiumId
+    ? `<button class="cs-list-row-btn btn-sync" title="Sync with Compendium">${SVG_SYNC}</button>`
+    : '';
+
+  // Shield toggle = equipped/active; Pack toggle = in carried pack
+  // For spells: shield = active effect (concentration etc); pack = prepared
+  const shieldActive = isActive  ? 'active equip' : '';
+  const packActive   = isCarried ? 'active'        : '';
+
+  row.innerHTML = `
+    <div class="cs-list-row-info">
+      <div class="cs-list-row-name">${item.name}</div>
+      ${sub ? `<div class="cs-list-row-sub">${sub}</div>` : ''}
+    </div>
+    <div class="cs-list-row-actions">
+      <button class="cs-toggle-btn btn-equip ${shieldActive}" title="${type === 'spell' ? 'Active/Concentration' : 'Equipped/Active'}">${SVG_SHIELD}</button>
+      <button class="cs-toggle-btn btn-carry ${packActive}" title="${type === 'spell' ? 'Prepared' : 'In Pack/Carried'}">${SVG_PACK}</button>
+      ${syncBtn}
+      <button class="cs-list-row-btn danger btn-delete" title="Remove">${SVG_TRASH}</button>
+    </div>
+  `;
+
+  // Click anywhere in the name area → open detail modal
+  row.querySelector('.cs-list-row-info').onclick = () => {
+    openItemDetailModal(item, type);
+  };
+
+  row.querySelector('.btn-equip').onclick = (e) => {
+    e.stopPropagation();
+    item.active = !item.active;
+    if (item.active) item.selected = true; // equipping implies carrying
+    if (opts.onActive) opts.onActive(item);
+    else saveCurrentCharacterAndRefresh();
+  };
+  row.querySelector('.btn-carry').onclick = (e) => {
+    e.stopPropagation();
+    item.selected = !item.selected;
+    if (!item.selected) item.active = false; // un-carrying unequips
+    if (opts.onCarried) opts.onCarried(item);
+    else saveCurrentCharacterAndRefresh();
+  };
+  if (item.compendiumId) {
+    row.querySelector('.btn-sync').onclick = (e) => {
+      e.stopPropagation();
+      const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
+      syncLocalEntityWithCompendium(item, catMap[type]);
+    };
+  }
+  row.querySelector('.btn-delete').onclick = (e) => {
+    e.stopPropagation();
+    if (opts.onDelete) opts.onDelete(item);
+    else saveCurrentCharacterAndRefresh();
+  };
+
+  return row;
+}
+
+// ─── Detail Modal ─────────────────────────────────────────────────────────────
+let detailModalItem = null;
+let detailModalType = '';
+
+function openItemDetailModal(item, type) {
+  detailModalItem = item;
+  detailModalType = type;
+  const modal  = document.getElementById('cs-detail-modal');
+  const title  = document.getElementById('cs-detail-title');
+  const content = document.getElementById('cs-detail-content');
+
+  title.textContent = item.name;
+  // Reuse the compendium detail renderer
+  const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
+  content.innerHTML = getDetailHTML(item, catMap[type] || 'feats');
+
+  // Show sync button only if it came from compendium
+  const syncBtn = document.getElementById('cs-detail-btn-sync');
+  syncBtn.style.display = item.compendiumId ? 'inline-flex' : 'none';
+
+  modal.style.display = 'flex';
+}
+
+// ─── List Section Renderer ────────────────────────────────────────────────────
+/**
+ * Renders a named list section (card with header + rows) into a container.
+ * @param {HTMLElement} container
+ * @param {object} listDef      - { id, name, spellcastingAbility? }
+ * @param {Array}  items        - All items in this list
+ * @param {string} type         - 'feature' | 'item' | 'spell' | 'beast'
+ * @param {object} state        - calculateCharacterState result
+ * @param {object} opts         - { showSpellInfo }
+ */
+function renderListSection(container, listDef, items, type, state, opts = {}) {
+  const sorted = sortListItems(items);
+  const section = document.createElement('div');
+  section.className = 'cs-list-section';
+
+  // Build header meta
+  let headerMeta = `${items.length} items`;
+  if (type === 'spell' && listDef.spellcastingAbility) {
+    const ab = listDef.spellcastingAbility;
+    const mod = state[`${ab}.mod`] || 0;
+    const pb  = state['prof_bonus'] || 2;
+    const dc  = 8 + pb + mod;
+    const atk = pb + mod;
+    headerMeta = `DC ${dc} · Atk ${atk >= 0 ? '+' : ''}${atk} · ${items.length} spells`;
+  }
+  if (type === 'item') {
+    let wt = 0;
+    items.forEach(i => { if (i.active || i.selected) wt += (parseFloat(i.weight) || 0); });
+    headerMeta = `${wt.toFixed(1)} lbs carried · ${items.length} items`;
+  }
+
+  section.innerHTML = `
+    <div class="cs-list-section-header" data-list-id="${listDef.id}">
+      <h3>${listDef.name}</h3>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="cs-list-section-header-meta">${headerMeta}</span>
+        <button class="cs-list-row-btn btn-config-list" title="Configure List" data-list-id="${listDef.id}">${SVG_COG}</button>
+      </div>
+    </div>
+    <div class="cs-list-section-body"></div>
+  `;
+
+  section.querySelector('.btn-config-list').onclick = (e) => {
+    e.stopPropagation();
+    openListConfigModal(listDef, type);
+  };
+
+  const body = section.querySelector('.cs-list-section-body');
+  if (sorted.length === 0) {
+    body.innerHTML = `<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">Empty. Click + Add to add from compendium.</div>`;
+  } else {
+    sorted.forEach(item => {
+      const catArr = type === 'feature' ? currentCharacter.features
+                   : type === 'item'    ? currentCharacter.equipment
+                   : type === 'spell'   ? currentCharacter.spells
+                   :                      currentCharacter.bestiary;
+      const row = renderListRow(item, type, {
+        onDelete: () => {
+          const idx = catArr.findIndex(e => e.id === item.id);
+          if (idx >= 0) catArr.splice(idx, 1);
+          saveCurrentCharacterAndRefresh();
+        }
+      });
+      body.appendChild(row);
+    });
+  }
+
+  container.appendChild(section);
+}
+
+// ─── List Config Modal ────────────────────────────────────────────────────────
+let listConfigTarget = null; // { listDef, type }
+
+function openListConfigModal(listDef, type, isNew = false) {
+  listConfigTarget = { listDef, type, isNew };
+  const modal = document.getElementById('cs-list-config-modal');
+  document.getElementById('cs-list-config-title').textContent = isNew ? 'New List' : 'Configure List';
+  document.getElementById('cs-list-config-name-input').value = listDef.name;
+
+  const abilityGroup = document.getElementById('cs-list-config-ability-group');
+  if (type === 'spell') {
+    abilityGroup.style.display = '';
+    document.getElementById('cs-list-config-ability-select').value = listDef.spellcastingAbility || 'wis';
+  } else {
+    abilityGroup.style.display = 'none';
+  }
+  const delBtn = document.getElementById('cs-list-config-btn-delete');
+  delBtn.style.display = isNew ? 'none' : '';
+
+  modal.style.display = 'flex';
+}
+
+function saveListConfig() {
+  if (!listConfigTarget) return;
+  const { listDef, type, isNew } = listConfigTarget;
+  const name = document.getElementById('cs-list-config-name-input').value.trim();
+  if (!name) return;
+
+  listDef.name = name;
+  if (type === 'spell') {
+    listDef.spellcastingAbility = document.getElementById('cs-list-config-ability-select').value;
+  }
+
+  if (isNew) {
+    if (type === 'feature')  currentCharacter.featureLists.push(listDef);
+    else if (type === 'item')  currentCharacter.itemLists.push(listDef);
+    else if (type === 'spell') currentCharacter.spellLists.push(listDef);
+    else if (type === 'beast') currentCharacter.bestiaryLists.push(listDef);
+  }
+
+  document.getElementById('cs-list-config-modal').style.display = 'none';
+  listConfigTarget = null;
+  saveCurrentCharacterAndRefresh();
+}
+
+function deleteListAndItems() {
+  if (!listConfigTarget) return;
+  const { listDef, type } = listConfigTarget;
+
+  // Remove the list definition
+  const listArrMap = { feature: 'featureLists', item: 'itemLists', spell: 'spellLists', beast: 'bestiaryLists' };
+  const itemArrMap = { feature: 'features', item: 'equipment', spell: 'spells', beast: 'bestiary' };
+  const listArr = currentCharacter[listArrMap[type]];
+  const itemArr = currentCharacter[itemArrMap[type]];
+
+  const listIdx = listArr.findIndex(l => l.id === listDef.id);
+  if (listIdx >= 0) listArr.splice(listIdx, 1);
+
+  // Remove all items in this list
+  if (itemArr) {
+    for (let i = itemArr.length - 1; i >= 0; i--) {
+      if (itemArr[i].listId === listDef.id) itemArr.splice(i, 1);
+    }
+  }
+
+  document.getElementById('cs-list-config-modal').style.display = 'none';
+  listConfigTarget = null;
+  saveCurrentCharacterAndRefresh();
+}
+
+// ─── Picker ───────────────────────────────────────────────────────────────────
+function openPicker(category, targetListId = null) {
+  pickerCategory    = category;
+  pickerTargetListId = targetListId;
+  pickerSelectedRecord = null;
+  pickerFacet1Value = 'All';
+  pickerFacet2Value = 'All';
+
   const modal = document.getElementById('cs-picker-modal');
   const title = document.getElementById('cs-picker-title');
   const searchInput = document.getElementById('cs-picker-search');
-  
-  if (category === 'items') title.textContent = 'Add Equipment';
-  else if (category === 'spells') title.textContent = 'Add Spell';
-  else if (category === 'feats') title.textContent = 'Add Feature / Feat';
-  
+
+  const labels = { items: 'Add Equipment', spells: 'Add Spell', feats: 'Add Feature / Feat', monsters: 'Add Companion / Summon' };
+  title.textContent = labels[category] || 'Add';
+
+  // Reset detail pane
+  document.getElementById('cs-picker-detail-content').innerHTML = `
+    <div style="text-align:center;margin-top:80px;color:var(--text-muted)">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:16px"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+      <p>Select an entry from the list to preview.</p>
+    </div>`;
+  document.getElementById('cs-picker-detail-footer').style.display = 'none';
+
   searchInput.value = '';
+  renderPickerFacets();
   renderPickerList('');
   modal.style.display = 'flex';
+  searchInput.focus();
+}
+
+function renderPickerFacets() {
+  const records = allRecordsCache[pickerCategory] || [];
+  const f1Group = document.getElementById('cs-picker-facet-1-group');
+  const f2Group = document.getElementById('cs-picker-facet-2-group');
+  const f1Title = document.getElementById('cs-picker-facet-1-title');
+  const f2Title = document.getElementById('cs-picker-facet-2-title');
+  const f1List  = document.getElementById('cs-picker-facet-1-list');
+  const f2List  = document.getElementById('cs-picker-facet-2-list');
+
+  f1List.innerHTML = '';
+  f2List.innerHTML = '';
+
+  // Determine facet fields by category
+  let facet1Field = null, facet2Field = null, facet1Label = '', facet2Label = '';
+  if (pickerCategory === 'spells')   { facet1Field = 'school'; facet1Label = 'School'; facet2Field = 'level'; facet2Label = 'Level'; }
+  else if (pickerCategory === 'items')  { facet1Field = 'type'; facet1Label = 'Type'; }
+  else if (pickerCategory === 'feats')  { facet1Field = 'category'; facet1Label = 'Category'; }
+  else if (pickerCategory === 'monsters') { facet1Field = 'type'; facet1Label = 'Type'; facet2Field = 'size'; facet2Label = 'Size'; }
+
+  f1Group.style.display = facet1Field ? '' : 'none';
+  f2Group.style.display = facet2Field ? '' : 'none';
+
+  const renderFacetList = (container, field, label, currentVal, setFn) => {
+    const values = ['All', ...new Set(records.map(r => {
+      let v = r[field];
+      if (field === 'level') v = v === 0 ? 'Cantrip' : `Level ${v}`;
+      return v || 'Other';
+    }).filter(Boolean))].sort((a, b) => {
+      if (a === 'All') return -1; if (b === 'All') return 1;
+      return a.localeCompare(b);
+    });
+
+    values.forEach(val => {
+      const btn = document.createElement('button');
+      btn.textContent = val;
+      btn.className = 'facet-item' + (val === currentVal ? ' active' : '');
+      btn.onclick = () => { setFn(val); renderPickerFacets(); renderPickerList(document.getElementById('cs-picker-search').value); };
+      container.appendChild(btn);
+    });
+  };
+
+  if (facet1Field) { f1Title.textContent = facet1Label; renderFacetList(f1List, facet1Field, facet1Label, pickerFacet1Value, v => pickerFacet1Value = v); }
+  if (facet2Field) { f2Title.textContent = facet2Label; renderFacetList(f2List, facet2Field, facet2Label, pickerFacet2Value, v => pickerFacet2Value = v); }
 }
 
 function renderPickerList(query) {
   const container = document.getElementById('cs-picker-list');
   container.innerHTML = '';
-  
+
   const records = allRecordsCache[pickerCategory] || [];
-  const filtered = records.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
-  
+  let filtered = records.filter(r => {
+    if (query && !r.name.toLowerCase().includes(query.toLowerCase())) return false;
+    if (pickerFacet1Value !== 'All') {
+      if (pickerCategory === 'spells' && r.school !== pickerFacet1Value) return false;
+      if (pickerCategory === 'items'  && r.type  !== pickerFacet1Value) return false;
+      if (pickerCategory === 'feats'  && r.category !== pickerFacet1Value) return false;
+      if (pickerCategory === 'monsters' && r.type !== pickerFacet1Value) return false;
+    }
+    if (pickerFacet2Value !== 'All') {
+      if (pickerCategory === 'spells') {
+        const lvlLabel = r.level === 0 ? 'Cantrip' : `Level ${r.level}`;
+        if (lvlLabel !== pickerFacet2Value) return false;
+      }
+      if (pickerCategory === 'monsters' && r.size !== pickerFacet2Value) return false;
+    }
+    return true;
+  });
+  filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
   if (filtered.length === 0) {
-    container.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted);">No items found.</div>';
+    container.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);">No entries found.</div>';
     return;
   }
-  
+
+  // Determine current-state badge for each record (is it already on the character?)
+  const getItemState = (record) => {
+    const arrMap = { feats: 'features', items: 'equipment', spells: 'spells', monsters: 'bestiary' };
+    const arr = currentCharacter[arrMap[pickerCategory]] || [];
+    const match = arr.find(i => i.compendiumId === record.name || i.name === record.name);
+    if (!match) return null;
+    if (match.active)   return 'active';
+    if (match.selected) return 'carried';
+    return 'stored';
+  };
+
   filtered.forEach(record => {
+    const state = getItemState(record);
     const row = document.createElement('div');
-    row.className = 'cs-picker-row';
-    
+    row.className = 'cs-picker-row' + (pickerSelectedRecord === record ? ' active' : '');
+    row.dataset.name = record.name;
+
     let sub = '';
-    if (pickerCategory === 'spells') {
-      sub = `${record.level === 0 ? 'Cantrip' : 'Level ' + record.level} ${record.school}`;
-    } else if (pickerCategory === 'items') {
-      sub = `${record.type || 'Item'} • ${record.weight || 0} lbs.`;
-    } else if (pickerCategory === 'feats') {
-      sub = `${record.category || 'Feat'}`;
-    }
-    
+    if (pickerCategory === 'spells')   sub = `${record.level === 0 ? 'Cantrip' : 'Level ' + record.level} · ${record.school || ''}`;
+    else if (pickerCategory === 'items')  sub = `${record.type || 'Item'} · ${record.weight || 0} lbs`;
+    else if (pickerCategory === 'feats')  sub = `${record.category || 'Feature'}`;
+    else if (pickerCategory === 'monsters') sub = `${record.size || ''} ${record.type || ''}`.trim();
+
+    const badge = state ? `<span class="cs-picker-state-badge ${state}">${state}</span>` : '';
+
     row.innerHTML = `
       <div class="cs-picker-row-info">
-        <div class="cs-picker-row-name">${record.name}</div>
+        <div class="cs-picker-row-name">${badge}${record.name}</div>
         <div class="cs-picker-row-sub">${sub}</div>
       </div>
-      <button class="cs-picker-row-btn">Add</button>
     `;
-    
-    row.querySelector('.cs-picker-row-btn').addEventListener('click', () => {
-      addCompendiumEntityToCharacter(record, pickerCategory);
-    });
-    
+    row.onclick = () => showPickerDetail(record);
     container.appendChild(row);
   });
+}
+
+function showPickerDetail(record) {
+  pickerSelectedRecord = record;
+
+  // Highlight selected row
+  document.querySelectorAll('#cs-picker-list .cs-picker-row').forEach(r => {
+    r.classList.toggle('active', r.dataset.name === record.name);
+  });
+
+  const content = document.getElementById('cs-picker-detail-content');
+  content.innerHTML = getDetailHTML(record, pickerCategory);
+
+  // Show footer with add button
+  const footer = document.getElementById('cs-picker-detail-footer');
+  footer.style.display = 'flex';
+
+  // Show current state in status div
+  const arrMap = { feats: 'features', items: 'equipment', spells: 'spells', monsters: 'bestiary' };
+  const arr = currentCharacter[arrMap[pickerCategory]] || [];
+  const existing = arr.find(i => i.compendiumId === record.name || i.name === record.name);
+  const statusDiv = document.getElementById('cs-picker-detail-status');
+  if (existing) {
+    const st = existing.active ? 'Active/Equipped' : (existing.selected ? 'Carried/Prepared' : 'Stored');
+    statusDiv.textContent = `Already on character (${st})`;
+  } else {
+    statusDiv.textContent = '';
+  }
 }
 
 function addCompendiumEntityToCharacter(record, category) {
   const clone = JSON.parse(JSON.stringify(record));
   clone.compendiumId = record.name;
-  clone.favorite = false;
-  clone.selected = true;
-  clone.active = true;
-  clone.id = generateId();
-  
+  clone.favorite     = false;
+  clone.selected     = true;
+  clone.active       = false;
+  clone.id           = generateId();
+
+  ensureCharacterLists(currentCharacter);
+
+  // Assign to target list or first list
   if (category === 'items') {
+    const listId = pickerTargetListId || currentCharacter.itemLists[0]?.id;
+    clone.listId = listId;
     currentCharacter.equipment.push(clone);
   } else if (category === 'spells') {
+    clone.active = false; // not concentrating by default
+    const listId = pickerTargetListId || currentCharacter.spellLists[0]?.id;
+    clone.listId = listId;
     currentCharacter.spells.push(clone);
   } else if (category === 'feats') {
+    clone.active = true;
+    const listId = pickerTargetListId || currentCharacter.featureLists[0]?.id;
+    clone.listId = listId;
     currentCharacter.features.push(clone);
+  } else if (category === 'monsters') {
+    clone.hp_max     = record.hp || 10;
+    clone.hp_current = clone.hp_max;
+    const listId = pickerTargetListId || currentCharacter.bestiaryLists[0]?.id;
+    clone.listId = listId;
+    currentCharacter.bestiary.push(clone);
   }
-  
+
   saveCurrentCharacterAndRefresh();
-  alert(`Added ${clone.name} to character!`);
+  // Re-render picker list so badge updates
+  renderPickerList(document.getElementById('cs-picker-search')?.value || '');
 }
 
 async function syncLocalEntityWithCompendium(entity, category) {
-  let compCategory = '';
-  if (category === 'items') compCategory = 'items';
-  else if (category === 'spells') compCategory = 'spells';
-  else if (category === 'feats') compCategory = 'feats';
-  
-  const compRecord = allRecordsCache[compCategory]?.find(r => r.name === entity.compendiumId);
-  if (!compRecord) {
-    alert('Compendium record not found.');
-    return;
-  }
-  
-  const { favorite, selected, active, id, compendiumId } = entity;
-  const synced = { ...JSON.parse(JSON.stringify(compRecord)), favorite, selected, active, id, compendiumId };
-  
-  let list = [];
-  if (category === 'items') list = currentCharacter.equipment;
-  else if (category === 'spells') list = currentCharacter.spells;
-  else if (category === 'feats') list = currentCharacter.features;
-  
+  const compRecord = allRecordsCache[category]?.find(r => r.name === entity.compendiumId);
+  if (!compRecord) return; // silently do nothing if not found
+
+  const { favorite, selected, active, id, compendiumId, listId } = entity;
+  const synced = { ...JSON.parse(JSON.stringify(compRecord)), favorite, selected, active, id, compendiumId, listId };
+
+  const arrMap = { feats: 'features', items: 'equipment', spells: 'spells', monsters: 'bestiary' };
+  const list = currentCharacter[arrMap[category]] || [];
   const idx = list.findIndex(e => e.id === id);
   if (idx >= 0) {
     list[idx] = synced;
     await saveCurrentCharacterAndRefresh();
-    alert(`Synced ${entity.name} with Compendium successfully!`);
+    // Close the detail modal after sync
+    document.getElementById('cs-detail-modal').style.display = 'none';
   }
 }
 
 function saveCustomModifierModal() {
   const name = document.getElementById('cs-mod-name-input').value.trim();
-  if (!name) {
-    alert('Name is required.');
-    return;
-  }
+  if (!name) { document.getElementById('cs-mod-name-input').style.borderColor = 'var(--error-color)'; return; }
   const target = document.getElementById('cs-mod-target-select').value;
-  const type = document.getElementById('cs-mod-type-select').value;
-  const value = document.getElementById('cs-mod-value-input').value.trim();
-  
-  if (!value) {
-    alert('Value is required.');
-    return;
-  }
-  
-  const mod = {
-    name,
-    active: true,
-    favorite: false,
-    selected: true,
-    id: generateId(),
-    modifiers: [
-      { target, type, value }
-    ]
-  };
-  
+  const type   = document.getElementById('cs-mod-type-select').value;
+  const value  = document.getElementById('cs-mod-value-input').value.trim();
+  if (!value) { document.getElementById('cs-mod-value-input').style.borderColor = 'var(--error-color)'; return; }
+
+  const mod = { name, active: true, favorite: false, selected: true, id: generateId(), modifiers: [{ target, type, value }] };
   if (!currentCharacter.modifiers) currentCharacter.modifiers = [];
   currentCharacter.modifiers.push(mod);
-  
   document.getElementById('cs-modifier-modal').style.display = 'none';
   saveCurrentCharacterAndRefresh();
 }
 
 function saveCustomCounterModal() {
   const name = document.getElementById('cs-counter-name-input').value.trim();
-  if (!name) {
-    alert('Name is required.');
-    return;
-  }
-  const max = parseInt(document.getElementById('cs-counter-max-input').value) || 1;
+  if (!name) { document.getElementById('cs-counter-name-input').style.borderColor = 'var(--error-color)'; return; }
+  const max         = parseInt(document.getElementById('cs-counter-max-input').value) || 1;
   const reset_short = document.getElementById('cs-counter-reset-short').checked;
-  const reset_long = document.getElementById('cs-counter-reset-long').checked;
-  
-  const cnt = {
-    name,
-    max,
-    value: max,
-    reset_short,
-    reset_long,
-    id: generateId()
-  };
-  
+  const reset_long  = document.getElementById('cs-counter-reset-long').checked;
+
+  const cnt = { name, max, value: max, reset_short, reset_long, id: generateId() };
   if (!currentCharacter.counters) currentCharacter.counters = [];
   currentCharacter.counters.push(cnt);
-  
   document.getElementById('cs-counter-modal').style.display = 'none';
   saveCurrentCharacterAndRefresh();
 }
@@ -3253,56 +3633,49 @@ function saveCustomCounterModal() {
 function performShortRest() {
   if (!currentCharacter) return;
   (currentCharacter.counters || []).forEach(c => {
-    if (c.reset_short || c.reset === 'S') {
-      c.value = c.max;
-    }
+    if (c.reset_short || c.reset === 'S') c.value = c.max;
   });
   saveCurrentCharacterAndRefresh();
-  alert('Short Rest completed. Counters reset.');
+  // Visual feedback via the button itself
+  const btn = document.getElementById('cs-btn-short-rest');
+  if (btn) { btn.textContent = 'Rested!'; setTimeout(() => { btn.textContent = 'Short Rest'; }, 1500); }
 }
 
 function performLongRest() {
   if (!currentCharacter) return;
   const state = calculateCharacterState(currentCharacter);
   currentCharacter.hp.current = state['hp.max'];
-  
   (currentCharacter.counters || []).forEach(c => {
-    if (c.reset_long || c.reset === 'L' || c.reset === 'S') {
-      c.value = c.max;
-    }
+    if (c.reset_long || c.reset === 'L' || c.reset === 'S') c.value = c.max;
   });
-  
   if (currentCharacter.spellSlots) {
     for (const lvl of Object.keys(currentCharacter.spellSlots)) {
       currentCharacter.spellSlots[lvl].current = currentCharacter.spellSlots[lvl].max;
     }
   }
-  
   saveCurrentCharacterAndRefresh();
-  alert('Long Rest completed. HP fully restored, counters and spell slots reset.');
+  const btn = document.getElementById('cs-btn-long-rest');
+  if (btn) { btn.textContent = 'Rested!'; setTimeout(() => { btn.textContent = 'Long Rest'; }, 1500); }
 }
+
 
 function renderCharacterSheetUI() {
   if (!currentCharacter) return;
+  ensureCharacterLists(currentCharacter);
   const state = calculateCharacterState(currentCharacter);
-  
-  // Header
+
+  // ── Header ──────────────────────────────────────────────────────────────────
   document.getElementById('cs-char-name').textContent = currentCharacter.name;
   document.getElementById('cs-char-subtitle').textContent = `Level ${currentCharacter.level} ${currentCharacter.class || 'Fighter'}${currentCharacter.subclass ? ' (' + currentCharacter.subclass + ')' : ''}`;
   document.getElementById('cs-hp-current').textContent = currentCharacter.hp.current;
   document.getElementById('cs-hp-max').textContent = state['hp.max'];
   document.getElementById('cs-hp-temp-display').textContent = currentCharacter.hp.temp || 0;
-  
+
   const insBtn = document.getElementById('cs-btn-inspiration');
-  if (currentCharacter.inspiration) {
-    insBtn.classList.add('active');
-  } else {
-    insBtn.classList.remove('active');
-  }
-  
+  insBtn.classList.toggle('active', !!currentCharacter.inspiration);
+
   document.getElementById('cs-hp-plus').onclick = () => {
-    const maxHp = state['hp.max'];
-    currentCharacter.hp.current = Math.min(maxHp, (currentCharacter.hp.current || 0) + 1);
+    currentCharacter.hp.current = Math.min(state['hp.max'], (currentCharacter.hp.current || 0) + 1);
     saveCurrentCharacterAndRefresh();
   };
   document.getElementById('cs-hp-minus').onclick = () => {
@@ -3310,43 +3683,33 @@ function renderCharacterSheetUI() {
     saveCurrentCharacterAndRefresh();
   };
 
-  // Death saves
+  // ── Death Saves ─────────────────────────────────────────────────────────────
   [1, 2, 3].forEach(i => {
     const chk = document.getElementById(`cs-death-s-${i}`);
     chk.checked = currentCharacter.deathSaves.successes >= i;
     chk.onclick = () => {
-      let count = 0;
-      [1, 2, 3].forEach(j => {
-        if (document.getElementById(`cs-death-s-${j}`).checked) count++;
-      });
-      currentCharacter.deathSaves.successes = count;
+      currentCharacter.deathSaves.successes = [1,2,3].filter(j => document.getElementById(`cs-death-s-${j}`).checked).length;
       saveCurrentCharacterAndRefresh();
     };
   });
-  
   [1, 2, 3].forEach(i => {
     const chk = document.getElementById(`cs-death-f-${i}`);
     chk.checked = currentCharacter.deathSaves.failures >= i;
     chk.onclick = () => {
-      let count = 0;
-      [1, 2, 3].forEach(j => {
-        if (document.getElementById(`cs-death-f-${j}`).checked) count++;
-      });
-      currentCharacter.deathSaves.failures = count;
+      currentCharacter.deathSaves.failures = [1,2,3].filter(j => document.getElementById(`cs-death-f-${j}`).checked).length;
       saveCurrentCharacterAndRefresh();
     };
   });
 
-  // Tab 1: Combat
+  // ── Tab 1: Combat ───────────────────────────────────────────────────────────
   document.getElementById('cs-val-ac').textContent = state['ac'];
   document.getElementById('cs-val-initiative').textContent = formatModifier(state['initiative']);
   document.getElementById('cs-val-speed').textContent = `${state['speed']} ft`;
   document.getElementById('cs-val-prof-bonus').textContent = formatModifier(state['prof_bonus']);
-  
+
   // Attacks list
   const attacksList = document.getElementById('cs-attacks-list');
   attacksList.innerHTML = '';
-  
   const activeEquipment = (currentCharacter.equipment || []).filter(e => e.active);
   activeEquipment.forEach(item => {
     const isWeapon = item.type && (item.type.includes('Weapon') || item.dmg1);
@@ -3354,76 +3717,73 @@ function renderCharacterSheetUI() {
       const isRanged = item.type && item.type.includes('Ranged');
       const atkBonus = isRanged ? state['ranged.attack'] : state['melee.attack'];
       const dmgBonus = isRanged ? state['ranged.damage'] : state['melee.damage'];
-      
       const row = document.createElement('div');
       row.className = 'cs-list-row';
       row.innerHTML = `
         <div class="cs-list-row-info">
           <div class="cs-list-row-name">${item.name}</div>
-          <div class="cs-list-row-sub">Attack: ${formatModifier(atkBonus)} • Damage: ${item.dmg1 || '1d4'} ${dmgBonus >= 0 ? '+' + dmgBonus : dmgBonus} ${item.dmgType || ''}</div>
+          <div class="cs-list-row-sub">Attack: ${formatModifier(atkBonus)} · Dmg: ${item.dmg1 || '1d4'} ${dmgBonus >= 0 ? '+' + dmgBonus : dmgBonus} ${item.dmgType || ''}</div>
         </div>
       `;
       attacksList.appendChild(row);
     }
   });
-  
   const activeSpells = (currentCharacter.spells || []).filter(s => s.active);
   activeSpells.forEach(spell => {
-    const isAttack = spell.rolls && spell.rolls.length > 0;
-    if (isAttack) {
+    if (spell.rolls && spell.rolls.length > 0) {
       const row = document.createElement('div');
       row.className = 'cs-list-row';
+      // Find which spell list this spell belongs to for per-list DC/attack
+      const spellList = currentCharacter.spellLists?.find(l => l.id === spell.listId);
+      const ab = spellList?.spellcastingAbility || currentCharacter.spellcastingAbility || 'wis';
+      const mod = state[`${ab}.mod`] || 0;
+      const pb  = state['prof_bonus'] || 2;
+      const spellAtk = pb + mod;
+      const spellDC  = 8 + pb + mod;
       row.innerHTML = `
         <div class="cs-list-row-info">
           <div class="cs-list-row-name">${spell.name} (Spell)</div>
-          <div class="cs-list-row-sub">Attack: ${formatModifier(state['spell.attack'])} • DC: ${state['spell.dc']} • Rolls: ${spell.rolls.join(', ')}</div>
+          <div class="cs-list-row-sub">Atk: ${formatModifier(spellAtk)} · DC: ${spellDC} · ${spell.rolls.join(', ')}</div>
         </div>
       `;
       attacksList.appendChild(row);
     }
   });
-  
-  if (attacksList.innerHTML === '') {
-    attacksList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">No active weapons or spells. Mark items active in Inventory/Spells tab to show them here.</div>';
+  if (!attacksList.hasChildNodes()) {
+    attacksList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No active weapons or spells. Mark items active in Inventory/Spells tab.</div>';
   }
 
-  // Modifiers list
+  // Custom Modifiers
   const modifiersList = document.getElementById('cs-modifiers-list');
   modifiersList.innerHTML = '';
   const mods = currentCharacter.modifiers || [];
   mods.forEach((mod, idx) => {
     const row = document.createElement('div');
     row.className = 'cs-list-row';
-    const isChecked = mod.active ? 'checked' : '';
     const mDetails = mod.modifiers ? mod.modifiers.map(m => `${m.target}: ${m.type} ${m.value}`).join(', ') : '';
-    
     row.innerHTML = `
-      <input type="checkbox" class="cs-list-row-checkbox" ${isChecked}>
+      <input type="checkbox" class="cs-list-row-checkbox" ${mod.active ? 'checked' : ''}>
       <div class="cs-list-row-info">
         <div class="cs-list-row-name">${mod.name}</div>
         <div class="cs-list-row-sub">${mDetails}</div>
       </div>
       <div class="cs-list-row-actions">
-        <button class="cs-list-row-btn danger btn-delete-mod" aria-label="Delete Modifier">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
+        <button class="cs-list-row-btn danger btn-del-mod" title="Delete">${SVG_TRASH}</button>
       </div>
     `;
     row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
       mod.active = e.target.checked;
       saveCurrentCharacterAndRefresh();
     };
-    row.querySelector('.btn-delete-mod').onclick = () => {
-      currentCharacter.modifiers.splice(idx, 1);
+    row.querySelector('.btn-del-mod').onclick = () => {
+      mods.splice(idx, 1);
       saveCurrentCharacterAndRefresh();
     };
     modifiersList.appendChild(row);
   });
-  if (mods.length === 0) {
-    modifiersList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">No custom modifiers.</div>';
-  }
+  if (!mods.length) modifiersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No custom modifiers.</div>';
 
-  // Counters list
+  // Usage Counters
   const countersList = document.getElementById('cs-counters-list');
   countersList.innerHTML = '';
   const cnts = currentCharacter.counters || [];
@@ -3433,60 +3793,45 @@ function renderCharacterSheetUI() {
     row.innerHTML = `
       <div class="cs-list-row-info">
         <div class="cs-list-row-name">${cnt.name}</div>
-        <div class="cs-list-row-sub">Reset: ${cnt.reset_short ? 'Short' : ''}${cnt.reset_short && cnt.reset_long ? '/' : ''}${cnt.reset_long ? 'Long' : ''}</div>
+        <div class="cs-list-row-sub">Resets: ${cnt.reset_short ? 'Short' : ''}${cnt.reset_short && cnt.reset_long ? '/' : ''}${cnt.reset_long ? 'Long' : ''}</div>
       </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <button class="cs-btn-small btn-dec" style="font-size: 14px; padding: 2px 8px;">−</button>
-        <span style="font-weight: bold; width: 24px; text-align: center;">${cnt.value}</span>
-        <button class="cs-btn-small btn-inc" style="font-size: 14px; padding: 2px 8px;">+</button>
-        <span style="color: var(--text-muted); font-size: 12px;">/ ${cnt.max}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="cs-btn-small btn-dec" style="font-size:14px;padding:2px 8px">−</button>
+        <span style="font-weight:bold;min-width:20px;text-align:center">${cnt.value}</span>
+        <button class="cs-btn-small btn-inc" style="font-size:14px;padding:2px 8px">+</button>
+        <span style="color:var(--text-muted);font-size:12px">/ ${cnt.max}</span>
       </div>
-      <div class="cs-list-row-actions" style="margin-left: 8px;">
-        <button class="cs-list-row-btn danger btn-delete-cnt" aria-label="Delete Counter">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
+      <div class="cs-list-row-actions" style="margin-left:6px">
+        <button class="cs-list-row-btn danger btn-del-cnt" title="Delete">${SVG_TRASH}</button>
       </div>
     `;
-    row.querySelector('.btn-dec').onclick = () => {
-      cnt.value = Math.max(0, cnt.value - 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-inc').onclick = () => {
-      cnt.value = Math.min(cnt.max, cnt.value + 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-delete-cnt').onclick = () => {
-      currentCharacter.counters.splice(idx, 1);
-      saveCurrentCharacterAndRefresh();
-    };
+    row.querySelector('.btn-dec').onclick = () => { cnt.value = Math.max(0, cnt.value - 1); saveCurrentCharacterAndRefresh(); };
+    row.querySelector('.btn-inc').onclick = () => { cnt.value = Math.min(cnt.max, cnt.value + 1); saveCurrentCharacterAndRefresh(); };
+    row.querySelector('.btn-del-cnt').onclick = () => { cnts.splice(idx, 1); saveCurrentCharacterAndRefresh(); };
     countersList.appendChild(row);
   });
-  if (cnts.length === 0) {
-    countersList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">No counters.</div>';
-  }
+  if (!cnts.length) countersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No counters.</div>';
 
-  // Tab 2: Stats & Skills
+  // ── Tab 2: Stats & Skills ────────────────────────────────────────────────────
   attributes.forEach(attr => {
     document.getElementById(`cs-score-${attr}`).textContent = state[`${attr}.score`];
-    document.getElementById(`cs-mod-${attr}`).textContent = formatModifier(state[`${attr}.mod`]);
+    document.getElementById(`cs-mod-${attr}`).textContent   = formatModifier(state[`${attr}.mod`]);
   });
-
-  document.getElementById('cs-passive-perception').textContent = state['passive.perception'];
+  document.getElementById('cs-passive-perception').textContent   = state['passive.perception'];
   document.getElementById('cs-passive-investigation').textContent = state['passive.investigation'];
-  document.getElementById('cs-passive-insight').textContent = state['passive.insight'];
+  document.getElementById('cs-passive-insight').textContent       = state['passive.insight'];
 
   const savesList = document.getElementById('cs-saves-list');
   savesList.innerHTML = '';
   const attrNames = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
   attributes.forEach(attr => {
     const isProf = currentCharacter.savesProficiency[attr] ? 'prof' : '';
-    const saveVal = state[`save.${attr}`];
     const row = document.createElement('div');
     row.className = 'cs-item-prof-row';
     row.innerHTML = `
       <div class="cs-prof-indicator ${isProf}" title="Proficient?"></div>
       <span class="cs-item-prof-label">${attrNames[attr]}</span>
-      <span class="cs-item-prof-val">${formatModifier(saveVal)}</span>
+      <span class="cs-item-prof-val">${formatModifier(state[`save.${attr}`])}</span>
     `;
     row.querySelector('.cs-prof-indicator').onclick = () => {
       currentCharacter.savesProficiency[attr] = currentCharacter.savesProficiency[attr] ? 0 : 1;
@@ -3497,40 +3842,32 @@ function renderCharacterSheetUI() {
 
   const skillsList = document.getElementById('cs-skills-list');
   skillsList.innerHTML = '';
-  const skillsProf = currentCharacter.skillsProficiency || {};
-  const skillsAttrOverride = currentCharacter.skillsAttributeOverride || {};
+  const skillsProf          = currentCharacter.skillsProficiency || {};
+  const skillsAttrOverride  = currentCharacter.skillsAttributeOverride || {};
   Object.keys(skillAttrs).forEach(skill => {
-    const defaultAttr = skillAttrs[skill];
+    const defaultAttr    = skillAttrs[skill];
     const overriddenAttr = skillsAttrOverride[skill] || defaultAttr;
     const prof = parseFloat(skillsProf[skill]) || 0;
     let profClass = '';
-    if (prof === 1) profClass = 'prof';
-    else if (prof === 2) profClass = 'double';
-    else if (prof === 0.5) profClass = 'half';
-    
-    const skillVal = state[`skill.${skill}`];
+    if (prof === 1) profClass = 'prof'; else if (prof === 2) profClass = 'double'; else if (prof === 0.5) profClass = 'half';
     const skillName = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     const row = document.createElement('div');
     row.className = 'cs-item-prof-row';
     row.innerHTML = `
-      <div class="cs-prof-indicator ${profClass}" title="Cycle Proficiency (None -> Proficient -> Expertise -> None)"></div>
-      <span class="cs-item-prof-label" style="cursor:pointer;" title="Click to override attribute">${skillName} <span style="font-size: 9px; color: var(--text-muted);">(${overriddenAttr.toUpperCase()})</span></span>
-      <span class="cs-item-prof-val">${formatModifier(skillVal)}</span>
+      <div class="cs-prof-indicator ${profClass}" title="Cycle Proficiency"></div>
+      <span class="cs-item-prof-label" style="cursor:pointer" title="Click to change attribute">${skillName} <span style="font-size:9px;color:var(--text-muted)">(${overriddenAttr.toUpperCase()})</span></span>
+      <span class="cs-item-prof-val">${formatModifier(state[`skill.${skill}`])}</span>
     `;
     row.querySelector('.cs-prof-indicator').onclick = () => {
       let nextProf = 0;
-      if (prof === 0) nextProf = 1;
-      else if (prof === 1) nextProf = 2;
-      else if (prof === 2) nextProf = 0;
+      if (prof === 0) nextProf = 1; else if (prof === 1) nextProf = 2; else if (prof === 2) nextProf = 0;
       currentCharacter.skillsProficiency[skill] = nextProf;
       saveCurrentCharacterAndRefresh();
     };
     row.querySelector('.cs-item-prof-label').onclick = () => {
-      const nextAttr = prompt(`Override attribute for ${skillName} (currently ${overriddenAttr.toUpperCase()}). Enter str, dex, con, int, wis, or cha (or leave empty to reset):`);
-      if (nextAttr === '') {
-        delete currentCharacter.skillsAttributeOverride[skill];
-        saveCurrentCharacterAndRefresh();
-      } else if (nextAttr && attributes.includes(nextAttr.toLowerCase().trim())) {
+      const nextAttr = prompt(`Override attribute for ${skillName} (currently ${overriddenAttr.toUpperCase()}). Enter str/dex/con/int/wis/cha, or blank to reset:`);
+      if (nextAttr === '') { delete currentCharacter.skillsAttributeOverride[skill]; saveCurrentCharacterAndRefresh(); }
+      else if (nextAttr && attributes.includes(nextAttr.toLowerCase().trim())) {
         currentCharacter.skillsAttributeOverride[skill] = nextAttr.toLowerCase().trim();
         saveCurrentCharacterAndRefresh();
       }
@@ -3538,64 +3875,19 @@ function renderCharacterSheetUI() {
     skillsList.appendChild(row);
   });
 
-  // Tab 3: Features
-  document.getElementById('cs-summary-species').textContent = currentCharacter.species || '—';
+  // ── Tab 3: Features ──────────────────────────────────────────────────────────
+  document.getElementById('cs-summary-species').textContent    = currentCharacter.species    || '—';
   document.getElementById('cs-summary-background').textContent = currentCharacter.background || '—';
-  document.getElementById('cs-summary-subclass').textContent = currentCharacter.subclass || '—';
-  const featuresList = document.getElementById('cs-features-list');
-  featuresList.innerHTML = '';
-  const feats = currentCharacter.features || [];
-  feats.forEach((feat, idx) => {
-    const row = document.createElement('div');
-    row.className = 'cs-list-row';
-    const isChecked = feat.active ? 'checked' : '';
-    const isStarred = feat.favorite ? 'active' : '';
-    const syncBtn = feat.compendiumId ? `
-      <button class="cs-list-row-btn btn-sync-feat" title="Sync with Compendium">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-      </button>
-    ` : '';
-    
-    row.innerHTML = `
-      <input type="checkbox" class="cs-list-row-checkbox" ${isChecked} title="Active?">
-      <div class="cs-list-row-info">
-        <div class="cs-list-row-name">${feat.name}</div>
-        <div class="cs-list-row-sub">${(feat.texts || []).join(' ').substring(0, 100)}...</div>
-      </div>
-      <div class="cs-list-row-actions">
-        <button class="cs-list-row-btn btn-fav-feat ${isStarred}" title="Favorite">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        </button>
-        ${syncBtn}
-        <button class="cs-list-row-btn danger btn-delete-feat" title="Delete">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
-      </div>
-    `;
-    row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
-      feat.active = e.target.checked;
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-fav-feat').onclick = () => {
-      feat.favorite = !feat.favorite;
-      saveCurrentCharacterAndRefresh();
-    };
-    if (feat.compendiumId) {
-      row.querySelector('.btn-sync-feat').onclick = () => {
-        syncLocalEntityWithCompendium(feat, 'feats');
-      };
-    }
-    row.querySelector('.btn-delete-feat').onclick = () => {
-      currentCharacter.features.splice(idx, 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    featuresList.appendChild(row);
-  });
-  if (feats.length === 0) {
-    featuresList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 14px;">No features. Click "+ Add Feature/Trait" to pull from Compendium or create custom.</div>';
-  }
+  document.getElementById('cs-summary-subclass').textContent   = currentCharacter.subclass   || '—';
 
-  // Tab 4: Inventory
+  const featuresContainer = document.getElementById('cs-features-lists-container');
+  featuresContainer.innerHTML = '';
+  currentCharacter.featureLists.forEach(listDef => {
+    const items = getItemsForList(currentCharacter.features, listDef.id);
+    renderListSection(featuresContainer, listDef, items, 'feature', state);
+  });
+
+  // ── Tab 4: Inventory ─────────────────────────────────────────────────────────
   const coins = ['gp', 'sp', 'cp', 'ep', 'pp'];
   coins.forEach(c => {
     const input = document.getElementById(`cs-coin-${c}`);
@@ -3607,95 +3899,23 @@ function renderCharacterSheetUI() {
       };
     }
   });
-
   let totalWeight = 0;
-  const eqList = currentCharacter.equipment || [];
-  eqList.forEach(item => {
-    if (item.active || item.selected) {
-      totalWeight += (parseFloat(item.weight) || 0);
-    }
+  (currentCharacter.equipment || []).forEach(item => {
+    if (item.active || item.selected) totalWeight += (parseFloat(item.weight) || 0);
   });
   const maxWeight = state['str.score'] * 15;
   document.getElementById('cs-inventory-weight').textContent = totalWeight.toFixed(1);
   document.getElementById('cs-max-weight').textContent = maxWeight;
-  const capContainer = document.getElementById('cs-carry-capacity');
-  if (totalWeight > maxWeight) {
-    capContainer.classList.add('overburdened');
-  } else {
-    capContainer.classList.remove('overburdened');
-  }
+  document.getElementById('cs-carry-capacity').classList.toggle('overburdened', totalWeight > maxWeight);
 
-  const equippedContainer = document.getElementById('cs-inv-equipped');
-  const carriedContainer = document.getElementById('cs-inv-carried');
-  const storedContainer = document.getElementById('cs-inv-stored');
-  equippedContainer.innerHTML = '';
-  carriedContainer.innerHTML = '';
-  storedContainer.innerHTML = '';
-  eqList.forEach((item, idx) => {
-    const row = document.createElement('div');
-    row.className = 'cs-list-row';
-    const isStarred = item.favorite ? 'active' : '';
-    const syncBtn = item.compendiumId ? `
-      <button class="cs-list-row-btn btn-sync-item" title="Sync with Compendium">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-      </button>
-    ` : '';
-    row.innerHTML = `
-      <div class="cs-list-row-info">
-        <div class="cs-list-row-name">${item.name}</div>
-        <div class="cs-list-row-sub">${item.weight || 0} lbs. • ${item.type || 'Gear'}</div>
-      </div>
-      <div class="cs-list-row-actions">
-        <button class="cs-list-row-btn btn-equip ${item.active ? 'active' : ''}" title="Equipped / Active">
-          🛡️
-        </button>
-        <button class="cs-list-row-btn btn-carry ${item.selected ? 'active' : ''}" title="Carried in Pack">
-          🎒
-        </button>
-        <button class="cs-list-row-btn btn-fav-item ${isStarred}" title="Favorite">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-        </button>
-        ${syncBtn}
-        <button class="cs-list-row-btn danger btn-delete-item" title="Delete">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
-      </div>
-    `;
-    row.querySelector('.btn-equip').onclick = () => {
-      item.active = !item.active;
-      if (item.active) item.selected = true;
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-carry').onclick = () => {
-      item.selected = !item.selected;
-      if (!item.selected) item.active = false;
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-fav-item').onclick = () => {
-      item.favorite = !item.favorite;
-      saveCurrentCharacterAndRefresh();
-    };
-    if (item.compendiumId) {
-      row.querySelector('.btn-sync-item').onclick = () => {
-        syncLocalEntityWithCompendium(item, 'items');
-      };
-    }
-    row.querySelector('.btn-delete-item').onclick = () => {
-      currentCharacter.equipment.splice(idx, 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    
-    if (item.active) equippedContainer.appendChild(row);
-    else if (item.selected) carriedContainer.appendChild(row);
-    else storedContainer.appendChild(row);
+  const inventoryContainer = document.getElementById('cs-inventory-lists-container');
+  inventoryContainer.innerHTML = '';
+  currentCharacter.itemLists.forEach(listDef => {
+    const items = getItemsForList(currentCharacter.equipment, listDef.id);
+    renderListSection(inventoryContainer, listDef, items, 'item', state);
   });
-  if (equippedContainer.innerHTML === '') equippedContainer.innerHTML = '<div style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">None equipped.</div>';
-  if (carriedContainer.innerHTML === '') carriedContainer.innerHTML = '<div style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">None carried.</div>';
-  if (storedContainer.innerHTML === '') storedContainer.innerHTML = '<div style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">None stored.</div>';
 
-  // Tab 5: Spells
-  document.getElementById('cs-val-spell-dc').textContent = state['spell.dc'];
-  document.getElementById('cs-val-spell-attack').textContent = formatModifier(state['spell.attack']);
+  // ── Tab 5: Spells ────────────────────────────────────────────────────────────
   const slotsGrid = document.getElementById('cs-spell-slots-grid');
   slotsGrid.innerHTML = '';
   for (let l = 1; l <= 9; l++) {
@@ -3705,152 +3925,36 @@ function renderCharacterSheetUI() {
     const card = document.createElement('div');
     card.className = 'cs-spell-slot-card';
     card.innerHTML = `
-      <span class="cs-spell-slot-label">Level ${l}</span>
+      <span class="cs-spell-slot-label">Lvl ${l}</span>
       <div class="cs-spell-slot-controls">
-        <input type="number" class="cs-spell-slot-input" id="cs-slot-curr-${l}" min="0" value="${slot.current}" style="width: 36px;">
-        <span style="color: var(--text-muted); font-weight: bold;">/</span>
-        <input type="number" class="cs-spell-slot-input" id="cs-slot-max-${l}" min="0" value="${slot.max}" style="width: 36px;">
+        <input type="number" class="cs-spell-slot-input" id="cs-slot-curr-${l}" min="0" value="${slot.current}" style="width:34px">
+        <span style="color:var(--text-muted);font-weight:bold">/</span>
+        <input type="number" class="cs-spell-slot-input" id="cs-slot-max-${l}" min="0" value="${slot.max}" style="width:34px">
       </div>
     `;
-    card.querySelector(`#cs-slot-curr-${l}`).onchange = (e) => {
-      slot.current = Math.max(0, parseInt(e.target.value) || 0);
-      saveCurrentCharacterAndRefresh();
-    };
-    card.querySelector(`#cs-slot-max-${l}`).onchange = (e) => {
-      slot.max = Math.max(0, parseInt(e.target.value) || 0);
-      saveCurrentCharacterAndRefresh();
-    };
+    card.querySelector(`#cs-slot-curr-${l}`).onchange = (e) => { slot.current = Math.max(0, parseInt(e.target.value)||0); saveCurrentCharacterAndRefresh(); };
+    card.querySelector(`#cs-slot-max-${l}`).onchange  = (e) => { slot.max     = Math.max(0, parseInt(e.target.value)||0); saveCurrentCharacterAndRefresh(); };
     slotsGrid.appendChild(card);
   }
 
-  const spellsContainer = document.getElementById('cs-spells-by-level');
+  const spellsContainer = document.getElementById('cs-spells-lists-container');
   spellsContainer.innerHTML = '';
-  const spells = currentCharacter.spells || [];
-  for (let l = 0; l <= 9; l++) {
-    const levelSpells = spells.filter(s => s.level === l);
-    if (l === 0 || l === 1 || levelSpells.length > 0) {
-      const section = document.createElement('div');
-      section.className = 'cs-spell-level-section';
-      const levelTitle = l === 0 ? 'Cantrips' : `Level ${l} Spells`;
-      section.innerHTML = `
-        <h3>${levelTitle}</h3>
-        <div class="cs-spell-level-grid" id="cs-spell-grid-${l}"></div>
-      `;
-      const grid = section.querySelector(`#cs-spell-grid-${l}`);
-      levelSpells.forEach(spell => {
-        const row = document.createElement('div');
-        row.className = 'cs-list-row';
-        const isStarred = spell.favorite ? 'active' : '';
-        const isPrep = spell.selected ? 'active' : '';
-        const isActive = spell.active ? 'active' : '';
-        const syncBtn = spell.compendiumId ? `
-          <button class="cs-list-row-btn btn-sync-spell" title="Sync with Compendium">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          </button>
-        ` : '';
-        row.innerHTML = `
-          <div class="cs-list-row-info">
-            <div class="cs-list-row-name">${spell.name}</div>
-            <div class="cs-list-row-sub">${spell.time || '1 Action'} • ${spell.range || '60 ft'}</div>
-          </div>
-          <div class="cs-list-row-actions">
-            ${l > 0 ? `
-              <button class="cs-list-row-btn btn-prep-spell ${isPrep}" title="Prepared Status">
-                📖
-              </button>
-            ` : ''}
-            <button class="cs-list-row-btn btn-active-spell ${isActive}" title="Active Effect">
-              🔥
-            </button>
-            <button class="cs-list-row-btn btn-fav-spell ${isStarred}" title="Favorite">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-            </button>
-            ${syncBtn}
-            <button class="cs-list-row-btn danger btn-delete-spell" title="Delete">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>
-          </div>
-        `;
-        if (l > 0) {
-          row.querySelector('.btn-prep-spell').onclick = () => {
-            spell.selected = !spell.selected;
-            saveCurrentCharacterAndRefresh();
-          };
-        }
-        row.querySelector('.btn-active-spell').onclick = () => {
-          spell.active = !spell.active;
-          saveCurrentCharacterAndRefresh();
-        };
-        row.querySelector('.btn-fav-spell').onclick = () => {
-          spell.favorite = !spell.favorite;
-          saveCurrentCharacterAndRefresh();
-        };
-        if (spell.compendiumId) {
-          row.querySelector('.btn-sync-spell').onclick = () => {
-            syncLocalEntityWithCompendium(spell, 'spells');
-          };
-        }
-        row.querySelector('.btn-delete-spell').onclick = () => {
-          const originalIdx = spells.findIndex(s => s.id === spell.id);
-          if (originalIdx >= 0) {
-            currentCharacter.spells.splice(originalIdx, 1);
-            saveCurrentCharacterAndRefresh();
-          }
-        };
-        grid.appendChild(row);
-      });
-      if (levelSpells.length === 0) {
-        grid.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px; grid-column: 1 / -1;">No spells.</div>';
-      }
-      spellsContainer.appendChild(section);
-    }
-  }
-
-  // Tab 6: Bestiary
-  const bestiaryList = document.getElementById('cs-bestiary-list');
-  bestiaryList.innerHTML = '';
-  const beasts = currentCharacter.bestiary || [];
-  beasts.forEach((beast, idx) => {
-    const row = document.createElement('div');
-    row.className = 'cs-list-row';
-    row.innerHTML = `
-      <div class="cs-list-row-info">
-        <div class="cs-list-row-name">${beast.name}</div>
-        <div class="cs-list-row-sub">${beast.notes || 'No notes.'}</div>
-      </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="font-size: 12px; color: var(--text-secondary);">HP:</span>
-        <input type="number" class="cs-spell-slot-input btn-beast-hp-curr" style="width: 50px;" value="${beast.hp_current}">
-        <span style="color: var(--text-muted);">/</span>
-        <input type="number" class="cs-spell-slot-input btn-beast-hp-max" style="width: 50px;" value="${beast.hp_max}">
-      </div>
-      <div class="cs-list-row-actions" style="margin-left: 8px;">
-        <button class="cs-list-row-btn danger btn-delete-beast" title="Delete">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-        </button>
-      </div>
-    `;
-    row.querySelector('.btn-beast-hp-curr').onchange = (e) => {
-      beast.hp_current = Math.max(0, parseInt(e.target.value) || 0);
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-beast-hp-max').onchange = (e) => {
-      beast.hp_max = Math.max(0, parseInt(e.target.value) || 0);
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-delete-beast').onclick = () => {
-      currentCharacter.bestiary.splice(idx, 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    bestiaryList.appendChild(row);
+  currentCharacter.spellLists.forEach(listDef => {
+    const items = getItemsForList(currentCharacter.spells, listDef.id);
+    renderListSection(spellsContainer, listDef, items, 'spell', state);
   });
-  if (beasts.length === 0) {
-    bestiaryList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 14px;">No companions. Click "+ Add Companion" to add one.</div>';
-  }
 
-  // Tab 7: Profile
-  const notesFields = ['alignment', 'age', 'height', 'weight', 'allies', 'enemies', 'backstory', 'notes'];
-  notesFields.forEach(field => {
+  // ── Tab 6: Bestiary (Compendium Monster Picker) ───────────────────────────────
+  const bestiaryContainer = document.getElementById('cs-bestiary-lists-container');
+  bestiaryContainer.innerHTML = '';
+  currentCharacter.bestiaryLists.forEach(listDef => {
+    const items = getItemsForList(currentCharacter.bestiary, listDef.id);
+    renderListSection(bestiaryContainer, listDef, items, 'beast', state);
+  });
+
+  // ── Tab 7: Notes & Profile ───────────────────────────────────────────────────
+  const profileFields = ['alignment', 'age', 'height', 'weight'];
+  profileFields.forEach(field => {
     const el = document.getElementById(`cs-profile-${field}`);
     if (el) {
       el.value = currentCharacter.notes[field] || '';
@@ -3860,136 +3964,211 @@ function renderCharacterSheetUI() {
       };
     }
   });
+
+  // Freeform notes
+  const notesList = document.getElementById('cs-freeform-notes-list');
+  notesList.innerHTML = '';
+  const freeNotes = currentCharacter.notes.freeNotes || [];
+  freeNotes.forEach((note, idx) => {
+    const card = document.createElement('div');
+    card.className = 'cs-note-card';
+    // Render markdown-ish (replace \n with <br>, **bold**, *italic*)
+    const rendered = (note.content || '')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br>');
+    card.innerHTML = `
+      <div class="cs-note-header">
+        <span class="cs-note-title">${note.title || 'Note'}</span>
+        <div style="display:flex;gap:6px">
+          <button class="cs-list-row-btn btn-edit-note" title="Edit">${SVG_COG}</button>
+          <button class="cs-list-row-btn danger btn-del-note" title="Delete">${SVG_TRASH}</button>
+        </div>
+      </div>
+      <div class="cs-note-content">${rendered}</div>
+    `;
+    card.querySelector('.btn-edit-note').onclick = () => openNoteModal(note, idx);
+    card.querySelector('.btn-del-note').onclick  = () => {
+      freeNotes.splice(idx, 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    notesList.appendChild(card);
+  });
+  if (!freeNotes.length) {
+    notesList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No notes yet. Click + Add Note to create one.</div>';
+  }
 }
 
+// ── Note Modal ────────────────────────────────────────────────────────────────
+let noteEditIndex = -1;
+
+function openNoteModal(note = null, idx = -1) {
+  noteEditIndex = idx;
+  const modal = document.getElementById('cs-note-modal');
+  document.getElementById('cs-note-modal-title').textContent = note ? 'Edit Note' : 'Add Note';
+  document.getElementById('cs-note-title-input').value   = note?.title   || '';
+  document.getElementById('cs-note-content-input').value = note?.content || '';
+  modal.style.display = 'flex';
+}
+
+function saveNote() {
+  const title   = document.getElementById('cs-note-title-input').value.trim() || 'Note';
+  const content = document.getElementById('cs-note-content-input').value;
+  if (!currentCharacter.notes.freeNotes) currentCharacter.notes.freeNotes = [];
+  if (noteEditIndex >= 0) {
+    currentCharacter.notes.freeNotes[noteEditIndex] = { title, content };
+  } else {
+    currentCharacter.notes.freeNotes.push({ title, content });
+  }
+  document.getElementById('cs-note-modal').style.display = 'none';
+  saveCurrentCharacterAndRefresh();
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
 function setupCharacterSheetEvents() {
   document.getElementById('cs-btn-back').onclick = () => closeCharacterSheet();
-  document.getElementById('cs-btn-edit-char').onclick = () => {
-    if (currentCharacter) showCharacterCreatorModal(currentCharacter);
-  };
+  document.getElementById('cs-btn-edit-char').onclick = () => { if (currentCharacter) showCharacterCreatorModal(currentCharacter); };
   document.getElementById('cs-btn-inspiration').onclick = () => {
-    if (currentCharacter) {
-      currentCharacter.inspiration = !currentCharacter.inspiration;
-      saveCurrentCharacterAndRefresh();
-    }
+    if (currentCharacter) { currentCharacter.inspiration = !currentCharacter.inspiration; saveCurrentCharacterAndRefresh(); }
   };
-  
   document.getElementById('cs-btn-short-rest').onclick = () => performShortRest();
-  document.getElementById('cs-btn-long-rest').onclick = () => performLongRest();
-  
-  document.getElementById('cs-modal-btn-cancel').onclick = () => {
-    document.getElementById('cs-creator-modal').style.display = 'none';
-  };
-  document.getElementById('cs-picker-btn-close').onclick = () => {
-    document.getElementById('cs-picker-modal').style.display = 'none';
-  };
-  document.getElementById('cs-mod-btn-cancel').onclick = () => {
-    document.getElementById('cs-modifier-modal').style.display = 'none';
-  };
-  document.getElementById('cs-counter-btn-cancel').onclick = () => {
-    document.getElementById('cs-counter-modal').style.display = 'none';
-  };
+  document.getElementById('cs-btn-long-rest').onclick  = () => performLongRest();
 
-  document.getElementById('cs-modal-btn-save').onclick = () => saveCharacterCreatorModal();
-  document.getElementById('cs-mod-btn-save').onclick = () => saveCustomModifierModal();
-  document.getElementById('cs-counter-btn-save').onclick = () => saveCustomCounterModal();
+  // Creator / modal cancel/save
+  document.getElementById('cs-modal-btn-cancel').onclick = () => { document.getElementById('cs-creator-modal').style.display = 'none'; };
+  document.getElementById('cs-modal-btn-save').onclick   = () => saveCharacterCreatorModal();
 
-  document.getElementById('cs-btn-add-modifier').onclick = () => {
-    document.getElementById('cs-mod-name-input').value = '';
-    document.getElementById('cs-mod-value-input').value = '';
-    document.getElementById('cs-modifier-modal').style.display = 'flex';
+  // Picker close / add / custom / search
+  document.getElementById('cs-picker-btn-close').onclick = () => { document.getElementById('cs-picker-modal').style.display = 'none'; };
+  document.getElementById('cs-picker-btn-add').onclick   = () => {
+    if (pickerSelectedRecord) addCompendiumEntityToCharacter(pickerSelectedRecord, pickerCategory);
   };
-
-  document.getElementById('cs-btn-add-counter').onclick = () => {
-    document.getElementById('cs-counter-name-input').value = '';
-    document.getElementById('cs-counter-max-input').value = '4';
-    document.getElementById('cs-counter-reset-short').checked = true;
-    document.getElementById('cs-counter-reset-long').checked = true;
-    document.getElementById('cs-counter-modal').style.display = 'flex';
-  };
-
-  document.getElementById('cs-btn-add-feature').onclick = () => openPicker('feats');
-  document.getElementById('cs-btn-add-item').onclick = () => openPicker('items');
-  document.getElementById('cs-btn-add-spell').onclick = () => openPicker('spells');
-
-  document.getElementById('cs-btn-add-beast').onclick = () => {
-    const name = prompt('Enter companion / summon name:');
-    if (!name) return;
-    const hpMax = parseInt(prompt('Enter Max HP:')) || 10;
-    const notes = prompt('Enter notes (abilities, attacks, etc.):') || '';
-    
-    if (!currentCharacter.bestiary) currentCharacter.bestiary = [];
-    currentCharacter.bestiary.push({ name, hp_max: hpMax, hp_current: hpMax, notes });
-    saveCurrentCharacterAndRefresh();
-  };
-
   document.getElementById('cs-picker-btn-custom').onclick = () => {
-    const name = prompt(`Enter custom ${pickerCategory.substring(0, pickerCategory.length - 1)} name:`);
+    const name = prompt(`Enter custom ${pickerCategory === 'monsters' ? 'companion' : pickerCategory.slice(0,-1)} name:`);
     if (!name) return;
-    
-    const clone = {
-      name,
-      favorite: false,
-      selected: true,
-      active: true,
-      id: generateId(),
-      texts: ['Custom user-defined entry.']
-    };
-    
+    ensureCharacterLists(currentCharacter);
+    const clone = { name, favorite: false, selected: true, active: false, id: generateId(), texts: ['Custom entry.'] };
     if (pickerCategory === 'items') {
-      clone.weight = parseFloat(prompt('Enter weight (lbs):')) || 0;
-      clone.type = prompt('Enter equipment type (e.g. Melee Weapon, Shield, Gear):') || 'Gear';
+      clone.weight = 0; clone.type = 'Gear';
+      clone.listId = pickerTargetListId || currentCharacter.itemLists[0]?.id;
       currentCharacter.equipment.push(clone);
     } else if (pickerCategory === 'spells') {
-      clone.level = parseInt(prompt('Enter spell level (0-9):')) || 0;
-      clone.school = prompt('Enter spell school:') || 'Transmutation';
+      clone.level = 0; clone.school = 'Transmutation';
+      clone.listId = pickerTargetListId || currentCharacter.spellLists[0]?.id;
       currentCharacter.spells.push(clone);
     } else if (pickerCategory === 'feats') {
-      clone.category = prompt('Enter feature category (e.g. Class, Species, Background, Feat):') || 'Feature';
+      clone.active = true; clone.category = 'Feature';
+      clone.listId = pickerTargetListId || currentCharacter.featureLists[0]?.id;
       currentCharacter.features.push(clone);
+    } else if (pickerCategory === 'monsters') {
+      clone.hp_max = 10; clone.hp_current = 10;
+      clone.listId = pickerTargetListId || currentCharacter.bestiaryLists[0]?.id;
+      currentCharacter.bestiary.push(clone);
     }
     document.getElementById('cs-picker-modal').style.display = 'none';
     saveCurrentCharacterAndRefresh();
   };
-
   document.getElementById('cs-picker-search').oninput = (e) => {
     renderPickerList(e.target.value);
   };
-  
-  // HP Temp controls
-  document.getElementById('cs-hp-temp-btn').onclick = () => {
+
+  // Detail modal
+  document.getElementById('cs-detail-btn-close').onclick = () => { document.getElementById('cs-detail-modal').style.display = 'none'; };
+  document.getElementById('cs-detail-btn-sync').onclick  = () => {
+    if (detailModalItem) {
+      const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
+      syncLocalEntityWithCompendium(detailModalItem, catMap[detailModalType]);
+    }
+  };
+
+  // List config modal
+  document.getElementById('cs-list-config-btn-cancel').onclick = () => { document.getElementById('cs-list-config-modal').style.display = 'none'; listConfigTarget = null; };
+  document.getElementById('cs-list-config-btn-save').onclick   = () => saveListConfig();
+  document.getElementById('cs-list-config-btn-delete').onclick = () => {
+    if (listConfigTarget && !listConfigTarget.isNew) deleteListAndItems();
+  };
+
+  // Note modal
+  document.getElementById('cs-btn-add-note').onclick    = () => openNoteModal();
+  document.getElementById('cs-note-btn-cancel').onclick = () => { document.getElementById('cs-note-modal').style.display = 'none'; };
+  document.getElementById('cs-note-btn-save').onclick   = () => saveNote();
+
+  // Modifier modal
+  document.getElementById('cs-mod-btn-cancel').onclick = () => { document.getElementById('cs-modifier-modal').style.display = 'none'; };
+  document.getElementById('cs-mod-btn-save').onclick   = () => saveCustomModifierModal();
+  document.getElementById('cs-btn-add-modifier').onclick = () => {
+    document.getElementById('cs-mod-name-input').value  = '';
+    document.getElementById('cs-mod-value-input').value = '';
+    document.getElementById('cs-mod-name-input').style.borderColor  = '';
+    document.getElementById('cs-mod-value-input').style.borderColor = '';
+    document.getElementById('cs-modifier-modal').style.display = 'flex';
+  };
+
+  // Counter modal
+  document.getElementById('cs-counter-btn-cancel').onclick = () => { document.getElementById('cs-counter-modal').style.display = 'none'; };
+  document.getElementById('cs-counter-btn-save').onclick   = () => saveCustomCounterModal();
+  document.getElementById('cs-btn-add-counter').onclick = () => {
+    document.getElementById('cs-counter-name-input').value = '';
+    document.getElementById('cs-counter-max-input').value  = '4';
+    document.getElementById('cs-counter-reset-short').checked = true;
+    document.getElementById('cs-counter-reset-long').checked  = true;
+    document.getElementById('cs-counter-name-input').style.borderColor = '';
+    document.getElementById('cs-counter-modal').style.display = 'flex';
+  };
+
+  // Temp HP modal
+  document.getElementById('cs-hp-temp-btn').onclick    = () => {
     document.getElementById('cs-temp-hp-input').value = currentCharacter.hp.temp || 0;
     document.getElementById('cs-temp-hp-modal').style.display = 'flex';
   };
-  document.getElementById('cs-temp-hp-save').onclick = () => {
-    const val = parseInt(document.getElementById('cs-temp-hp-input').value) || 0;
-    currentCharacter.hp.temp = Math.max(0, val);
+  document.getElementById('cs-temp-hp-save').onclick   = () => {
+    currentCharacter.hp.temp = Math.max(0, parseInt(document.getElementById('cs-temp-hp-input').value) || 0);
     document.getElementById('cs-temp-hp-modal').style.display = 'none';
     saveCurrentCharacterAndRefresh();
   };
-  document.getElementById('cs-temp-hp-cancel').onclick = () => {
-    document.getElementById('cs-temp-hp-modal').style.display = 'none';
+  document.getElementById('cs-temp-hp-cancel').onclick = () => { document.getElementById('cs-temp-hp-modal').style.display = 'none'; };
+
+  // Add feature/item/spell buttons (open pickers; no target list)
+  document.getElementById('cs-btn-add-feature').onclick = () => openPicker('feats');
+  document.getElementById('cs-btn-add-item').onclick    = () => openPicker('items');
+  document.getElementById('cs-btn-add-spell').onclick   = () => openPicker('spells');
+  document.getElementById('cs-btn-add-beast').onclick   = () => openPicker('monsters');
+
+  // Add new list buttons
+  document.getElementById('cs-btn-add-feature-list').onclick = () => {
+    ensureCharacterLists(currentCharacter);
+    openListConfigModal({ id: generateId(), name: 'New Feature List' }, 'feature', true);
+  };
+  document.getElementById('cs-btn-add-item-list').onclick = () => {
+    ensureCharacterLists(currentCharacter);
+    openListConfigModal({ id: generateId(), name: 'New Gear List' }, 'item', true);
+  };
+  document.getElementById('cs-btn-add-spell-list').onclick = () => {
+    ensureCharacterLists(currentCharacter);
+    openListConfigModal({ id: generateId(), name: 'New Spell List', spellcastingAbility: currentCharacter.spellcastingAbility || 'wis' }, 'spell', true);
+  };
+  document.getElementById('cs-btn-add-beast-list').onclick = () => {
+    ensureCharacterLists(currentCharacter);
+    openListConfigModal({ id: generateId(), name: 'New Companion List' }, 'beast', true);
   };
 
+  // Tab switching
   const tabs = document.querySelectorAll('.cs-tab-btn');
   tabs.forEach(tab => {
     tab.onclick = () => {
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       const target = tab.getAttribute('data-tab');
-      document.querySelectorAll('.cs-tab-panel').forEach(panel => {
-        panel.classList.remove('active');
-      });
+      document.querySelectorAll('.cs-tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById(`cs-tab-${target}`).classList.add('active');
     };
   });
 }
 
-// Expose open/close/refresh globally for tests and DOM
+// Expose globally for tests
 if (typeof window !== 'undefined') {
-  window.openCharacterSheet = openCharacterSheet;
-  window.closeCharacterSheet = closeCharacterSheet;
+  window.openCharacterSheet    = openCharacterSheet;
+  window.closeCharacterSheet   = closeCharacterSheet;
   window.refreshCharactersList = refreshCharactersList;
   window.calculateCharacterState = calculateCharacterState;
 }
-
