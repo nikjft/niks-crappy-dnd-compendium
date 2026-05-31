@@ -526,6 +526,7 @@ export function parseClass(element) {
       weapons: getChildText(element, 'weapons'),
       tools: getChildText(element, 'tools'),
       numSkills: parseInt(getChildText(element, 'numSkills')) || 0,
+      traits: getChildElements(element, 'trait').map(parseTrait),
       autolevels: baseAutolevels,
       slotsTable: autolevels.map(al => ({ level: al.level, slots: al.slots })).filter(al => al.slots)
     },

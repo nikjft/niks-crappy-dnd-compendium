@@ -3378,11 +3378,19 @@ function renderWizardStep2(body) {
       return;
     }
 
-    const traitsHtml = selectedRace.traits && selectedRace.traits.length > 0
+    const descTrait = selectedRace.traits?.find(t => t.name.toLowerCase() === 'description');
+    const descText = descTrait ? descTrait.texts?.join('<br>') : '';
+    const otherTraits = selectedRace.traits?.filter(t => t.name.toLowerCase() !== 'description') || [];
+
+    const descriptionHtml = descText
+      ? `<div style="font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 20px; font-style: italic;">${descText}</div>`
+      : '';
+
+    const traitsHtml = otherTraits.length > 0
       ? `
         <h4 class="cs-wizard-section-title">Species Traits</h4>
         <div class="cs-wizard-feature-list">
-          ${selectedRace.traits.map(t => `
+          ${otherTraits.map(t => `
             <div class="cs-wizard-feature-item">
               <div>
                 <div class="cs-wizard-feature-item-name">${t.name}</div>
@@ -3442,6 +3450,7 @@ function renderWizardStep2(body) {
         <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Size: ${selectedRace.size || 'Medium'} · Base Speed: ${selectedRace.speed} ft</div>
       </div>
       
+      ${descriptionHtml}
       ${traitsHtml}
       ${skillsHtml}
     `;
@@ -3550,11 +3559,22 @@ function renderWizardStep3(body) {
       return;
     }
 
-    const traitHtml = selectedBg.traits && selectedBg.traits.length > 0
+    const descTrait = selectedBg.traits?.find(t => t.name.toLowerCase() === 'description');
+    const descTextsArray = [];
+    if (descTrait && descTrait.texts) descTextsArray.push(...descTrait.texts);
+    if (selectedBg.texts) descTextsArray.push(...selectedBg.texts);
+    const descText = descTextsArray.join('<br>');
+    const otherTraits = selectedBg.traits?.filter(t => t.name.toLowerCase() !== 'description') || [];
+
+    const descriptionHtml = descText
+      ? `<div style="font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 20px; font-style: italic;">${descText}</div>`
+      : '';
+
+    const traitHtml = otherTraits.length > 0
       ? `
         <h4 class="cs-wizard-section-title">Background Feat / Feature</h4>
         <div class="cs-wizard-feature-list">
-          ${selectedBg.traits.map(t => `
+          ${otherTraits.map(t => `
             <div class="cs-wizard-feature-item">
               <div>
                 <div class="cs-wizard-feature-item-name">${t.name}</div>
@@ -3564,10 +3584,6 @@ function renderWizardStep3(body) {
           `).join('')}
         </div>
       `
-      : '';
-
-    const textDesc = selectedBg.texts && selectedBg.texts.length > 0
-      ? `<div style="font-size:13px;line-height:1.5;margin-bottom:16px;color:var(--text-secondary);">${selectedBg.texts.join('<br>')}</div>`
       : '';
 
     // ASI customization (checkboxes/buttons, no policing of total points, as per user request)
@@ -3630,7 +3646,7 @@ function renderWizardStep3(body) {
         <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedBg.name}</h3>
       </div>
       
-      ${textDesc}
+      ${descriptionHtml}
       ${traitHtml}
       ${statsASIHtml}
       ${skillsHtml}
@@ -3808,12 +3824,19 @@ function renderWizardStep4(body) {
       `
       : '';
 
+    const descTrait = selectedClass.traits?.find(t => t.name.toLowerCase() === 'description' || t.name.toLowerCase() === selectedClass.name.toLowerCase());
+    const descText = descTrait ? descTrait.texts?.join('<br>') : '';
+    const descriptionHtml = descText
+      ? `<div style="font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 20px; font-style: italic;">${descText}</div>`
+      : '';
+
     detail.innerHTML = `
       <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
         <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedClass.name}</h3>
         <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Saving Throws: ${saves.join(', ')} · Spellcaster Ability: ${selectedClass.spellAbility || 'None'}</div>
       </div>
       
+      ${descriptionHtml}
       ${hpPromptHtml}
       ${skillsHtml}
       ${featuresHtml}
@@ -4614,14 +4637,13 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
 
   // 4. Add level features to feature list
   const al = classRecord.autolevels?.find(a => a.level === targetLevel);
-  if (al && al.features) {
-    al.features.forEach(f => {
-      if (chosenFeatures.includes(f.name)) {
+  if (isMulticlass) {
+    if (al && al.features) {
+      al.features.forEach(f => {
         // Skip saving throw proficiency features if it is a multiclass character (as per user comment)
-        if (isMulticlass && f.name.toLowerCase().includes('saving throw')) {
-          return; 
+        if (f.name.toLowerCase().includes('saving throw')) {
+          return;
         }
-
         char.features.push({
           name: f.name,
           active: true,
@@ -4632,8 +4654,25 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
           texts: f.texts || [],
           modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
         });
-      }
-    });
+      });
+    }
+  } else {
+    if (al && al.features) {
+      al.features.forEach(f => {
+        if (chosenFeatures.includes(f.name)) {
+          char.features.push({
+            name: f.name,
+            active: true,
+            favorite: false,
+            selected: true,
+            id: generateId(),
+            listId: classListId,
+            texts: f.texts || [],
+            modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+          });
+        }
+      });
+    }
   }
 
   // Copy counters
