@@ -3,6 +3,7 @@ import { parseCompendiumXML, ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TY
 import { initStorage, storageHealth, getStorageQuota, onQuotaWarning, onPersistenceResult } from './storage.js';
 import { initSync, syncNow, scheduleDebouncedSync, syncState, onSyncStatusChange, startDropboxOAuth, unlinkDropbox, isDropboxLinked, refreshAccessToken } from './sync.js';
 import { handleSyncStateChange, showConflictModal, renderSyncStatusBadge, renderStorageBadge } from './ui-sync.js';
+import { calculateCharacterState } from './engine.js';
 
 // Application State
 let currentCategory = 'races';
@@ -13,6 +14,7 @@ let selectedFacet1 = 'All';
 let selectedFacet2 = 'All';
 let searchChits = []; // e.g. [{ field: 'school', value: 'conjuration' }]
 let selectedItem = null;
+let currentCharacter = null; // Currently open character
 
 // Mobile View State
 let currentMobilePane = 'facet-1'; // 'facet-1', 'facet-2', 'list', 'detail'
@@ -359,6 +361,7 @@ function setupEventListeners() {
       scheduleDebouncedSync();
     });
   }
+  setupCharacterSheetEvents();
 }
 
 function updateFavoriteButtonUI() {
@@ -617,6 +620,13 @@ async function loadCategory(category) {
       allRecordsCache[category] = rawFavorites;
     }
     currentRecords = rawFavorites.filter(f => !f._deleted);
+  } else if (category === 'characters') {
+    let rawCharacters = allRecordsCache[category];
+    if (!rawCharacters) {
+      rawCharacters = await getAllRecords(category);
+      allRecordsCache[category] = rawCharacters;
+    }
+    currentRecords = rawCharacters.filter(c => !c._deleted);
   } else {
     currentRecords = allRecordsCache[category] || [];
     if (currentRecords.length === 0) {
@@ -654,7 +664,7 @@ async function loadCategory(category) {
 }
 
 function hasFacet1() {
-  return currentCategory !== 'backgrounds' && currentCategory !== 'races' && currentCategory !== 'settings';
+  return currentCategory !== 'backgrounds' && currentCategory !== 'races' && currentCategory !== 'settings' && currentCategory !== 'characters';
 }
 
 function hasFacet2() {
@@ -1238,6 +1248,12 @@ function applyFilters() {
   
   // Category Browsing Mode
   updatePaneVisibility();
+
+  if (currentCategory === 'characters') {
+    const filteredChars = currentRecords.filter(c => c.name.toLowerCase().includes(query));
+    renderCharactersRoster(filteredChars);
+    return;
+  }
 
   // Filter current category's records
   const filteredRecords = currentRecords.filter(record => {
@@ -2696,3 +2712,1284 @@ function applyUniversalSearch() {
 
   renderList(filtered, true);
 }
+
+// ─── CHARACTER SHEET CORE FUNCTIONS ──────────────────────────────────────────
+
+const attributes = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+const skillAttrs = {
+  athletics: 'str',
+  acrobatics: 'dex',
+  sleight_of_hand: 'dex',
+  stealth: 'dex',
+  arcana: 'int',
+  history: 'int',
+  investigation: 'int',
+  nature: 'int',
+  religion: 'int',
+  animal_handling: 'wis',
+  insight: 'wis',
+  medicine: 'wis',
+  perception: 'wis',
+  survival: 'wis',
+  deception: 'cha',
+  intimidation: 'cha',
+  performance: 'cha',
+  persuasion: 'cha'
+};
+
+function generateId() {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+function formatModifier(val) {
+  const num = parseInt(val) || 0;
+  return num >= 0 ? `+${num}` : `${num}`;
+}
+
+async function saveCharacterToDb(char) {
+  await saveRecord('characters', char);
+  scheduleDebouncedSync();
+}
+
+async function saveCurrentCharacterAndRefresh() {
+  if (!currentCharacter) return;
+  currentCharacter._modified_at = new Date().toISOString();
+  await saveCharacterToDb(currentCharacter);
+  renderCharacterSheetUI();
+}
+
+async function refreshCharactersList() {
+  const rawCharacters = await getAllRecords('characters');
+  allRecordsCache['characters'] = rawCharacters;
+  currentRecords = rawCharacters.filter(c => !c._deleted);
+  applyFilters();
+}
+
+function createNewCharacterTemplate(name, charClass, subclass, level, species, background, baseStats, spellcastingAbility, baseHpMax, speed) {
+  return {
+    name,
+    class: charClass,
+    subclass: subclass || '',
+    level: parseInt(level) || 1,
+    species: species || '',
+    background: background || '',
+    baseStats: baseStats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    savesProficiency: {
+      str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0
+    },
+    skillsProficiency: {
+      athletics: 0, acrobatics: 0, sleight_of_hand: 0, stealth: 0,
+      arcana: 0, history: 0, investigation: 0, nature: 0, religion: 0,
+      animal_handling: 0, insight: 0, medicine: 0, perception: 0, survival: 0,
+      deception: 0, intimidation: 0, performance: 0, persuasion: 0
+    },
+    skillsAttributeOverride: {},
+    hp: {
+      current: parseInt(baseHpMax) || 10,
+      temp: 0
+    },
+    baseHpMax: parseInt(baseHpMax) || 10,
+    speed: parseInt(speed) || 30,
+    spellcastingAbility: spellcastingAbility || 'wis',
+    inspiration: false,
+    deathSaves: { successes: 0, failures: 0 },
+    currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+    spellSlots: {},
+    counters: [],
+    equipment: [],
+    spells: [],
+    features: [],
+    options: [],
+    bestiary: [],
+    modifiers: [],
+    notes: {
+      backstory: '',
+      alignment: '',
+      age: '',
+      height: '',
+      weight: '',
+      allies: '',
+      enemies: '',
+      sessionNotes: ''
+    },
+    _deleted: false,
+    _modified_at: new Date().toISOString()
+  };
+}
+
+function renderCharactersRoster(chars) {
+  itemList.innerHTML = '';
+  
+  const grid = document.createElement('div');
+  grid.className = 'cs-roster-grid';
+  
+  chars.forEach(char => {
+    const card = document.createElement('div');
+    card.className = 'cs-roster-card';
+    
+    const state = calculateCharacterState(char);
+    
+    card.innerHTML = `
+      <div class="cs-roster-card-header">
+        <div class="cs-roster-portrait">👤</div>
+        <div class="cs-roster-info">
+          <div class="cs-roster-name">${char.name}</div>
+          <div class="cs-roster-sub">Level ${char.level} ${char.class || 'Fighter'}</div>
+        </div>
+      </div>
+      <div class="cs-roster-stats">
+        <div>
+          <span class="cs-roster-stat-val">${state['ac']}</span>
+          AC
+        </div>
+        <div>
+          <span class="cs-roster-stat-val">${state['hp.max']}</span>
+          Max HP
+        </div>
+        <div>
+          <span class="cs-roster-stat-val">+${state['prof_bonus']}</span>
+          Prof
+        </div>
+      </div>
+      <div class="cs-roster-actions">
+        <button class="cs-roster-btn btn-duplicate" title="Duplicate Character" aria-label="Duplicate Character">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+        <button class="cs-roster-btn danger btn-delete" title="Delete Character" aria-label="Delete Character">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `;
+    
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.cs-roster-btn')) return;
+      openCharacterSheet(char);
+    });
+    
+    card.querySelector('.btn-duplicate').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const dup = JSON.parse(JSON.stringify(char));
+      dup.name = `${char.name} (Copy)`;
+      dup._modified_at = new Date().toISOString();
+      await saveCharacterToDb(dup);
+      await refreshCharactersList();
+    });
+    
+    card.querySelector('.btn-delete').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (confirm(`Are you sure you want to delete ${char.name}?`)) {
+        char._deleted = true;
+        char._modified_at = new Date().toISOString();
+        await saveCharacterToDb(char);
+        await refreshCharactersList();
+      }
+    });
+    
+    grid.appendChild(card);
+  });
+  
+  const createCard = document.createElement('div');
+  createCard.className = 'cs-roster-card cs-create-card';
+  createCard.innerHTML = `
+    <div style="text-align: center; color: var(--accent-color);">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 8px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <div style="font-weight: 600; font-family: var(--font-header);">Create Character</div>
+    </div>
+  `;
+  createCard.addEventListener('click', () => {
+    showCharacterCreatorModal();
+  });
+  grid.appendChild(createCard);
+  
+  itemList.appendChild(grid);
+}
+
+function openCharacterSheet(char) {
+  currentCharacter = char;
+  document.getElementById('character-sheet-view').style.display = 'flex';
+  
+  const tabs = document.querySelectorAll('.cs-tab-btn');
+  tabs.forEach(t => {
+    t.classList.remove('active');
+    if (t.getAttribute('data-tab') === 'combat') t.classList.add('active');
+  });
+  document.querySelectorAll('.cs-tab-panel').forEach(p => {
+    p.classList.remove('active');
+    if (p.id === 'cs-tab-combat') p.classList.add('active');
+  });
+  
+  renderCharacterSheetUI();
+}
+
+function closeCharacterSheet() {
+  currentCharacter = null;
+  document.getElementById('character-sheet-view').style.display = 'none';
+  refreshCharactersList();
+}
+
+function populateCreatorDropdowns() {
+  const classSelect = document.getElementById('cs-modal-class');
+  const speciesSelect = document.getElementById('cs-modal-species');
+  const backgroundSelect = document.getElementById('cs-modal-background');
+  
+  if (classSelect) {
+    classSelect.innerHTML = '<option value="">-- Custom Class --</option>';
+    const classes = allRecordsCache['classes'] || [];
+    classes.forEach(c => {
+      classSelect.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+    });
+  }
+  
+  if (speciesSelect) {
+    speciesSelect.innerHTML = '<option value="">-- Custom Species --</option>';
+    const races = allRecordsCache['races'] || [];
+    races.forEach(r => {
+      speciesSelect.innerHTML += `<option value="${r.name}">${r.name}</option>`;
+    });
+  }
+  
+  if (backgroundSelect) {
+    backgroundSelect.innerHTML = '<option value="">-- Custom Background --</option>';
+    const bgs = allRecordsCache['backgrounds'] || [];
+    bgs.forEach(b => {
+      backgroundSelect.innerHTML += `<option value="${b.name}">${b.name}</option>`;
+    });
+  }
+}
+
+let characterToEdit = null;
+function showCharacterCreatorModal(char = null) {
+  characterToEdit = char;
+  const modal = document.getElementById('cs-creator-modal');
+  const title = document.getElementById('cs-modal-title');
+  
+  populateCreatorDropdowns();
+  
+  if (char) {
+    title.textContent = 'Edit Character Details';
+    document.getElementById('cs-modal-name').value = char.name;
+    document.getElementById('cs-modal-class').value = char.class || '';
+    document.getElementById('cs-modal-subclass').value = char.subclass || '';
+    document.getElementById('cs-modal-level').value = char.level;
+    document.getElementById('cs-modal-species').value = char.species || '';
+    document.getElementById('cs-modal-background').value = char.background || '';
+    document.getElementById('cs-modal-spellcasting').value = char.spellcastingAbility || 'wis';
+    document.getElementById('cs-modal-base-hp').value = char.baseHpMax;
+    document.getElementById('cs-modal-speed').value = char.speed;
+    
+    const stats = char.baseStats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
+    attributes.forEach(attr => {
+      document.getElementById(`cs-modal-${attr}`).value = stats[attr];
+    });
+  } else {
+    title.textContent = 'Create Character';
+    document.getElementById('cs-modal-name').value = '';
+    document.getElementById('cs-modal-class').value = '';
+    document.getElementById('cs-modal-subclass').value = '';
+    document.getElementById('cs-modal-level').value = 1;
+    document.getElementById('cs-modal-species').value = '';
+    document.getElementById('cs-modal-background').value = '';
+    document.getElementById('cs-modal-spellcasting').value = 'wis';
+    document.getElementById('cs-modal-base-hp').value = 10;
+    document.getElementById('cs-modal-speed').value = 30;
+    
+    attributes.forEach(attr => {
+      document.getElementById(`cs-modal-${attr}`).value = 10;
+    });
+  }
+  
+  modal.style.display = 'flex';
+}
+
+async function saveCharacterCreatorModal() {
+  const name = document.getElementById('cs-modal-name').value.trim();
+  if (!name) {
+    alert('Name is required.');
+    return;
+  }
+  
+  const charClass = document.getElementById('cs-modal-class').value;
+  const subclass = document.getElementById('cs-modal-subclass').value.trim();
+  const level = parseInt(document.getElementById('cs-modal-level').value) || 1;
+  const species = document.getElementById('cs-modal-species').value;
+  const background = document.getElementById('cs-modal-background').value;
+  const spellcastingAbility = document.getElementById('cs-modal-spellcasting').value;
+  const baseHpMax = parseInt(document.getElementById('cs-modal-base-hp').value) || 10;
+  const speed = parseInt(document.getElementById('cs-modal-speed').value) || 30;
+  
+  const baseStats = {};
+  attributes.forEach(attr => {
+    baseStats[attr] = parseInt(document.getElementById(`cs-modal-${attr}`).value) || 10;
+  });
+  
+  if (characterToEdit) {
+    characterToEdit.name = name;
+    characterToEdit.class = charClass;
+    characterToEdit.subclass = subclass;
+    characterToEdit.level = level;
+    characterToEdit.species = species;
+    characterToEdit.background = background;
+    characterToEdit.spellcastingAbility = spellcastingAbility;
+    characterToEdit.baseHpMax = baseHpMax;
+    characterToEdit.speed = speed;
+    characterToEdit.baseStats = baseStats;
+    characterToEdit._modified_at = new Date().toISOString();
+    
+    await saveCharacterToDb(characterToEdit);
+    document.getElementById('cs-creator-modal').style.display = 'none';
+    
+    if (currentCharacter && currentCharacter.name === characterToEdit.name) {
+      currentCharacter = characterToEdit;
+      renderCharacterSheetUI();
+    }
+    await refreshCharactersList();
+  } else {
+    const newChar = createNewCharacterTemplate(name, charClass, subclass, level, species, background, baseStats, spellcastingAbility, baseHpMax, speed);
+    
+    // Copy background modifiers
+    if (background) {
+      const bgRecord = allRecordsCache['backgrounds']?.find(b => b.name === background);
+      if (bgRecord && bgRecord.modifiers) {
+        newChar.features.push({
+          name: `Background Adjustments: ${background}`,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          texts: ['Ability adjustments from background.'],
+          modifiers: JSON.parse(JSON.stringify(bgRecord.modifiers))
+        });
+      }
+    }
+    
+    // Copy race modifiers
+    if (species) {
+      const raceRecord = allRecordsCache['races']?.find(r => r.name === species);
+      if (raceRecord && raceRecord.modifiers) {
+        newChar.features.push({
+          name: `Species Traits: ${species}`,
+          active: true,
+          favorite: false,
+          selected: true,
+          id: generateId(),
+          texts: ['Traits from species.'],
+          modifiers: JSON.parse(JSON.stringify(raceRecord.modifiers))
+        });
+      }
+    }
+    
+    await saveCharacterToDb(newChar);
+    document.getElementById('cs-creator-modal').style.display = 'none';
+    
+    await refreshCharactersList();
+    openCharacterSheet(newChar);
+  }
+}
+
+let pickerCategory = '';
+function openPicker(category) {
+  pickerCategory = category;
+  const modal = document.getElementById('cs-picker-modal');
+  const title = document.getElementById('cs-picker-title');
+  const searchInput = document.getElementById('cs-picker-search');
+  
+  if (category === 'items') title.textContent = 'Add Equipment';
+  else if (category === 'spells') title.textContent = 'Add Spell';
+  else if (category === 'feats') title.textContent = 'Add Feature / Feat';
+  
+  searchInput.value = '';
+  renderPickerList('');
+  modal.style.display = 'flex';
+}
+
+function renderPickerList(query) {
+  const container = document.getElementById('cs-picker-list');
+  container.innerHTML = '';
+  
+  const records = allRecordsCache[pickerCategory] || [];
+  const filtered = records.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+  
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted);">No items found.</div>';
+    return;
+  }
+  
+  filtered.forEach(record => {
+    const row = document.createElement('div');
+    row.className = 'cs-picker-row';
+    
+    let sub = '';
+    if (pickerCategory === 'spells') {
+      sub = `${record.level === 0 ? 'Cantrip' : 'Level ' + record.level} ${record.school}`;
+    } else if (pickerCategory === 'items') {
+      sub = `${record.type || 'Item'} • ${record.weight || 0} lbs.`;
+    } else if (pickerCategory === 'feats') {
+      sub = `${record.category || 'Feat'}`;
+    }
+    
+    row.innerHTML = `
+      <div class="cs-picker-row-info">
+        <div class="cs-picker-row-name">${record.name}</div>
+        <div class="cs-picker-row-sub">${sub}</div>
+      </div>
+      <button class="cs-picker-row-btn">Add</button>
+    `;
+    
+    row.querySelector('.cs-picker-row-btn').addEventListener('click', () => {
+      addCompendiumEntityToCharacter(record, pickerCategory);
+    });
+    
+    container.appendChild(row);
+  });
+}
+
+function addCompendiumEntityToCharacter(record, category) {
+  const clone = JSON.parse(JSON.stringify(record));
+  clone.compendiumId = record.name;
+  clone.favorite = false;
+  clone.selected = true;
+  clone.active = true;
+  clone.id = generateId();
+  
+  if (category === 'items') {
+    currentCharacter.equipment.push(clone);
+  } else if (category === 'spells') {
+    currentCharacter.spells.push(clone);
+  } else if (category === 'feats') {
+    currentCharacter.features.push(clone);
+  }
+  
+  saveCurrentCharacterAndRefresh();
+  alert(`Added ${clone.name} to character!`);
+}
+
+async function syncLocalEntityWithCompendium(entity, category) {
+  let compCategory = '';
+  if (category === 'items') compCategory = 'items';
+  else if (category === 'spells') compCategory = 'spells';
+  else if (category === 'feats') compCategory = 'feats';
+  
+  const compRecord = allRecordsCache[compCategory]?.find(r => r.name === entity.compendiumId);
+  if (!compRecord) {
+    alert('Compendium record not found.');
+    return;
+  }
+  
+  const { favorite, selected, active, id, compendiumId } = entity;
+  const synced = { ...JSON.parse(JSON.stringify(compRecord)), favorite, selected, active, id, compendiumId };
+  
+  let list = [];
+  if (category === 'items') list = currentCharacter.equipment;
+  else if (category === 'spells') list = currentCharacter.spells;
+  else if (category === 'feats') list = currentCharacter.features;
+  
+  const idx = list.findIndex(e => e.id === id);
+  if (idx >= 0) {
+    list[idx] = synced;
+    await saveCurrentCharacterAndRefresh();
+    alert(`Synced ${entity.name} with Compendium successfully!`);
+  }
+}
+
+function saveCustomModifierModal() {
+  const name = document.getElementById('cs-mod-name-input').value.trim();
+  if (!name) {
+    alert('Name is required.');
+    return;
+  }
+  const target = document.getElementById('cs-mod-target-select').value;
+  const type = document.getElementById('cs-mod-type-select').value;
+  const value = document.getElementById('cs-mod-value-input').value.trim();
+  
+  if (!value) {
+    alert('Value is required.');
+    return;
+  }
+  
+  const mod = {
+    name,
+    active: true,
+    favorite: false,
+    selected: true,
+    id: generateId(),
+    modifiers: [
+      { target, type, value }
+    ]
+  };
+  
+  if (!currentCharacter.modifiers) currentCharacter.modifiers = [];
+  currentCharacter.modifiers.push(mod);
+  
+  document.getElementById('cs-modifier-modal').style.display = 'none';
+  saveCurrentCharacterAndRefresh();
+}
+
+function saveCustomCounterModal() {
+  const name = document.getElementById('cs-counter-name-input').value.trim();
+  if (!name) {
+    alert('Name is required.');
+    return;
+  }
+  const max = parseInt(document.getElementById('cs-counter-max-input').value) || 1;
+  const reset_short = document.getElementById('cs-counter-reset-short').checked;
+  const reset_long = document.getElementById('cs-counter-reset-long').checked;
+  
+  const cnt = {
+    name,
+    max,
+    value: max,
+    reset_short,
+    reset_long,
+    id: generateId()
+  };
+  
+  if (!currentCharacter.counters) currentCharacter.counters = [];
+  currentCharacter.counters.push(cnt);
+  
+  document.getElementById('cs-counter-modal').style.display = 'none';
+  saveCurrentCharacterAndRefresh();
+}
+
+function performShortRest() {
+  if (!currentCharacter) return;
+  (currentCharacter.counters || []).forEach(c => {
+    if (c.reset_short || c.reset === 'S') {
+      c.value = c.max;
+    }
+  });
+  saveCurrentCharacterAndRefresh();
+  alert('Short Rest completed. Counters reset.');
+}
+
+function performLongRest() {
+  if (!currentCharacter) return;
+  const state = calculateCharacterState(currentCharacter);
+  currentCharacter.hp.current = state['hp.max'];
+  
+  (currentCharacter.counters || []).forEach(c => {
+    if (c.reset_long || c.reset === 'L' || c.reset === 'S') {
+      c.value = c.max;
+    }
+  });
+  
+  if (currentCharacter.spellSlots) {
+    for (const lvl of Object.keys(currentCharacter.spellSlots)) {
+      currentCharacter.spellSlots[lvl].current = currentCharacter.spellSlots[lvl].max;
+    }
+  }
+  
+  saveCurrentCharacterAndRefresh();
+  alert('Long Rest completed. HP fully restored, counters and spell slots reset.');
+}
+
+function renderCharacterSheetUI() {
+  if (!currentCharacter) return;
+  const state = calculateCharacterState(currentCharacter);
+  
+  // Header
+  document.getElementById('cs-char-name').textContent = currentCharacter.name;
+  document.getElementById('cs-char-subtitle').textContent = `Level ${currentCharacter.level} ${currentCharacter.class || 'Fighter'}${currentCharacter.subclass ? ' (' + currentCharacter.subclass + ')' : ''}`;
+  document.getElementById('cs-hp-current').textContent = currentCharacter.hp.current;
+  document.getElementById('cs-hp-max').textContent = state['hp.max'];
+  document.getElementById('cs-hp-temp-display').textContent = currentCharacter.hp.temp || 0;
+  
+  const insBtn = document.getElementById('cs-btn-inspiration');
+  if (currentCharacter.inspiration) {
+    insBtn.classList.add('active');
+  } else {
+    insBtn.classList.remove('active');
+  }
+  
+  document.getElementById('cs-hp-plus').onclick = () => {
+    const maxHp = state['hp.max'];
+    currentCharacter.hp.current = Math.min(maxHp, (currentCharacter.hp.current || 0) + 1);
+    saveCurrentCharacterAndRefresh();
+  };
+  document.getElementById('cs-hp-minus').onclick = () => {
+    currentCharacter.hp.current = Math.max(0, (currentCharacter.hp.current || 0) - 1);
+    saveCurrentCharacterAndRefresh();
+  };
+
+  // Death saves
+  [1, 2, 3].forEach(i => {
+    const chk = document.getElementById(`cs-death-s-${i}`);
+    chk.checked = currentCharacter.deathSaves.successes >= i;
+    chk.onclick = () => {
+      let count = 0;
+      [1, 2, 3].forEach(j => {
+        if (document.getElementById(`cs-death-s-${j}`).checked) count++;
+      });
+      currentCharacter.deathSaves.successes = count;
+      saveCurrentCharacterAndRefresh();
+    };
+  });
+  
+  [1, 2, 3].forEach(i => {
+    const chk = document.getElementById(`cs-death-f-${i}`);
+    chk.checked = currentCharacter.deathSaves.failures >= i;
+    chk.onclick = () => {
+      let count = 0;
+      [1, 2, 3].forEach(j => {
+        if (document.getElementById(`cs-death-f-${j}`).checked) count++;
+      });
+      currentCharacter.deathSaves.failures = count;
+      saveCurrentCharacterAndRefresh();
+    };
+  });
+
+  // Tab 1: Combat
+  document.getElementById('cs-val-ac').textContent = state['ac'];
+  document.getElementById('cs-val-initiative').textContent = formatModifier(state['initiative']);
+  document.getElementById('cs-val-speed').textContent = `${state['speed']} ft`;
+  document.getElementById('cs-val-prof-bonus').textContent = formatModifier(state['prof_bonus']);
+  
+  // Attacks list
+  const attacksList = document.getElementById('cs-attacks-list');
+  attacksList.innerHTML = '';
+  
+  const activeEquipment = (currentCharacter.equipment || []).filter(e => e.active);
+  activeEquipment.forEach(item => {
+    const isWeapon = item.type && (item.type.includes('Weapon') || item.dmg1);
+    if (isWeapon) {
+      const isRanged = item.type && item.type.includes('Ranged');
+      const atkBonus = isRanged ? state['ranged.attack'] : state['melee.attack'];
+      const dmgBonus = isRanged ? state['ranged.damage'] : state['melee.damage'];
+      
+      const row = document.createElement('div');
+      row.className = 'cs-list-row';
+      row.innerHTML = `
+        <div class="cs-list-row-info">
+          <div class="cs-list-row-name">${item.name}</div>
+          <div class="cs-list-row-sub">Attack: ${formatModifier(atkBonus)} • Damage: ${item.dmg1 || '1d4'} ${dmgBonus >= 0 ? '+' + dmgBonus : dmgBonus} ${item.dmgType || ''}</div>
+        </div>
+      `;
+      attacksList.appendChild(row);
+    }
+  });
+  
+  const activeSpells = (currentCharacter.spells || []).filter(s => s.active);
+  activeSpells.forEach(spell => {
+    const isAttack = spell.rolls && spell.rolls.length > 0;
+    if (isAttack) {
+      const row = document.createElement('div');
+      row.className = 'cs-list-row';
+      row.innerHTML = `
+        <div class="cs-list-row-info">
+          <div class="cs-list-row-name">${spell.name} (Spell)</div>
+          <div class="cs-list-row-sub">Attack: ${formatModifier(state['spell.attack'])} • DC: ${state['spell.dc']} • Rolls: ${spell.rolls.join(', ')}</div>
+        </div>
+      `;
+      attacksList.appendChild(row);
+    }
+  });
+  
+  if (attacksList.innerHTML === '') {
+    attacksList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">No active weapons or spells. Mark items active in Inventory/Spells tab to show them here.</div>';
+  }
+
+  // Modifiers list
+  const modifiersList = document.getElementById('cs-modifiers-list');
+  modifiersList.innerHTML = '';
+  const mods = currentCharacter.modifiers || [];
+  mods.forEach((mod, idx) => {
+    const row = document.createElement('div');
+    row.className = 'cs-list-row';
+    const isChecked = mod.active ? 'checked' : '';
+    const mDetails = mod.modifiers ? mod.modifiers.map(m => `${m.target}: ${m.type} ${m.value}`).join(', ') : '';
+    
+    row.innerHTML = `
+      <input type="checkbox" class="cs-list-row-checkbox" ${isChecked}>
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${mod.name}</div>
+        <div class="cs-list-row-sub">${mDetails}</div>
+      </div>
+      <div class="cs-list-row-actions">
+        <button class="cs-list-row-btn danger btn-delete-mod" aria-label="Delete Modifier">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `;
+    row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
+      mod.active = e.target.checked;
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-delete-mod').onclick = () => {
+      currentCharacter.modifiers.splice(idx, 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    modifiersList.appendChild(row);
+  });
+  if (mods.length === 0) {
+    modifiersList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">No custom modifiers.</div>';
+  }
+
+  // Counters list
+  const countersList = document.getElementById('cs-counters-list');
+  countersList.innerHTML = '';
+  const cnts = currentCharacter.counters || [];
+  cnts.forEach((cnt, idx) => {
+    const row = document.createElement('div');
+    row.className = 'cs-list-row';
+    row.innerHTML = `
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${cnt.name}</div>
+        <div class="cs-list-row-sub">Reset: ${cnt.reset_short ? 'Short' : ''}${cnt.reset_short && cnt.reset_long ? '/' : ''}${cnt.reset_long ? 'Long' : ''}</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="cs-btn-small btn-dec" style="font-size: 14px; padding: 2px 8px;">−</button>
+        <span style="font-weight: bold; width: 24px; text-align: center;">${cnt.value}</span>
+        <button class="cs-btn-small btn-inc" style="font-size: 14px; padding: 2px 8px;">+</button>
+        <span style="color: var(--text-muted); font-size: 12px;">/ ${cnt.max}</span>
+      </div>
+      <div class="cs-list-row-actions" style="margin-left: 8px;">
+        <button class="cs-list-row-btn danger btn-delete-cnt" aria-label="Delete Counter">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `;
+    row.querySelector('.btn-dec').onclick = () => {
+      cnt.value = Math.max(0, cnt.value - 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-inc').onclick = () => {
+      cnt.value = Math.min(cnt.max, cnt.value + 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-delete-cnt').onclick = () => {
+      currentCharacter.counters.splice(idx, 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    countersList.appendChild(row);
+  });
+  if (cnts.length === 0) {
+    countersList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px;">No counters.</div>';
+  }
+
+  // Tab 2: Stats & Skills
+  attributes.forEach(attr => {
+    document.getElementById(`cs-score-${attr}`).textContent = state[`${attr}.score`];
+    document.getElementById(`cs-mod-${attr}`).textContent = formatModifier(state[`${attr}.mod`]);
+  });
+
+  document.getElementById('cs-passive-perception').textContent = state['passive.perception'];
+  document.getElementById('cs-passive-investigation').textContent = state['passive.investigation'];
+  document.getElementById('cs-passive-insight').textContent = state['passive.insight'];
+
+  const savesList = document.getElementById('cs-saves-list');
+  savesList.innerHTML = '';
+  const attrNames = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+  attributes.forEach(attr => {
+    const isProf = currentCharacter.savesProficiency[attr] ? 'prof' : '';
+    const saveVal = state[`save.${attr}`];
+    const row = document.createElement('div');
+    row.className = 'cs-item-prof-row';
+    row.innerHTML = `
+      <div class="cs-prof-indicator ${isProf}" title="Proficient?"></div>
+      <span class="cs-item-prof-label">${attrNames[attr]}</span>
+      <span class="cs-item-prof-val">${formatModifier(saveVal)}</span>
+    `;
+    row.querySelector('.cs-prof-indicator').onclick = () => {
+      currentCharacter.savesProficiency[attr] = currentCharacter.savesProficiency[attr] ? 0 : 1;
+      saveCurrentCharacterAndRefresh();
+    };
+    savesList.appendChild(row);
+  });
+
+  const skillsList = document.getElementById('cs-skills-list');
+  skillsList.innerHTML = '';
+  const skillsProf = currentCharacter.skillsProficiency || {};
+  const skillsAttrOverride = currentCharacter.skillsAttributeOverride || {};
+  Object.keys(skillAttrs).forEach(skill => {
+    const defaultAttr = skillAttrs[skill];
+    const overriddenAttr = skillsAttrOverride[skill] || defaultAttr;
+    const prof = parseFloat(skillsProf[skill]) || 0;
+    let profClass = '';
+    if (prof === 1) profClass = 'prof';
+    else if (prof === 2) profClass = 'double';
+    else if (prof === 0.5) profClass = 'half';
+    
+    const skillVal = state[`skill.${skill}`];
+    const skillName = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const row = document.createElement('div');
+    row.className = 'cs-item-prof-row';
+    row.innerHTML = `
+      <div class="cs-prof-indicator ${profClass}" title="Cycle Proficiency (None -> Proficient -> Expertise -> None)"></div>
+      <span class="cs-item-prof-label" style="cursor:pointer;" title="Click to override attribute">${skillName} <span style="font-size: 9px; color: var(--text-muted);">(${overriddenAttr.toUpperCase()})</span></span>
+      <span class="cs-item-prof-val">${formatModifier(skillVal)}</span>
+    `;
+    row.querySelector('.cs-prof-indicator').onclick = () => {
+      let nextProf = 0;
+      if (prof === 0) nextProf = 1;
+      else if (prof === 1) nextProf = 2;
+      else if (prof === 2) nextProf = 0;
+      currentCharacter.skillsProficiency[skill] = nextProf;
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.cs-item-prof-label').onclick = () => {
+      const nextAttr = prompt(`Override attribute for ${skillName} (currently ${overriddenAttr.toUpperCase()}). Enter str, dex, con, int, wis, or cha (or leave empty to reset):`);
+      if (nextAttr === '') {
+        delete currentCharacter.skillsAttributeOverride[skill];
+        saveCurrentCharacterAndRefresh();
+      } else if (nextAttr && attributes.includes(nextAttr.toLowerCase().trim())) {
+        currentCharacter.skillsAttributeOverride[skill] = nextAttr.toLowerCase().trim();
+        saveCurrentCharacterAndRefresh();
+      }
+    };
+    skillsList.appendChild(row);
+  });
+
+  // Tab 3: Features
+  document.getElementById('cs-summary-species').textContent = currentCharacter.species || '—';
+  document.getElementById('cs-summary-background').textContent = currentCharacter.background || '—';
+  document.getElementById('cs-summary-subclass').textContent = currentCharacter.subclass || '—';
+  const featuresList = document.getElementById('cs-features-list');
+  featuresList.innerHTML = '';
+  const feats = currentCharacter.features || [];
+  feats.forEach((feat, idx) => {
+    const row = document.createElement('div');
+    row.className = 'cs-list-row';
+    const isChecked = feat.active ? 'checked' : '';
+    const isStarred = feat.favorite ? 'active' : '';
+    const syncBtn = feat.compendiumId ? `
+      <button class="cs-list-row-btn btn-sync-feat" title="Sync with Compendium">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      </button>
+    ` : '';
+    
+    row.innerHTML = `
+      <input type="checkbox" class="cs-list-row-checkbox" ${isChecked} title="Active?">
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${feat.name}</div>
+        <div class="cs-list-row-sub">${(feat.texts || []).join(' ').substring(0, 100)}...</div>
+      </div>
+      <div class="cs-list-row-actions">
+        <button class="cs-list-row-btn btn-fav-feat ${isStarred}" title="Favorite">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        ${syncBtn}
+        <button class="cs-list-row-btn danger btn-delete-feat" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `;
+    row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
+      feat.active = e.target.checked;
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-fav-feat').onclick = () => {
+      feat.favorite = !feat.favorite;
+      saveCurrentCharacterAndRefresh();
+    };
+    if (feat.compendiumId) {
+      row.querySelector('.btn-sync-feat').onclick = () => {
+        syncLocalEntityWithCompendium(feat, 'feats');
+      };
+    }
+    row.querySelector('.btn-delete-feat').onclick = () => {
+      currentCharacter.features.splice(idx, 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    featuresList.appendChild(row);
+  });
+  if (feats.length === 0) {
+    featuresList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 14px;">No features. Click "+ Add Feature/Trait" to pull from Compendium or create custom.</div>';
+  }
+
+  // Tab 4: Inventory
+  const coins = ['gp', 'sp', 'cp', 'ep', 'pp'];
+  coins.forEach(c => {
+    const input = document.getElementById(`cs-coin-${c}`);
+    if (input) {
+      input.value = currentCharacter.currency[c] || 0;
+      input.onchange = () => {
+        currentCharacter.currency[c] = Math.max(0, parseInt(input.value) || 0);
+        saveCurrentCharacterAndRefresh();
+      };
+    }
+  });
+
+  let totalWeight = 0;
+  const eqList = currentCharacter.equipment || [];
+  eqList.forEach(item => {
+    if (item.active || item.selected) {
+      totalWeight += (parseFloat(item.weight) || 0);
+    }
+  });
+  const maxWeight = state['str.score'] * 15;
+  document.getElementById('cs-inventory-weight').textContent = totalWeight.toFixed(1);
+  document.getElementById('cs-max-weight').textContent = maxWeight;
+  const capContainer = document.getElementById('cs-carry-capacity');
+  if (totalWeight > maxWeight) {
+    capContainer.classList.add('overburdened');
+  } else {
+    capContainer.classList.remove('overburdened');
+  }
+
+  const equippedContainer = document.getElementById('cs-inv-equipped');
+  const carriedContainer = document.getElementById('cs-inv-carried');
+  const storedContainer = document.getElementById('cs-inv-stored');
+  equippedContainer.innerHTML = '';
+  carriedContainer.innerHTML = '';
+  storedContainer.innerHTML = '';
+  eqList.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'cs-list-row';
+    const isStarred = item.favorite ? 'active' : '';
+    const syncBtn = item.compendiumId ? `
+      <button class="cs-list-row-btn btn-sync-item" title="Sync with Compendium">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      </button>
+    ` : '';
+    row.innerHTML = `
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${item.name}</div>
+        <div class="cs-list-row-sub">${item.weight || 0} lbs. • ${item.type || 'Gear'}</div>
+      </div>
+      <div class="cs-list-row-actions">
+        <button class="cs-list-row-btn btn-equip ${item.active ? 'active' : ''}" title="Equipped / Active">
+          🛡️
+        </button>
+        <button class="cs-list-row-btn btn-carry ${item.selected ? 'active' : ''}" title="Carried in Pack">
+          🎒
+        </button>
+        <button class="cs-list-row-btn btn-fav-item ${isStarred}" title="Favorite">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        </button>
+        ${syncBtn}
+        <button class="cs-list-row-btn danger btn-delete-item" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `;
+    row.querySelector('.btn-equip').onclick = () => {
+      item.active = !item.active;
+      if (item.active) item.selected = true;
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-carry').onclick = () => {
+      item.selected = !item.selected;
+      if (!item.selected) item.active = false;
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-fav-item').onclick = () => {
+      item.favorite = !item.favorite;
+      saveCurrentCharacterAndRefresh();
+    };
+    if (item.compendiumId) {
+      row.querySelector('.btn-sync-item').onclick = () => {
+        syncLocalEntityWithCompendium(item, 'items');
+      };
+    }
+    row.querySelector('.btn-delete-item').onclick = () => {
+      currentCharacter.equipment.splice(idx, 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    
+    if (item.active) equippedContainer.appendChild(row);
+    else if (item.selected) carriedContainer.appendChild(row);
+    else storedContainer.appendChild(row);
+  });
+  if (equippedContainer.innerHTML === '') equippedContainer.innerHTML = '<div style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">None equipped.</div>';
+  if (carriedContainer.innerHTML === '') carriedContainer.innerHTML = '<div style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">None carried.</div>';
+  if (storedContainer.innerHTML === '') storedContainer.innerHTML = '<div style="padding: 8px; text-align: center; color: var(--text-muted); font-size: 11px;">None stored.</div>';
+
+  // Tab 5: Spells
+  document.getElementById('cs-val-spell-dc').textContent = state['spell.dc'];
+  document.getElementById('cs-val-spell-attack').textContent = formatModifier(state['spell.attack']);
+  const slotsGrid = document.getElementById('cs-spell-slots-grid');
+  slotsGrid.innerHTML = '';
+  for (let l = 1; l <= 9; l++) {
+    if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
+    if (!currentCharacter.spellSlots[l]) currentCharacter.spellSlots[l] = { current: 0, max: 0 };
+    const slot = currentCharacter.spellSlots[l];
+    const card = document.createElement('div');
+    card.className = 'cs-spell-slot-card';
+    card.innerHTML = `
+      <span class="cs-spell-slot-label">Level ${l}</span>
+      <div class="cs-spell-slot-controls">
+        <input type="number" class="cs-spell-slot-input" id="cs-slot-curr-${l}" min="0" value="${slot.current}" style="width: 36px;">
+        <span style="color: var(--text-muted); font-weight: bold;">/</span>
+        <input type="number" class="cs-spell-slot-input" id="cs-slot-max-${l}" min="0" value="${slot.max}" style="width: 36px;">
+      </div>
+    `;
+    card.querySelector(`#cs-slot-curr-${l}`).onchange = (e) => {
+      slot.current = Math.max(0, parseInt(e.target.value) || 0);
+      saveCurrentCharacterAndRefresh();
+    };
+    card.querySelector(`#cs-slot-max-${l}`).onchange = (e) => {
+      slot.max = Math.max(0, parseInt(e.target.value) || 0);
+      saveCurrentCharacterAndRefresh();
+    };
+    slotsGrid.appendChild(card);
+  }
+
+  const spellsContainer = document.getElementById('cs-spells-by-level');
+  spellsContainer.innerHTML = '';
+  const spells = currentCharacter.spells || [];
+  for (let l = 0; l <= 9; l++) {
+    const levelSpells = spells.filter(s => s.level === l);
+    if (l === 0 || l === 1 || levelSpells.length > 0) {
+      const section = document.createElement('div');
+      section.className = 'cs-spell-level-section';
+      const levelTitle = l === 0 ? 'Cantrips' : `Level ${l} Spells`;
+      section.innerHTML = `
+        <h3>${levelTitle}</h3>
+        <div class="cs-spell-level-grid" id="cs-spell-grid-${l}"></div>
+      `;
+      const grid = section.querySelector(`#cs-spell-grid-${l}`);
+      levelSpells.forEach(spell => {
+        const row = document.createElement('div');
+        row.className = 'cs-list-row';
+        const isStarred = spell.favorite ? 'active' : '';
+        const isPrep = spell.selected ? 'active' : '';
+        const isActive = spell.active ? 'active' : '';
+        const syncBtn = spell.compendiumId ? `
+          <button class="cs-list-row-btn btn-sync-spell" title="Sync with Compendium">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          </button>
+        ` : '';
+        row.innerHTML = `
+          <div class="cs-list-row-info">
+            <div class="cs-list-row-name">${spell.name}</div>
+            <div class="cs-list-row-sub">${spell.time || '1 Action'} • ${spell.range || '60 ft'}</div>
+          </div>
+          <div class="cs-list-row-actions">
+            ${l > 0 ? `
+              <button class="cs-list-row-btn btn-prep-spell ${isPrep}" title="Prepared Status">
+                📖
+              </button>
+            ` : ''}
+            <button class="cs-list-row-btn btn-active-spell ${isActive}" title="Active Effect">
+              🔥
+            </button>
+            <button class="cs-list-row-btn btn-fav-spell ${isStarred}" title="Favorite">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+            </button>
+            ${syncBtn}
+            <button class="cs-list-row-btn danger btn-delete-spell" title="Delete">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        `;
+        if (l > 0) {
+          row.querySelector('.btn-prep-spell').onclick = () => {
+            spell.selected = !spell.selected;
+            saveCurrentCharacterAndRefresh();
+          };
+        }
+        row.querySelector('.btn-active-spell').onclick = () => {
+          spell.active = !spell.active;
+          saveCurrentCharacterAndRefresh();
+        };
+        row.querySelector('.btn-fav-spell').onclick = () => {
+          spell.favorite = !spell.favorite;
+          saveCurrentCharacterAndRefresh();
+        };
+        if (spell.compendiumId) {
+          row.querySelector('.btn-sync-spell').onclick = () => {
+            syncLocalEntityWithCompendium(spell, 'spells');
+          };
+        }
+        row.querySelector('.btn-delete-spell').onclick = () => {
+          const originalIdx = spells.findIndex(s => s.id === spell.id);
+          if (originalIdx >= 0) {
+            currentCharacter.spells.splice(originalIdx, 1);
+            saveCurrentCharacterAndRefresh();
+          }
+        };
+        grid.appendChild(row);
+      });
+      if (levelSpells.length === 0) {
+        grid.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 13px; grid-column: 1 / -1;">No spells.</div>';
+      }
+      spellsContainer.appendChild(section);
+    }
+  }
+
+  // Tab 6: Bestiary
+  const bestiaryList = document.getElementById('cs-bestiary-list');
+  bestiaryList.innerHTML = '';
+  const beasts = currentCharacter.bestiary || [];
+  beasts.forEach((beast, idx) => {
+    const row = document.createElement('div');
+    row.className = 'cs-list-row';
+    row.innerHTML = `
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${beast.name}</div>
+        <div class="cs-list-row-sub">${beast.notes || 'No notes.'}</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 12px; color: var(--text-secondary);">HP:</span>
+        <input type="number" class="cs-spell-slot-input btn-beast-hp-curr" style="width: 50px;" value="${beast.hp_current}">
+        <span style="color: var(--text-muted);">/</span>
+        <input type="number" class="cs-spell-slot-input btn-beast-hp-max" style="width: 50px;" value="${beast.hp_max}">
+      </div>
+      <div class="cs-list-row-actions" style="margin-left: 8px;">
+        <button class="cs-list-row-btn danger btn-delete-beast" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
+    `;
+    row.querySelector('.btn-beast-hp-curr').onchange = (e) => {
+      beast.hp_current = Math.max(0, parseInt(e.target.value) || 0);
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-beast-hp-max').onchange = (e) => {
+      beast.hp_max = Math.max(0, parseInt(e.target.value) || 0);
+      saveCurrentCharacterAndRefresh();
+    };
+    row.querySelector('.btn-delete-beast').onclick = () => {
+      currentCharacter.bestiary.splice(idx, 1);
+      saveCurrentCharacterAndRefresh();
+    };
+    bestiaryList.appendChild(row);
+  });
+  if (beasts.length === 0) {
+    bestiaryList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 14px;">No companions. Click "+ Add Companion" to add one.</div>';
+  }
+
+  // Tab 7: Profile
+  const notesFields = ['alignment', 'age', 'height', 'weight', 'allies', 'enemies', 'backstory', 'notes'];
+  notesFields.forEach(field => {
+    const el = document.getElementById(`cs-profile-${field}`);
+    if (el) {
+      el.value = currentCharacter.notes[field] || '';
+      el.onchange = () => {
+        currentCharacter.notes[field] = el.value;
+        saveCurrentCharacterAndRefresh();
+      };
+    }
+  });
+}
+
+function setupCharacterSheetEvents() {
+  document.getElementById('cs-btn-back').onclick = () => closeCharacterSheet();
+  document.getElementById('cs-btn-edit-char').onclick = () => {
+    if (currentCharacter) showCharacterCreatorModal(currentCharacter);
+  };
+  document.getElementById('cs-btn-inspiration').onclick = () => {
+    if (currentCharacter) {
+      currentCharacter.inspiration = !currentCharacter.inspiration;
+      saveCurrentCharacterAndRefresh();
+    }
+  };
+  
+  document.getElementById('cs-btn-short-rest').onclick = () => performShortRest();
+  document.getElementById('cs-btn-long-rest').onclick = () => performLongRest();
+  
+  document.getElementById('cs-modal-btn-cancel').onclick = () => {
+    document.getElementById('cs-creator-modal').style.display = 'none';
+  };
+  document.getElementById('cs-picker-btn-close').onclick = () => {
+    document.getElementById('cs-picker-modal').style.display = 'none';
+  };
+  document.getElementById('cs-mod-btn-cancel').onclick = () => {
+    document.getElementById('cs-modifier-modal').style.display = 'none';
+  };
+  document.getElementById('cs-counter-btn-cancel').onclick = () => {
+    document.getElementById('cs-counter-modal').style.display = 'none';
+  };
+
+  document.getElementById('cs-modal-btn-save').onclick = () => saveCharacterCreatorModal();
+  document.getElementById('cs-mod-btn-save').onclick = () => saveCustomModifierModal();
+  document.getElementById('cs-counter-btn-save').onclick = () => saveCustomCounterModal();
+
+  document.getElementById('cs-btn-add-modifier').onclick = () => {
+    document.getElementById('cs-mod-name-input').value = '';
+    document.getElementById('cs-mod-value-input').value = '';
+    document.getElementById('cs-modifier-modal').style.display = 'flex';
+  };
+
+  document.getElementById('cs-btn-add-counter').onclick = () => {
+    document.getElementById('cs-counter-name-input').value = '';
+    document.getElementById('cs-counter-max-input').value = '4';
+    document.getElementById('cs-counter-reset-short').checked = true;
+    document.getElementById('cs-counter-reset-long').checked = true;
+    document.getElementById('cs-counter-modal').style.display = 'flex';
+  };
+
+  document.getElementById('cs-btn-add-feature').onclick = () => openPicker('feats');
+  document.getElementById('cs-btn-add-item').onclick = () => openPicker('items');
+  document.getElementById('cs-btn-add-spell').onclick = () => openPicker('spells');
+
+  document.getElementById('cs-btn-add-beast').onclick = () => {
+    const name = prompt('Enter companion / summon name:');
+    if (!name) return;
+    const hpMax = parseInt(prompt('Enter Max HP:')) || 10;
+    const notes = prompt('Enter notes (abilities, attacks, etc.):') || '';
+    
+    if (!currentCharacter.bestiary) currentCharacter.bestiary = [];
+    currentCharacter.bestiary.push({ name, hp_max: hpMax, hp_current: hpMax, notes });
+    saveCurrentCharacterAndRefresh();
+  };
+
+  document.getElementById('cs-picker-btn-custom').onclick = () => {
+    const name = prompt(`Enter custom ${pickerCategory.substring(0, pickerCategory.length - 1)} name:`);
+    if (!name) return;
+    
+    const clone = {
+      name,
+      favorite: false,
+      selected: true,
+      active: true,
+      id: generateId(),
+      texts: ['Custom user-defined entry.']
+    };
+    
+    if (pickerCategory === 'items') {
+      clone.weight = parseFloat(prompt('Enter weight (lbs):')) || 0;
+      clone.type = prompt('Enter equipment type (e.g. Melee Weapon, Shield, Gear):') || 'Gear';
+      currentCharacter.equipment.push(clone);
+    } else if (pickerCategory === 'spells') {
+      clone.level = parseInt(prompt('Enter spell level (0-9):')) || 0;
+      clone.school = prompt('Enter spell school:') || 'Transmutation';
+      currentCharacter.spells.push(clone);
+    } else if (pickerCategory === 'feats') {
+      clone.category = prompt('Enter feature category (e.g. Class, Species, Background, Feat):') || 'Feature';
+      currentCharacter.features.push(clone);
+    }
+    document.getElementById('cs-picker-modal').style.display = 'none';
+    saveCurrentCharacterAndRefresh();
+  };
+
+  document.getElementById('cs-picker-search').oninput = (e) => {
+    renderPickerList(e.target.value);
+  };
+  
+  // HP Temp controls
+  document.getElementById('cs-hp-temp-btn').onclick = () => {
+    document.getElementById('cs-temp-hp-input').value = currentCharacter.hp.temp || 0;
+    document.getElementById('cs-temp-hp-modal').style.display = 'flex';
+  };
+  document.getElementById('cs-temp-hp-save').onclick = () => {
+    const val = parseInt(document.getElementById('cs-temp-hp-input').value) || 0;
+    currentCharacter.hp.temp = Math.max(0, val);
+    document.getElementById('cs-temp-hp-modal').style.display = 'none';
+    saveCurrentCharacterAndRefresh();
+  };
+  document.getElementById('cs-temp-hp-cancel').onclick = () => {
+    document.getElementById('cs-temp-hp-modal').style.display = 'none';
+  };
+
+  const tabs = document.querySelectorAll('.cs-tab-btn');
+  tabs.forEach(tab => {
+    tab.onclick = () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const target = tab.getAttribute('data-tab');
+      document.querySelectorAll('.cs-tab-panel').forEach(panel => {
+        panel.classList.remove('active');
+      });
+      document.getElementById(`cs-tab-${target}`).classList.add('active');
+    };
+  });
+}
+
+// Expose open/close/refresh globally for tests and DOM
+if (typeof window !== 'undefined') {
+  window.openCharacterSheet = openCharacterSheet;
+  window.closeCharacterSheet = closeCharacterSheet;
+  window.refreshCharactersList = refreshCharactersList;
+  window.calculateCharacterState = calculateCharacterState;
+}
+

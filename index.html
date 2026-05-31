@@ -31,6 +31,12 @@
             <span>Bookmarks</span>
           </button>
         </li>
+        <li class="menu-item" data-category="characters">
+          <button>
+            <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            <span>Characters</span>
+          </button>
+        </li>
         <li class="menu-item active" data-category="races">
           <button>
             <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
@@ -181,6 +187,568 @@
       </div>
 
     </main>
+  </div>
+
+  <!-- Full-Screen Character Sheet View -->
+  <div id="character-sheet-view" class="cs-view" style="display: none;">
+    <header class="cs-header">
+      <div class="cs-header-left">
+        <button id="cs-btn-back" class="cs-icon-btn" aria-label="Back to Roster">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <div id="cs-portrait" class="cs-portrait-placeholder">👤</div>
+        <div class="cs-name-details">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h1 id="cs-char-name">Character Name</h1>
+            <button id="cs-btn-edit-char" class="cs-edit-btn" aria-label="Edit Character">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+          </div>
+          <div id="cs-char-subtitle">Level 1 Fighter</div>
+        </div>
+      </div>
+      
+      <div class="cs-header-right">
+        <!-- HP Tracker -->
+        <div class="cs-hp-tracker">
+          <span class="cs-hp-label">Hit Points</span>
+          <div class="cs-hp-controls">
+            <button id="cs-hp-minus" class="cs-hp-btn">−</button>
+            <div class="cs-hp-values">
+              <span id="cs-hp-current">10</span>
+              <span class="cs-hp-slash">/</span>
+              <span id="cs-hp-max">10</span>
+            </div>
+            <button id="cs-hp-plus" class="cs-hp-btn">+</button>
+          </div>
+          <div style="display: flex; gap: 8px; justify-content: center; align-items: center;">
+            <button id="cs-hp-temp-btn" class="cs-hp-temp-link">Temp HP: <span id="cs-hp-temp-display">0</span></button>
+          </div>
+        </div>
+
+        <!-- Inspiration -->
+        <button id="cs-btn-inspiration" class="cs-inspiration-toggle" aria-label="Toggle Heroic Advantage">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+          <span>Heroic Advantage</span>
+        </button>
+        
+        <!-- Rest controls -->
+        <div class="cs-rest-buttons">
+          <button id="cs-btn-short-rest" class="cs-rest-btn">Short Rest</button>
+          <button id="cs-btn-long-rest" class="cs-rest-btn">Long Rest</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Bottom Tab Navigation -->
+    <nav class="cs-tabs-nav">
+      <button class="cs-tab-btn active" data-tab="combat">Combat</button>
+      <button class="cs-tab-btn" data-tab="stats">Stats & Skills</button>
+      <button class="cs-tab-btn" data-tab="features">Features</button>
+      <button class="cs-tab-btn" data-tab="inventory">Inventory</button>
+      <button class="cs-tab-btn" data-tab="spells">Spells</button>
+      <button class="cs-tab-btn" data-tab="bestiary">Bestiary</button>
+      <button class="cs-tab-btn" data-tab="notes">Notes</button>
+    </nav>
+
+    <!-- Tab Contents -->
+    <main class="cs-tabs-content">
+      <!-- Tab 1: Combat -->
+      <section id="cs-tab-combat" class="cs-tab-panel active">
+        <!-- top row grids -->
+        <div class="cs-combat-stats-grid">
+          <div class="cs-combat-stat-card clickable" id="cs-ac-card">
+            <span class="cs-combat-stat-label">Armor Class</span>
+            <span class="cs-combat-stat-val" id="cs-val-ac">10</span>
+          </div>
+          <div class="cs-combat-stat-card">
+            <span class="cs-combat-stat-label">Initiative</span>
+            <span class="cs-combat-stat-val" id="cs-val-initiative">+0</span>
+          </div>
+          <div class="cs-combat-stat-card">
+            <span class="cs-combat-stat-label">Speed</span>
+            <span class="cs-combat-stat-val" id="cs-val-speed">30 ft</span>
+          </div>
+          <div class="cs-combat-stat-card">
+            <span class="cs-combat-stat-label">Prof Bonus</span>
+            <span class="cs-combat-stat-val" id="cs-val-prof-bonus">+2</span>
+          </div>
+        </div>
+
+        <div class="cs-combat-main-layout">
+          <div class="cs-combat-left">
+            <!-- Death Saves -->
+            <div class="cs-combat-card">
+              <h3>Death Saves</h3>
+              <div class="cs-death-saves-row">
+                <span>Successes</span>
+                <input type="checkbox" class="cs-death-check success" id="cs-death-s-1">
+                <input type="checkbox" class="cs-death-check success" id="cs-death-s-2">
+                <input type="checkbox" class="cs-death-check success" id="cs-death-s-3">
+              </div>
+              <div class="cs-death-saves-row">
+                <span>Failures</span>
+                <input type="checkbox" class="cs-death-check failure" id="cs-death-f-1">
+                <input type="checkbox" class="cs-death-check failure" id="cs-death-f-2">
+                <input type="checkbox" class="cs-death-check failure" id="cs-death-f-3">
+              </div>
+            </div>
+
+            <!-- Attacks / Actions -->
+            <div class="cs-combat-card">
+              <div class="cs-card-header">
+                <h3>Attacks & Actions</h3>
+              </div>
+              <div id="cs-attacks-list" class="cs-list-container">
+                <!-- Active Weapons and Spells -->
+              </div>
+            </div>
+          </div>
+
+          <div class="cs-combat-right">
+            <!-- Custom Modifiers -->
+            <div class="cs-combat-card">
+              <div class="cs-card-header">
+                <h3>Custom Modifiers</h3>
+                <button id="cs-btn-add-modifier" class="cs-btn-small">+ Add</button>
+              </div>
+              <div id="cs-modifiers-list" class="cs-list-container">
+                <!-- User custom active bonuses -->
+              </div>
+            </div>
+            
+            <!-- Generic Counters -->
+            <div class="cs-combat-card">
+              <div class="cs-card-header">
+                <h3>Usage Counters</h3>
+                <button id="cs-btn-add-counter" class="cs-btn-small">+ Add</button>
+              </div>
+              <div id="cs-counters-list" class="cs-list-container">
+                <!-- Usage counters -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 2: Stats & Skills -->
+      <section id="cs-tab-stats" class="cs-tab-panel">
+        <div class="cs-stats-layout">
+          <!-- 6 Core Attributes Grid -->
+          <div class="cs-attributes-grid">
+            <div class="cs-attr-box" data-attr="str">
+              <span class="cs-attr-label">Strength</span>
+              <span class="cs-attr-mod" id="cs-mod-str">+0</span>
+              <span class="cs-attr-score-val" id="cs-score-str">10</span>
+            </div>
+            <div class="cs-attr-box" data-attr="dex">
+              <span class="cs-attr-label">Dexterity</span>
+              <span class="cs-attr-mod" id="cs-mod-dex">+0</span>
+              <span class="cs-attr-score-val" id="cs-score-dex">10</span>
+            </div>
+            <div class="cs-attr-box" data-attr="con">
+              <span class="cs-attr-label">Constitution</span>
+              <span class="cs-attr-mod" id="cs-mod-con">+0</span>
+              <span class="cs-attr-score-val" id="cs-score-con">10</span>
+            </div>
+            <div class="cs-attr-box" data-attr="int">
+              <span class="cs-attr-label">Intelligence</span>
+              <span class="cs-attr-mod" id="cs-mod-int">+0</span>
+              <span class="cs-attr-score-val" id="cs-score-int">10</span>
+            </div>
+            <div class="cs-attr-box" data-attr="wis">
+              <span class="cs-attr-label">Wisdom</span>
+              <span class="cs-attr-mod" id="cs-mod-wis">+0</span>
+              <span class="cs-attr-score-val" id="cs-score-wis">10</span>
+            </div>
+            <div class="cs-attr-box" data-attr="cha">
+              <span class="cs-attr-label">Charisma</span>
+              <span class="cs-attr-mod" id="cs-mod-cha">+0</span>
+              <span class="cs-attr-score-val" id="cs-score-cha">10</span>
+            </div>
+          </div>
+
+          <div class="cs-saves-skills-column">
+            <!-- Passives block -->
+            <div class="cs-passives-row">
+              <div class="cs-passive-card">
+                <span class="cs-passive-label">Passive Perception</span>
+                <span class="cs-passive-val" id="cs-passive-perception">10</span>
+              </div>
+              <div class="cs-passive-card">
+                <span class="cs-passive-label">Passive Investigation</span>
+                <span class="cs-passive-val" id="cs-passive-investigation">10</span>
+              </div>
+              <div class="cs-passive-card">
+                <span class="cs-passive-label">Passive Insight</span>
+                <span class="cs-passive-val" id="cs-passive-insight">10</span>
+              </div>
+            </div>
+
+            <!-- Saving Throws -->
+            <div class="cs-saves-card">
+              <h3>Saving Throws</h3>
+              <div class="cs-saves-list" id="cs-saves-list"></div>
+            </div>
+
+            <!-- Skills -->
+            <div class="cs-skills-card">
+              <h3>Skills</h3>
+              <div class="cs-skills-list" id="cs-skills-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 3: Features & Traits -->
+      <section id="cs-tab-features" class="cs-tab-panel">
+        <div class="cs-features-header">
+          <div class="cs-build-summary">
+            <p><strong>Species:</strong> <span id="cs-summary-species">—</span></p>
+            <p><strong>Background:</strong> <span id="cs-summary-background">—</span></p>
+            <p><strong>Subclass:</strong> <span id="cs-summary-subclass">—</span></p>
+          </div>
+          <button id="cs-btn-add-feature" class="cs-btn-main">+ Add Feature/Trait</button>
+        </div>
+        <div id="cs-features-list" class="cs-list-container"></div>
+      </section>
+
+      <!-- Tab 4: Inventory -->
+      <section id="cs-tab-inventory" class="cs-tab-panel">
+        <!-- Currency block -->
+        <div class="cs-currency-box">
+          <div class="cs-currency-item">
+            <span class="cs-coin gp">GP</span>
+            <input type="number" id="cs-coin-gp" value="0" min="0">
+          </div>
+          <div class="cs-currency-item">
+            <span class="cs-coin sp">SP</span>
+            <input type="number" id="cs-coin-sp" value="0" min="0">
+          </div>
+          <div class="cs-currency-item">
+            <span class="cs-coin cp">CP</span>
+            <input type="number" id="cs-coin-cp" value="0" min="0">
+          </div>
+          <div class="cs-currency-item">
+            <span class="cs-coin ep">EP</span>
+            <input type="number" id="cs-coin-ep" value="0" min="0">
+          </div>
+          <div class="cs-currency-item">
+            <span class="cs-coin pp">PP</span>
+            <input type="number" id="cs-coin-pp" value="0" min="0">
+          </div>
+        </div>
+
+        <div class="cs-inventory-header">
+          <div id="cs-carry-capacity" class="cs-carry-capacity">
+            Weight Carried: <span id="cs-inventory-weight">0</span> / <span id="cs-max-weight">150</span> lbs.
+          </div>
+          <button id="cs-btn-add-item" class="cs-btn-main">+ Add Equipment</button>
+        </div>
+
+        <!-- Inventory Lists (Equipped, Carried, Stored) -->
+        <div class="cs-inventory-sections">
+          <div class="cs-inventory-card">
+            <h3>Equipped / Active</h3>
+            <div id="cs-inv-equipped" class="cs-list-container"></div>
+          </div>
+          <div class="cs-inventory-card">
+            <h3>Carried</h3>
+            <div id="cs-inv-carried" class="cs-list-container"></div>
+          </div>
+          <div class="cs-inventory-card">
+            <h3>Stored / Other</h3>
+            <div id="cs-inv-stored" class="cs-list-container"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 5: Spells -->
+      <section id="cs-tab-spells" class="cs-tab-panel">
+        <div class="cs-spells-header">
+          <div class="cs-spells-summary">
+            <div>Spell Save DC: <strong id="cs-val-spell-dc">10</strong></div>
+            <div>Spell Attack: <strong id="cs-val-spell-attack">+0</strong></div>
+          </div>
+          <button id="cs-btn-add-spell" class="cs-btn-main">+ Add Spell</button>
+        </div>
+
+        <div class="cs-spell-slots-grid" id="cs-spell-slots-grid"></div>
+        <div id="cs-spells-by-level" class="cs-spells-by-level"></div>
+      </section>
+
+      <!-- Tab 6: Bestiary -->
+      <section id="cs-tab-bestiary" class="cs-tab-panel">
+        <div class="cs-bestiary-header">
+          <button id="cs-btn-add-beast" class="cs-btn-main">+ Add Companion/Summon</button>
+        </div>
+        <div id="cs-bestiary-list" class="cs-list-container"></div>
+      </section>
+
+      <!-- Tab 7: Profile & Notes -->
+      <section id="cs-tab-notes" class="cs-tab-panel">
+        <div class="cs-notes-layout">
+          <div class="cs-notes-card">
+            <h3>Character Profile</h3>
+            <div class="cs-form-group">
+              <label for="cs-profile-alignment">Alignment</label>
+              <input type="text" id="cs-profile-alignment" placeholder="e.g. Neutral Good">
+            </div>
+            <div class="cs-form-row">
+              <div class="cs-form-group">
+                <label for="cs-profile-age">Age</label>
+                <input type="text" id="cs-profile-age" placeholder="e.g. 24 years">
+              </div>
+              <div class="cs-form-group">
+                <label for="cs-profile-height">Height</label>
+                <input type="text" id="cs-profile-height" placeholder="e.g. 6'0\"">
+              </div>
+              <div class="cs-form-group">
+                <label for="cs-profile-weight">Weight</label>
+                <input type="text" id="cs-profile-weight" placeholder="e.g. 180 lbs.">
+              </div>
+            </div>
+            <div class="cs-form-group">
+              <label for="cs-profile-allies">Allies & Organizations</label>
+              <textarea id="cs-profile-allies" rows="3" placeholder="Organizations, guilds, faction allies..."></textarea>
+            </div>
+            <div class="cs-form-group">
+              <label for="cs-profile-enemies">Enemies</label>
+              <textarea id="cs-profile-enemies" rows="3" placeholder="Rivals, enemies, bounties..."></textarea>
+            </div>
+          </div>
+
+          <div class="cs-notes-card">
+            <h3>Notes & History</h3>
+            <div class="cs-form-group">
+              <label for="cs-profile-backstory">Backstory</label>
+              <textarea id="cs-profile-backstory" rows="8" placeholder="Summarize your character's origin..."></textarea>
+            </div>
+            <div class="cs-form-group">
+              <label for="cs-profile-notes">Session Notes</label>
+              <textarea id="cs-profile-notes" rows="8" placeholder="Keep track of campaigns and session notes..."></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Character Creator / Editor Overlay Modal -->
+  <div id="cs-creator-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">
+    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+      <h2 id="cs-modal-title" style="color: var(--text-primary); margin-bottom: 16px;">Create Character</h2>
+      
+      <div class="cs-form-group">
+        <label for="cs-modal-name">Character Name *</label>
+        <input type="text" id="cs-modal-name" class="settings-input" placeholder="e.g. Jaxon" required>
+      </div>
+
+      <div class="cs-form-row">
+        <div class="cs-form-group">
+          <label for="cs-modal-class">Class</label>
+          <select id="cs-modal-class" class="filter-select"></select>
+        </div>
+        <div class="cs-form-group">
+          <label for="cs-modal-subclass">Subclass</label>
+          <input type="text" id="cs-modal-subclass" class="settings-input" placeholder="e.g. Champion">
+        </div>
+        <div class="cs-form-group">
+          <label for="cs-modal-level">Level</label>
+          <input type="number" id="cs-modal-level" class="settings-input" min="1" max="20" value="1">
+        </div>
+      </div>
+
+      <div class="cs-form-row">
+        <div class="cs-form-group">
+          <label for="cs-modal-species">Species (Race)</label>
+          <select id="cs-modal-species" class="filter-select"></select>
+        </div>
+        <div class="cs-form-group">
+          <label for="cs-modal-background">Background</label>
+          <select id="cs-modal-background" class="filter-select"></select>
+        </div>
+      </div>
+
+      <div class="cs-form-row">
+        <div class="cs-form-group">
+          <label for="cs-modal-spellcasting">Spellcasting Ability</label>
+          <select id="cs-modal-spellcasting" class="filter-select">
+            <option value="wis">Wisdom</option>
+            <option value="int">Intelligence</option>
+            <option value="cha">Charisma</option>
+            <option value="str">Strength</option>
+            <option value="dex">Dexterity</option>
+            <option value="con">Constitution</option>
+          </select>
+        </div>
+        <div class="cs-form-group">
+          <label for="cs-modal-base-hp">Base HP Max</label>
+          <input type="number" id="cs-modal-base-hp" class="settings-input" min="1" value="10">
+        </div>
+        <div class="cs-form-group">
+          <label for="cs-modal-speed">Speed (ft)</label>
+          <input type="number" id="cs-modal-speed" class="settings-input" min="0" value="30">
+        </div>
+      </div>
+
+      <h3 style="color: var(--accent-color); margin: 16px 0 8px 0; font-size: 14px; text-transform: uppercase;">Base Attributes Scores</h3>
+      <div class="cs-form-stats-grid">
+        <div class="cs-form-stat-item">
+          <label for="cs-modal-str">STR</label>
+          <input type="number" id="cs-modal-str" min="1" max="30" value="10">
+        </div>
+        <div class="cs-form-stat-item">
+          <label for="cs-modal-dex">DEX</label>
+          <input type="number" id="cs-modal-dex" min="1" max="30" value="10">
+        </div>
+        <div class="cs-form-stat-item">
+          <label for="cs-modal-con">CON</label>
+          <input type="number" id="cs-modal-con" min="1" max="30" value="10">
+        </div>
+        <div class="cs-form-stat-item">
+          <label for="cs-modal-int">INT</label>
+          <input type="number" id="cs-modal-int" min="1" max="30" value="10">
+        </div>
+        <div class="cs-form-stat-item">
+          <label for="cs-modal-wis">WIS</label>
+          <input type="number" id="cs-modal-wis" min="1" max="30" value="10">
+        </div>
+        <div class="cs-form-stat-item">
+          <label for="cs-modal-cha">CHA</label>
+          <input type="number" id="cs-modal-cha" min="1" max="30" value="10">
+        </div>
+      </div>
+
+      <div class="settings-btn-row" style="margin-top: 24px;">
+        <button id="cs-modal-btn-save" class="settings-action-btn">Save Character</button>
+        <button id="cs-modal-btn-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compendium Selection Modal -->
+  <div id="cs-picker-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">
+    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 500px; max-height: 80vh; display: flex; flex-direction: column; padding: 20px;">
+      <h2 id="cs-picker-title" style="color: var(--text-primary); margin-bottom: 12px;">Add Item</h2>
+      
+      <div class="search-box-wrapper" style="margin-bottom: 12px; flex-shrink: 0;">
+        <input type="text" id="cs-picker-search" class="search-input" placeholder="Search compendium...">
+      </div>
+
+      <!-- Scrollable list of entries -->
+      <div id="cs-picker-list" style="flex: 1; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 6px; padding: 6px; background-color: var(--bg-color);">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-shrink: 0;">
+        <button id="cs-picker-btn-custom" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Create Custom</button>
+        <button id="cs-picker-btn-close" class="settings-action-btn" style="width: auto; padding: 10px 20px;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Modifier Modal -->
+  <div id="cs-modifier-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">
+    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 400px; padding: 24px;">
+      <h2 style="color: var(--text-primary); margin-bottom: 16px;">Add Custom Modifier</h2>
+      
+      <div class="cs-form-group">
+        <label for="cs-mod-name-input">Modifier Name</label>
+        <input type="text" id="cs-mod-name-input" class="settings-input" placeholder="e.g. Shield of Faith" required>
+      </div>
+
+      <div class="cs-form-group">
+        <label for="cs-mod-target-select">Target Stat</label>
+        <select id="cs-mod-target-select" class="filter-select">
+          <option value="ac">Armor Class (ac)</option>
+          <option value="hp.max">Max HP (hp.max)</option>
+          <option value="initiative">Initiative</option>
+          <option value="speed">Speed</option>
+          <option value="str.score">Strength Score</option>
+          <option value="dex.score">Dexterity Score</option>
+          <option value="con.score">Constitution Score</option>
+          <option value="int.score">Intelligence Score</option>
+          <option value="wis.score">Wisdom Score</option>
+          <option value="cha.score">Charisma Score</option>
+          <option value="save.all">All Saving Throws</option>
+          <option value="spell.dc">Spell Save DC</option>
+          <option value="spell.attack">Spell Attack Roll</option>
+          <option value="melee.attack">Melee Attack Roll</option>
+          <option value="melee.damage">Melee Damage</option>
+          <option value="ranged.attack">Ranged Attack Roll</option>
+          <option value="ranged.damage">Ranged Damage</option>
+        </select>
+      </div>
+
+      <div class="cs-form-group">
+        <label for="cs-mod-type-select">Modifier Type</label>
+        <select id="cs-mod-type-select" class="filter-select">
+          <option value="add">Add (+)</option>
+          <option value="set">Set (Override)</option>
+          <option value="max">Max Cap</option>
+          <option value="min">Min Floor</option>
+        </select>
+      </div>
+
+      <div class="cs-form-group">
+        <label for="cs-mod-value-input">Bonus Value / Formula</label>
+        <input type="text" id="cs-mod-value-input" class="settings-input" placeholder="e.g. +2 or 2 * {char.level}" required>
+      </div>
+
+      <div class="settings-btn-row" style="margin-top: 20px;">
+        <button id="cs-mod-btn-save" class="settings-action-btn">Add Modifier</button>
+        <button id="cs-mod-btn-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Temp HP Modal -->
+  <div id="cs-temp-hp-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">
+    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 300px; padding: 24px;">
+      <h2 style="color: var(--text-primary); margin-bottom: 16px;">Adjust Temp HP</h2>
+      <div class="cs-form-group">
+        <label for="cs-temp-hp-input">Temporary Hit Points</label>
+        <input type="number" id="cs-temp-hp-input" class="settings-input" min="0" value="0">
+      </div>
+      <div class="settings-btn-row" style="margin-top: 20px;">
+        <button id="cs-temp-hp-save" class="settings-action-btn">Save</button>
+        <button id="cs-temp-hp-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Usage Counter Modal -->
+  <div id="cs-counter-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">
+    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 350px; padding: 24px;">
+      <h2 style="color: var(--text-primary); margin-bottom: 16px;">Add Usage Counter</h2>
+      
+      <div class="cs-form-group">
+        <label for="cs-counter-name-input">Counter Name</label>
+        <input type="text" id="cs-counter-name-input" class="settings-input" placeholder="e.g. Ki Points" required>
+      </div>
+
+      <div class="cs-form-group">
+        <label for="cs-counter-max-input">Max Uses</label>
+        <input type="number" id="cs-counter-max-input" class="settings-input" min="1" value="4" required>
+      </div>
+
+      <div class="cs-form-row">
+        <div class="cs-form-group" style="flex: 1; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="cs-counter-reset-short" checked style="width: 18px; height: 18px;">
+          <label for="cs-counter-reset-short" style="margin-bottom: 0;">Reset on Short Rest</label>
+        </div>
+        <div class="cs-form-group" style="flex: 1; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="cs-counter-reset-long" checked style="width: 18px; height: 18px;">
+          <label for="cs-counter-reset-long" style="margin-bottom: 0;">Reset on Long Rest</label>
+        </div>
+      </div>
+
+      <div class="settings-btn-row" style="margin-top: 20px;">
+        <button id="cs-counter-btn-save" class="settings-action-btn">Add Counter</button>
+        <button id="cs-counter-btn-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>

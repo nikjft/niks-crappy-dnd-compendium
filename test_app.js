@@ -7,11 +7,13 @@ const htmlText = fs.readFileSync('./index.html', 'utf8');
 let appJsText = fs.readFileSync('./app.js', 'utf8');
 let parserJsText = fs.readFileSync('./parser.js', 'utf8');
 let dbJsText = fs.readFileSync('./db.js', 'utf8');
+let engineJsText = fs.readFileSync('./engine.js', 'utf8');
 
 // Strip ES module imports/exports so we can run them in JSDOM VM
 appJsText = appJsText.replace(/import\s+\{[^}]*\}\s+from\s+['"].*?['"];?\n?/g, '');
 parserJsText = parserJsText.replace(/export\s+/g, '');
 dbJsText = dbJsText.replace(/export\s+/g, '');
+engineJsText = engineJsText.replace(/export\s+/g, '');
 
 // Create JSDOM
 const dom = new JSDOM(htmlText, { runScripts: "dangerously", url: "http://localhost/" });
@@ -179,8 +181,9 @@ const evalInWindow = (code) => {
 window.console.error = (...args) => console.error("[Browser Console Error]", ...args);
 window.console.log = (...args) => console.log("[Browser Console Log]", ...args);
 
-// Inject Parser and DB code
+// Inject Parser, DB, and Engine code
 evalInWindow(parserJsText);
+evalInWindow(engineJsText);
 
 // Inject App code
 evalInWindow(appJsText);
@@ -197,7 +200,7 @@ async function runTests() {
   console.log("\n--- Checking database seeding ---");
   STORES.forEach(store => {
     console.log(`Store '${store}': ${mockDB[store].length} records loaded.`);
-    if (store !== 'favorites' && mockDB[store].length === 0) {
+    if (store !== 'favorites' && store !== 'characters' && mockDB[store].length === 0) {
       throw new Error(`Seeding failed for store: ${store}`);
     }
   });
@@ -1062,6 +1065,79 @@ Level | Prepared Spells
   }
   
   console.log("Deep link URL state restoration verified successfully!");
+
+  // Test Character Sheet & Roster Integration
+  console.log("\n--- Running Character Sheet & Roster Unit Tests ---");
+
+  // Navigate to characters category
+  await clickMenu('characters');
+
+  // Verify "Create Character" card is present
+  const rosterItems = Array.from(document.getElementById('item-list').querySelectorAll('.cs-roster-card'));
+  const createCard = rosterItems.find(card => card.textContent.includes('Create Character'));
+  if (!createCard) throw new Error("Character roster does not contain 'Create Character' card.");
+
+  // Test character structure rendering
+  const char = {
+    name: "Aelfric",
+    class: "Fighter",
+    level: 3,
+    species: "Elf",
+    background: "Noble",
+    baseStats: { str: 15, dex: 14, con: 13, int: 10, wis: 12, cha: 8 },
+    savesProficiency: { str: 1, dex: 0, con: 1, int: 0, wis: 0, cha: 0 },
+    skillsProficiency: { athletics: 1, perception: 1 },
+    skillsAttributeOverride: {},
+    hp: { current: 28, temp: 0 },
+    baseHpMax: 10,
+    speed: 30,
+    spellcastingAbility: 'int',
+    inspiration: false,
+    deathSaves: { successes: 0, failures: 0 },
+    currency: { cp: 10, sp: 5, ep: 0, gp: 50, pp: 0 },
+    spellSlots: {},
+    counters: [],
+    equipment: [],
+    spells: [],
+    features: [],
+    options: [],
+    bestiary: [],
+    modifiers: [],
+    notes: { backstory: 'A brave noble.' },
+    _deleted: false,
+    _modified_at: new Date().toISOString()
+  };
+
+  // Open the character sheet
+  window.openCharacterSheet(char);
+
+  // Verify the persistent header displays correct details
+  if (document.getElementById('cs-char-name').textContent !== 'Aelfric') {
+    throw new Error("Character sheet header name does not match 'Aelfric'");
+  }
+  if (!document.getElementById('cs-char-subtitle').textContent.includes('Level 3 Fighter')) {
+    throw new Error("Character sheet subtitle does not match 'Level 3 Fighter'");
+  }
+
+  // Verify state calculation in JSDOM: STR is 15 -> mod is +2. Con is 13 -> mod is +1.
+  // baseHpMax = 10, conMod = +1, level = 3 -> hpMax = 10 + 1 * 3 = 13.
+  if (document.getElementById('cs-hp-max').textContent !== '13') {
+    throw new Error(`Expected calculated HP max to be 13, got ${document.getElementById('cs-hp-max').textContent}`);
+  }
+
+  // Verify AC calculation: Base 10 + dex.mod (+2) = 12.
+  if (document.getElementById('cs-val-ac').textContent !== '12') {
+    throw new Error(`Expected calculated AC to be 12, got ${document.getElementById('cs-val-ac').textContent}`);
+  }
+
+  // Verify proficiency bonus: Level 3 -> +2.
+  if (document.getElementById('cs-val-prof-bonus').textContent !== '+2') {
+    throw new Error(`Expected calculated proficiency bonus to be +2, got ${document.getElementById('cs-val-prof-bonus').textContent}`);
+  }
+
+  // Close the sheet
+  window.closeCharacterSheet();
+  console.log("Character Sheet & Roster verified successfully!");
 
   console.log("\nALL TESTS PASSED SUCCESSFULLY!");
 }
