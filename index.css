@@ -174,6 +174,12 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--accent-color);
 }
 
+.settings-btn.active {
+  color: var(--accent-color);
+  background-color: var(--accent-muted);
+  border-color: var(--accent-color);
+}
+
 .settings-btn svg {
   width: 16px;
   height: 16px;
@@ -243,7 +249,8 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
+  justify-content: flex-start;
   flex-shrink: 0;
 }
 
@@ -684,6 +691,11 @@ h1, h2, h3, h4, h5, h6 {
   transition: background-color 0.2s, transform 0.1s;
 }
 
+#back-facet-1 {
+  display: none !important;
+}
+
+
 .back-btn:hover {
   background-color: var(--panel-bg-hover);
 }
@@ -730,35 +742,6 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-@media (max-width: 1599px) {
-  /* Collapse sidebar when detail view is active on medium screens */
-  .app-container.has-detail .sidebar {
-    width: var(--sidebar-collapsed-width) !important;
-  }
-  .app-container.has-detail .sidebar-logo h1, 
-  .app-container.has-detail .menu-item button span, 
-  .app-container.has-detail .settings-btn span, 
-  .app-container.has-detail .db-status {
-    display: none !important;
-  }
-  .app-container.has-detail .sidebar-logo {
-    justify-content: center;
-    padding: 0;
-  }
-  .app-container.has-detail .menu-item button {
-    justify-content: center;
-    padding: 12px 0;
-  }
-  .app-container.has-detail .settings-btn {
-    padding: 10px;
-    border-radius: 50%;
-    width: 36px;
-    height: 36px;
-    margin: 0 auto;
-    justify-content: center;
-  }
-}
-
 /* Collapse detail pane by default on desktop/tablet when not active */
 @media (min-width: 901px) {
   .app-container:not(.has-detail) .pane.detail-pane {
@@ -772,23 +755,9 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Desktop & Tablet responsive facet collapsing when detail is active (< 1600px) */
-@media (min-width: 901px) and (max-width: 1599px) {
-  /* Collapse Facet 1 when detail is active to keep details wide */
-  .app-container.has-detail .pane.facet-pane-1 {
-    width: 0 !important;
-    min-width: 0 !important;
-    flex: none !important;
-    opacity: 0;
-    overflow: hidden;
-    border-right-color: transparent;
-    pointer-events: none;
-  }
-}
-
-/* Tablet landscape view: 900px - 1199px */
-@media (min-width: 901px) and (max-width: 1199px) {
-  /* Collapse Facet 2 when detail is active (Facet 1 collapses via the media query above) */
+/* Tablet Landscape & Desktop: Collapse both Facet 1 and Facet 2 when detail is active */
+@media (min-width: 901px) {
+  .app-container.has-detail .pane.facet-pane-1,
   .app-container.has-detail .pane.facet-pane-2 {
     width: 0 !important;
     min-width: 0 !important;
@@ -800,8 +769,8 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Mobile & Tablet Portrait View (< 900px) */
-@media (max-width: 900px) {
+/* Mobile View (< 600px) */
+@media (max-width: 600px) {
   .panes-container {
     display: block;
   }
@@ -838,6 +807,104 @@ h1, h2, h3, h4, h5, h6 {
 
   .back-btn {
     display: flex;
+  }
+}
+
+/* Tablet Portrait View (601px - 900px) */
+@media (min-width: 601px) and (max-width: 900px) {
+  .panes-container {
+    display: flex;
+    position: relative;
+  }
+
+  .pane {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 0 !important;
+    min-width: 0 !important;
+    flex: none !important;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transform: none !important;
+    transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1), 
+                flex 0.35s cubic-bezier(0.16, 1, 0.3, 1), 
+                opacity 0.3s ease-out;
+  }
+
+  /* Browsing: show 2 columns sharing screen width equally */
+  .app-container:not(.has-detail) .pane:not(.detail-pane) {
+    flex: 1 1 50% !important;
+    width: 0 !important;
+    min-width: 220px !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  /* Detail view: full page detail (100% width) */
+  .app-container.has-detail .pane.detail-pane {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  .app-container.has-detail .pane:not(.detail-pane) {
+    width: 0 !important;
+    flex: none !important;
+    opacity: 0 !important;
+    overflow: hidden;
+    pointer-events: none !important;
+  }
+
+  /* Browsing Collapsing Rules for 3-column categories:
+     - If active pane is facet-1 or facet-2, collapse list pane
+     - If active pane is list, collapse facet-1 (shows facet-2 and list)
+  */
+  .app-container[data-category="spells"][data-active-pane="facet-1"]:not(.has-detail) .pane.list-pane,
+  .app-container[data-category="spells"][data-active-pane="facet-2"]:not(.has-detail) .pane.list-pane,
+  .app-container[data-category="monsters"][data-active-pane="facet-1"]:not(.has-detail) .pane.list-pane,
+  .app-container[data-category="monsters"][data-active-pane="facet-2"]:not(.has-detail) .pane.list-pane,
+  .app-container[data-category="classes"][data-active-pane="facet-1"]:not(.has-detail) .pane.list-pane,
+  .app-container[data-category="classes"][data-active-pane="facet-2"]:not(.has-detail) .pane.list-pane {
+    width: 0 !important;
+    min-width: 0 !important;
+    flex: none !important;
+    opacity: 0 !important;
+    overflow: hidden;
+    pointer-events: none !important;
+  }
+
+  .app-container[data-category="spells"][data-active-pane="list"]:not(.has-detail) .pane.facet-pane-1,
+  .app-container[data-category="monsters"][data-active-pane="list"]:not(.has-detail) .pane.facet-pane-1,
+  .app-container[data-category="classes"][data-active-pane="list"]:not(.has-detail) .pane.facet-pane-1 {
+    width: 0 !important;
+    min-width: 0 !important;
+    flex: none !important;
+    opacity: 0 !important;
+    overflow: hidden;
+    pointer-events: none !important;
+  }
+
+  /* Back buttons for Tablet Portrait */
+  /* Show back-detail when detail view is active (full page) */
+  .app-container.has-detail #back-detail {
+    display: flex !important;
+  }
+
+  /* Show back-facet-2 when list is active (browsing) and Facet 1 is hidden, placing the back button next to Level in the left column */
+  .app-container[data-category="spells"][data-active-pane="list"]:not(.has-detail) #back-facet-2,
+  .app-container[data-category="monsters"][data-active-pane="list"]:not(.has-detail) #back-facet-2,
+  .app-container[data-category="classes"][data-active-pane="list"]:not(.has-detail) #back-facet-2 {
+    display: flex !important;
+  }
+}
+
+/* Desktop & Tablet Landscape View (>= 901px) */
+@media (min-width: 901px) {
+  /* Show back-list when detail is active (since facets are collapsed) */
+  .app-container.has-detail #back-list {
+    display: flex !important;
   }
 }
 
@@ -972,5 +1039,19 @@ h1, h2, h3, h4, h5, h6 {
   padding: 0;
   background-color: transparent;
 }
+
+/* Settings Page Layout Override */
+.app-container[data-category="settings"] .pane.detail-pane {
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 100% !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.app-container[data-category="settings"] .pane.detail-pane .back-btn {
+  display: flex !important;
+}
+
 
 

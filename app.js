@@ -280,7 +280,12 @@ async function loadCategory(category) {
   
   // Clear details pane
   resetDetailsPane();
-  document.querySelector('.app-container').classList.remove('has-detail');
+  const appContainer = document.querySelector('.app-container');
+  appContainer.classList.remove('has-detail');
+  appContainer.setAttribute('data-category', category);
+  
+  // Remove active highlight from settings button
+  btnSettings.classList.remove('active');
 
   // Handle universal search panel visibility toggles
   const controls = document.getElementById('universal-search-controls');
@@ -360,6 +365,7 @@ function updatePaneVisibility() {
 
 function showMobilePane(paneName) {
   currentMobilePane = paneName;
+  document.querySelector('.app-container').setAttribute('data-active-pane', paneName);
   const panes = [
     { name: 'facet-1', el: paneFacet1 },
     { name: 'facet-2', el: paneFacet2 },
@@ -420,6 +426,15 @@ function pushCurrentState(replace = false) {
 
 async function restoreState(state) {
   if (!state) return;
+  
+  const appContainer = document.querySelector('.app-container');
+  appContainer.setAttribute('data-category', state.category);
+  
+  if (state.category === 'settings') {
+    btnSettings.classList.add('active');
+  } else {
+    btnSettings.classList.remove('active');
+  }
   
   // 1. If category changed, we need to load it (without pushing history!)
   if (currentCategory !== state.category) {
@@ -563,6 +578,9 @@ async function restoreState(state) {
       resetDetailsPane();
       document.querySelector('.app-container').classList.remove('has-detail');
     }
+  } else if (state.category === 'settings') {
+    selectedItem = null;
+    document.querySelector('.app-container').classList.add('has-detail');
   } else {
     selectedItem = null;
     resetDetailsPane();
@@ -1691,6 +1709,7 @@ function showSettingsPanel() {
 
   // Clear active sidebar highlights
   menuItems.forEach(mi => mi.classList.remove('active'));
+  btnSettings.classList.add('active');
 
   // Update layout pane visibility to hide lists/facets and expand settings to full width
   updatePaneVisibility();
@@ -1700,6 +1719,11 @@ function showSettingsPanel() {
 
   // Switch to detail view on mobile
   showMobilePane('detail');
+
+  // Ensure settings pane is shown on desktop/tablet by adding has-detail class
+  const appContainer = document.querySelector('.app-container');
+  appContainer.classList.add('has-detail');
+  appContainer.setAttribute('data-category', 'settings');
 
   if (!isNavigatingHistory) pushCurrentState(false);
 }
