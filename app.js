@@ -216,6 +216,20 @@ function setupEventListeners() {
       menuItems.forEach(mi => mi.classList.remove('active'));
       item.classList.add('active');
       const cat = item.getAttribute('data-category');
+      
+      if (pickerActive) {
+        if (cat === 'characters') {
+          pickerActive = false;
+          pickerTargetListId = null;
+          const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
+          if (sidebarBackBtn) sidebarBackBtn.style.display = 'none';
+          const footer = document.getElementById('pane-detail-footer');
+          if (footer) footer.style.display = 'none';
+        } else {
+          updateDetailFooterUI();
+        }
+      }
+      
       await loadCategory(cat);
     });
   });
@@ -1495,6 +1509,7 @@ function resetDetailsPane() {
       </div>
     </div>
   `;
+  updateDetailFooterUI();
 }
 
 // Markdown parser helpers
@@ -2194,10 +2209,20 @@ function getDetailHTML(item, category = currentCategory) {
 function renderDetails(item, category = currentCategory) {
   detailPaneContent.innerHTML = getDetailHTML(item, category);
   updateFavoriteButtonUI();
+  updateDetailFooterUI();
 }
 
 // Settings Control Panel Handlers
 function showSettingsPanel() {
+  if (pickerActive) {
+    pickerActive = false;
+    pickerTargetListId = null;
+    const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
+    if (sidebarBackBtn) sidebarBackBtn.style.display = 'none';
+    const footer = document.getElementById('pane-detail-footer');
+    if (footer) footer.style.display = 'none';
+  }
+
   currentCategory = 'settings';
   selectedFacet1 = 'All';
   selectedFacet2 = 'All';
@@ -2877,6 +2902,14 @@ function renderCharactersRoster(chars) {
       const dup = JSON.parse(JSON.stringify(char));
       dup.name = `${char.name} (Copy)`;
       dup._modified_at = new Date().toISOString();
+      dup._deleted = false;
+
+      // Update memory cache synchronously first for instant UI response
+      if (!allRecordsCache['characters']) allRecordsCache['characters'] = [];
+      allRecordsCache['characters'].push(dup);
+      currentRecords = allRecordsCache['characters'].filter(c => !c._deleted);
+      applyFilters();
+
       await saveCharacterToDb(dup);
       await refreshCharactersList();
     });
@@ -2886,6 +2919,15 @@ function renderCharactersRoster(chars) {
       if (confirm(`Are you sure you want to delete ${char.name}?`)) {
         char._deleted = true;
         char._modified_at = new Date().toISOString();
+
+        // Update memory cache synchronously first for instant UI response
+        if (allRecordsCache['characters']) {
+          const idx = allRecordsCache['characters'].findIndex(c => c.name === char.name);
+          if (idx >= 0) allRecordsCache['characters'][idx]._deleted = true;
+        }
+        currentRecords = allRecordsCache['characters'].filter(c => !c._deleted);
+        applyFilters();
+
         await saveCharacterToDb(char);
         await refreshCharactersList();
       }
@@ -3379,7 +3421,7 @@ function renderWizardStep2(body) {
     }
 
     const descTrait = selectedRace.traits?.find(t => t.name.toLowerCase() === 'description');
-    const descText = descTrait ? descTrait.texts?.join('<br>') : '';
+    const descText = descTrait ? parseMarkdown(descTrait.texts?.join('\n')) : '';
     const otherTraits = selectedRace.traits?.filter(t => t.name.toLowerCase() !== 'description') || [];
 
     const descriptionHtml = descText
@@ -3394,7 +3436,7 @@ function renderWizardStep2(body) {
             <div class="cs-wizard-feature-item">
               <div>
                 <div class="cs-wizard-feature-item-name">${t.name}</div>
-                <div class="cs-wizard-feature-item-desc">${t.texts ? t.texts.join('<br>') : ''}</div>
+                <div class="cs-wizard-feature-item-desc">${t.texts ? parseMarkdown(t.texts.join('\n')) : ''}</div>
               </div>
             </div>
           `).join('')}
@@ -3563,7 +3605,7 @@ function renderWizardStep3(body) {
     const descTextsArray = [];
     if (descTrait && descTrait.texts) descTextsArray.push(...descTrait.texts);
     if (selectedBg.texts) descTextsArray.push(...selectedBg.texts);
-    const descText = descTextsArray.join('<br>');
+    const descText = descTextsArray.length > 0 ? parseMarkdown(descTextsArray.join('\n')) : '';
     const otherTraits = selectedBg.traits?.filter(t => t.name.toLowerCase() !== 'description') || [];
 
     const descriptionHtml = descText
@@ -3578,7 +3620,7 @@ function renderWizardStep3(body) {
             <div class="cs-wizard-feature-item">
               <div>
                 <div class="cs-wizard-feature-item-name">${t.name}</div>
-                <div class="cs-wizard-feature-item-desc">${t.texts ? t.texts.join('<br>') : ''}</div>
+                <div class="cs-wizard-feature-item-desc">${t.texts ? parseMarkdown(t.texts.join('\n')) : ''}</div>
               </div>
             </div>
           `).join('')}
@@ -3740,8 +3782,9 @@ function renderWizardStep4(body) {
         wizardState.classHpGain = c.hd;
         
         // Find level 1 features
-        const lvl1 = c.autolevels?.find(al => al.level === 1);
-        wizardState.classFeaturesChosen = lvl1 ? lvl1.features.filter(f => !f.optional).map(f => f.name) : [];
+        const lvl1Als = c.autolevels?.filter(al => al.level === 1) || [];
+        const lvl1Features = lvl1Als.flatMap(al => al.features || []);
+        wizardState.classFeaturesChosen = lvl1Features.filter(f => !f.optional).map(f => f.name);
         
         wizardState.classSkills = [];
 
@@ -3802,12 +3845,13 @@ function renderWizardStep4(body) {
       : '';
 
     // Level 1 Features
-    const lvl1 = selectedClass.autolevels?.find(al => al.level === 1);
-    const featuresHtml = lvl1 && lvl1.features && lvl1.features.length > 0
+    const lvl1Als = selectedClass.autolevels?.filter(al => al.level === 1) || [];
+    const lvl1Features = lvl1Als.flatMap(al => al.features || []);
+    const featuresHtml = lvl1Features.length > 0
       ? `
         <h4 class="cs-wizard-section-title" style="margin-top:20px;">Level 1 Features</h4>
         <div class="cs-wizard-feature-list">
-          ${lvl1.features.map(f => {
+          ${lvl1Features.map(f => {
             const isChecked = wizardState.classFeaturesChosen.includes(f.name);
             const badge = f.optional ? `<span class="cs-wizard-feature-badge optional-badge">Optional</span>` : '';
             return `
@@ -3815,7 +3859,7 @@ function renderWizardStep4(body) {
                 <input type="checkbox" class="wizard-class-feature-chk" data-name="${f.name}" ${isChecked ? 'checked' : ''}>
                 <div style="margin-left:4px;">
                   <div class="cs-wizard-feature-item-name">${f.name} ${badge}</div>
-                  <div class="cs-wizard-feature-item-desc">${f.texts ? f.texts.join('<br>') : ''}</div>
+                  <div class="cs-wizard-feature-item-desc">${f.texts ? parseMarkdown(f.texts.join('\n')) : ''}</div>
                 </div>
               </div>
             `;
@@ -3825,7 +3869,7 @@ function renderWizardStep4(body) {
       : '';
 
     const descTrait = selectedClass.traits?.find(t => t.name.toLowerCase() === 'description' || t.name.toLowerCase() === selectedClass.name.toLowerCase());
-    const descText = descTrait ? descTrait.texts?.join('<br>') : '';
+    const descText = descTrait ? parseMarkdown(descTrait.texts?.join('\n')) : '';
     const descriptionHtml = descText
       ? `<div style="font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 20px; font-style: italic;">${descText}</div>`
       : '';
@@ -4148,27 +4192,29 @@ async function applyWizardResult() {
     newChar.skillsProficiency[key] = 1;
   });
 
-  // Level 1 Features
-  const lvl1 = wizardState.classRecord.autolevels?.find(al => al.level === 1);
-  if (lvl1 && lvl1.features) {
-    lvl1.features.forEach(f => {
-      if (wizardState.classFeaturesChosen.includes(f.name)) {
-        newChar.features.push({
-          name: f.name,
-          active: true,
-          favorite: false,
-          selected: true,
-          id: generateId(),
-          listId: classListDef.id,
-          texts: f.texts || [],
-          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
-        });
-      }
-    });
+  // Level 1 Features & Counters
+  const lvl1Als = wizardState.classRecord.autolevels?.filter(al => al.level === 1) || [];
+  lvl1Als.forEach(al => {
+    if (al.features) {
+      al.features.forEach(f => {
+        if (wizardState.classFeaturesChosen.includes(f.name)) {
+          newChar.features.push({
+            name: f.name,
+            active: true,
+            favorite: false,
+            selected: true,
+            id: generateId(),
+            listId: classListDef.id,
+            texts: f.texts || [],
+            modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+          });
+        }
+      });
+    }
 
     // Copy counters
-    if (lvl1.counters) {
-      lvl1.counters.forEach(c => {
+    if (al.counters) {
+      al.counters.forEach(c => {
         newChar.counters.push({
           name: c.name,
           max: parseInt(c.value) || 1,
@@ -4180,7 +4226,7 @@ async function applyWizardResult() {
         });
       });
     }
-  }
+  });
 
   // If spellcaster class, create spell list
   let classSpellListId = null;
@@ -4354,9 +4400,21 @@ function renderLevelUpDetails(body) {
   const targetLevel = currentLevel + 1;
   const hd = classRecord ? classRecord.hd : 8;
 
-  // Find autolevel details for target level
-  const al = classRecord ? classRecord.autolevels?.find(a => a.level === targetLevel) : null;
-  const features = al ? al.features : [];
+  // Find autolevel details for target level (from base class and subclass)
+  const baseAls = classRecord ? classRecord.autolevels?.filter(a => a.level === targetLevel) || [] : [];
+  const baseFeatures = baseAls.flatMap(al => al.features || []);
+
+  let subFeatures = [];
+  const currentSubclassName = isMulticlass ? null : levelUpState.selectedClassEntry.subclass;
+  if (currentSubclassName) {
+    const subclassRecord = allRecordsCache['subclasses']?.find(s => s.name.toLowerCase() === currentSubclassName.toLowerCase());
+    if (subclassRecord) {
+      const subAls = subclassRecord.autolevels?.filter(a => a.level === targetLevel) || [];
+      subFeatures = subAls.flatMap(al => al.features || []);
+    }
+  }
+
+  const features = [...baseFeatures, ...subFeatures];
   
   // Update state with level up features (checked by default, excluding optional features)
   levelUpState.chosenFeatures = features.filter(f => !f.optional).map(f => f.name);
@@ -4417,7 +4475,7 @@ function renderLevelUpDetails(body) {
                 <input type="checkbox" class="wizard-class-feature-chk" data-name="${f.name}" ${isChecked ? 'checked' : ''}>
                 <div style="margin-left:4px;">
                   <div class="cs-levelup-feature-name">${f.name} ${badge}</div>
-                  <div class="cs-levelup-feature-desc">${f.texts ? f.texts.join('<br>') : ''}</div>
+                  <div class="cs-levelup-feature-desc">${f.texts ? parseMarkdown(f.texts.join('\n')) : ''}</div>
                 </div>
               </div>
             `;
@@ -4501,7 +4559,7 @@ function renderLevelUpDetails(body) {
           ${subTraits.map(t => `
             <div style="background:var(--panel-bg-hover);border:1px solid var(--border-color);border-radius:6px;padding:8px 12px;">
               <strong style="font-size:13px;display:block;color:var(--text-primary);">${t.name}</strong>
-              <span style="font-size:12px;color:var(--text-secondary);line-height:1.4;margin-top:2px;display:block;">${t.texts ? t.texts.join('<br>') : ''}</span>
+              <span style="font-size:12px;color:var(--text-secondary);line-height:1.4;margin-top:2px;display:block;">${t.texts ? parseMarkdown(t.texts.join('\n')) : ''}</span>
             </div>
           `).join('')}
         </div>
@@ -4635,31 +4693,16 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
     }
   }
 
-  // 4. Add level features to feature list
-  const al = classRecord.autolevels?.find(a => a.level === targetLevel);
-  if (isMulticlass) {
-    if (al && al.features) {
+  // 4. Add level features & counters to feature list (from base class)
+  const baseAls = classRecord.autolevels?.filter(a => a.level === targetLevel) || [];
+  baseAls.forEach(al => {
+    if (al.features) {
       al.features.forEach(f => {
-        // Skip saving throw proficiency features if it is a multiclass character (as per user comment)
-        if (f.name.toLowerCase().includes('saving throw')) {
-          return;
-        }
-        char.features.push({
-          name: f.name,
-          active: true,
-          favorite: false,
-          selected: true,
-          id: generateId(),
-          listId: classListId,
-          texts: f.texts || [],
-          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
-        });
-      });
-    }
-  } else {
-    if (al && al.features) {
-      al.features.forEach(f => {
-        if (chosenFeatures.includes(f.name)) {
+        if (isMulticlass) {
+          // Skip saving throw proficiency features if it is a multiclass character (as per user comment)
+          if (f.name.toLowerCase().includes('saving throw')) {
+            return;
+          }
           char.features.push({
             name: f.name,
             active: true,
@@ -4670,31 +4713,95 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
             texts: f.texts || [],
             modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
           });
+        } else {
+          if (chosenFeatures.includes(f.name)) {
+            char.features.push({
+              name: f.name,
+              active: true,
+              favorite: false,
+              selected: true,
+              id: generateId(),
+              listId: classListId,
+              texts: f.texts || [],
+              modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+            });
+          }
         }
       });
     }
-  }
 
-  // Copy counters
-  if (al && al.counters) {
-    al.counters.forEach(c => {
-      const existingCounter = char.counters?.find(cc => cc.name === c.name);
-      if (!existingCounter) {
-        char.counters.push({
-          name: c.name,
-          max: parseInt(c.value) || 1,
-          value: parseInt(c.value) || 1,
-          reset_short: c.reset === 'S',
-          reset_long: c.reset === 'L' || c.reset === 'S',
-          id: generateId(),
-          classTag: className
-        });
-      } else {
-        // Increment/update existing counter value
-        existingCounter.max = parseInt(c.value) || existingCounter.max;
-        existingCounter.value = existingCounter.max;
+    if (al.counters) {
+      al.counters.forEach(c => {
+        const existingCounter = char.counters?.find(cc => cc.name === c.name);
+        if (!existingCounter) {
+          char.counters.push({
+            name: c.name,
+            max: parseInt(c.value) || 1,
+            value: parseInt(c.value) || 1,
+            reset_short: c.reset === 'S',
+            reset_long: c.reset === 'L' || c.reset === 'S',
+            id: generateId(),
+            classTag: className
+          });
+        } else {
+          existingCounter.max = parseInt(c.value) || existingCounter.max;
+          existingCounter.value = existingCounter.max;
+        }
+      });
+    }
+  });
+
+  // Subclass features of existing subclass (if any)
+  const currentSubclassName = existingEntry ? existingEntry.subclass : null;
+  if (currentSubclassName) {
+    const subclassRecord = allRecordsCache['subclasses']?.find(s => s.name.toLowerCase() === currentSubclassName.toLowerCase());
+    if (subclassRecord) {
+      // Ensure subclass list ID exists
+      if (!subclassFeatureListId) {
+        char.featureLists.push({ id: generateId(), name: `Subclass: ${subclassRecord.name}` });
+        subclassFeatureListId = char.featureLists[char.featureLists.length - 1].id;
+        existingEntry.subclassListId = subclassFeatureListId;
       }
-    });
+      
+      const subAls = subclassRecord.autolevels?.filter(a => a.level === targetLevel) || [];
+      subAls.forEach(al => {
+        if (al.features) {
+          al.features.forEach(f => {
+            if (chosenFeatures.includes(f.name)) {
+              char.features.push({
+                name: f.name,
+                active: true,
+                favorite: false,
+                selected: true,
+                id: generateId(),
+                listId: subclassFeatureListId,
+                texts: f.texts || [],
+                modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+              });
+            }
+          });
+        }
+        if (al.counters) {
+          al.counters.forEach(c => {
+            const existingCounter = char.counters?.find(cc => cc.name === c.name);
+            if (!existingCounter) {
+              char.counters.push({
+                name: c.name,
+                max: parseInt(c.value) || 1,
+                value: parseInt(c.value) || 1,
+                reset_short: c.reset === 'S',
+                reset_long: c.reset === 'L' || c.reset === 'S',
+                id: generateId(),
+                classTag: className
+              });
+            } else {
+              existingCounter.max = parseInt(c.value) || existingCounter.max;
+              existingCounter.value = existingCounter.max;
+            }
+          });
+        }
+      });
+    }
   }
 
   // 5. Handle subclass selection
@@ -4708,21 +4815,23 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
     subclassFeatureListId = subclassListDef.id;
 
     // Add subclass level 3 features
-    const subLvl3 = selectedSubclass.autolevels?.find(a => a.level === 3);
-    if (subLvl3 && subLvl3.features) {
-      subLvl3.features.forEach(f => {
-        char.features.push({
-          name: f.name,
-          active: true,
-          favorite: false,
-          selected: true,
-          id: generateId(),
-          listId: subclassFeatureListId,
-          texts: f.texts || [],
-          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+    const subLvl3Als = selectedSubclass.autolevels?.filter(a => a.level === 3) || [];
+    subLvl3Als.forEach(al => {
+      if (al.features) {
+        al.features.forEach(f => {
+          char.features.push({
+            name: f.name,
+            active: true,
+            favorite: false,
+            selected: true,
+            id: generateId(),
+            listId: subclassFeatureListId,
+            texts: f.texts || [],
+            modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+          });
         });
-      });
-    }
+      }
+    });
 
     // Set top-level subclass field for backwards compatibility
     char.subclass = selectedSubclass.name;
@@ -4779,11 +4888,9 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
 }
 
 // ─── Picker State ────────────────────────────────────────────────────────────
+let pickerActive = false;
 let pickerCategory = '';         // 'feats' | 'items' | 'spells' | 'monsters'
 let pickerTargetListId = null;   // listId to add into (null = default/first list)
-let pickerSelectedRecord = null; // currently previewed record in picker detail pane
-let pickerFacet1Value = 'All';
-let pickerFacet2Value = 'All';
 
 // ─── List Helpers ─────────────────────────────────────────────────────────────
 function ensureCharacterLists(char) {
@@ -5088,172 +5195,137 @@ function deleteListAndItems() {
   saveCurrentCharacterAndRefresh();
 }
 
-// ─── Picker ───────────────────────────────────────────────────────────────────
-function openPicker(category, targetListId = null) {
-  pickerCategory    = category;
+// ─── Picker & Add to Character Selection ──────────────────────────────────────
+async function openPicker(category, targetListId = null) {
+  pickerActive = true;
   pickerTargetListId = targetListId;
-  pickerSelectedRecord = null;
-  pickerFacet1Value = 'All';
-  pickerFacet2Value = 'All';
+  pickerCategory = category;
 
-  const modal = document.getElementById('cs-picker-modal');
-  const title = document.getElementById('cs-picker-title');
-  const searchInput = document.getElementById('cs-picker-search');
-
-  const labels = { items: 'Add Equipment', spells: 'Add Spell', feats: 'Add Feature / Feat', monsters: 'Add Companion / Summon' };
-  title.textContent = labels[category] || 'Add';
-
-  // Reset detail pane
-  document.getElementById('cs-picker-detail-content').innerHTML = `
-    <div style="text-align:center;margin-top:80px;color:var(--text-muted)">
-      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom:16px"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-      <p>Select an entry from the list to preview.</p>
-    </div>`;
-  document.getElementById('cs-picker-detail-footer').style.display = 'none';
-
-  searchInput.value = '';
-  renderPickerFacets();
-  renderPickerList('');
-  modal.style.display = 'flex';
-  searchInput.focus();
-}
-
-function renderPickerFacets() {
-  const records = allRecordsCache[pickerCategory] || [];
-  const f1Group = document.getElementById('cs-picker-facet-1-group');
-  const f2Group = document.getElementById('cs-picker-facet-2-group');
-  const f1Title = document.getElementById('cs-picker-facet-1-title');
-  const f2Title = document.getElementById('cs-picker-facet-2-title');
-  const f1List  = document.getElementById('cs-picker-facet-1-list');
-  const f2List  = document.getElementById('cs-picker-facet-2-list');
-
-  f1List.innerHTML = '';
-  f2List.innerHTML = '';
-
-  // Determine facet fields by category
-  let facet1Field = null, facet2Field = null, facet1Label = '', facet2Label = '';
-  if (pickerCategory === 'spells')   { facet1Field = 'school'; facet1Label = 'School'; facet2Field = 'level'; facet2Label = 'Level'; }
-  else if (pickerCategory === 'items')  { facet1Field = 'type'; facet1Label = 'Type'; }
-  else if (pickerCategory === 'feats')  { facet1Field = 'category'; facet1Label = 'Category'; }
-  else if (pickerCategory === 'monsters') { facet1Field = 'type'; facet1Label = 'Type'; facet2Field = 'size'; facet2Label = 'Size'; }
-
-  f1Group.style.display = facet1Field ? '' : 'none';
-  f2Group.style.display = facet2Field ? '' : 'none';
-
-  const renderFacetList = (container, field, label, currentVal, setFn) => {
-    const values = ['All', ...new Set(records.map(r => {
-      let v = r[field];
-      if (field === 'level') v = v === 0 ? 'Cantrip' : `Level ${v}`;
-      return v || 'Other';
-    }).filter(Boolean))].sort((a, b) => {
-      if (a === 'All') return -1; if (b === 'All') return 1;
-      return a.localeCompare(b);
-    });
-
-    values.forEach(val => {
-      const btn = document.createElement('button');
-      btn.textContent = val;
-      btn.className = 'facet-item' + (val === currentVal ? ' active' : '');
-      btn.onclick = () => { setFn(val); renderPickerFacets(); renderPickerList(document.getElementById('cs-picker-search').value); };
-      container.appendChild(btn);
-    });
-  };
-
-  if (facet1Field) { f1Title.textContent = facet1Label; renderFacetList(f1List, facet1Field, facet1Label, pickerFacet1Value, v => pickerFacet1Value = v); }
-  if (facet2Field) { f2Title.textContent = facet2Label; renderFacetList(f2List, facet2Field, facet2Label, pickerFacet2Value, v => pickerFacet2Value = v); }
-}
-
-function renderPickerList(query) {
-  const container = document.getElementById('cs-picker-list');
-  container.innerHTML = '';
-
-  const records = allRecordsCache[pickerCategory] || [];
-  let filtered = records.filter(r => {
-    if (query && !r.name.toLowerCase().includes(query.toLowerCase())) return false;
-    if (pickerFacet1Value !== 'All') {
-      if (pickerCategory === 'spells' && r.school !== pickerFacet1Value) return false;
-      if (pickerCategory === 'items'  && r.type  !== pickerFacet1Value) return false;
-      if (pickerCategory === 'feats'  && r.category !== pickerFacet1Value) return false;
-      if (pickerCategory === 'monsters' && r.type !== pickerFacet1Value) return false;
-    }
-    if (pickerFacet2Value !== 'All') {
-      if (pickerCategory === 'spells') {
-        const lvlLabel = r.level === 0 ? 'Cantrip' : `Level ${r.level}`;
-        if (lvlLabel !== pickerFacet2Value) return false;
-      }
-      if (pickerCategory === 'monsters' && r.size !== pickerFacet2Value) return false;
-    }
-    return true;
-  });
-  filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-  if (filtered.length === 0) {
-    container.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);">No entries found.</div>';
-    return;
+  let mainCategory = category;
+  if (category === 'feats' || category === 'options') {
+    mainCategory = category;
   }
 
-  // Determine current-state badge for each record (is it already on the character?)
-  const getItemState = (record) => {
-    const arrMap = { feats: 'features', items: 'equipment', spells: 'spells', monsters: 'bestiary' };
-    const arr = currentCharacter[arrMap[pickerCategory]] || [];
-    const match = arr.find(i => i.compendiumId === record.name || i.name === record.name);
-    if (!match) return null;
-    if (match.active)   return 'active';
-    if (match.selected) return 'carried';
-    return 'stored';
-  };
-
-  filtered.forEach(record => {
-    const state = getItemState(record);
-    const row = document.createElement('div');
-    row.className = 'cs-picker-row' + (pickerSelectedRecord === record ? ' active' : '');
-    row.dataset.name = record.name;
-
-    let sub = '';
-    if (pickerCategory === 'spells')   sub = `${record.level === 0 ? 'Cantrip' : 'Level ' + record.level} · ${record.school || ''}`;
-    else if (pickerCategory === 'items')  sub = `${record.type || 'Item'} · ${record.weight || 0} lbs`;
-    else if (pickerCategory === 'feats')  sub = `${record.category || 'Feature'}`;
-    else if (pickerCategory === 'monsters') sub = `${record.size || ''} ${record.type || ''}`.trim();
-
-    const badge = state ? `<span class="cs-picker-state-badge ${state}">${state}</span>` : '';
-
-    row.innerHTML = `
-      <div class="cs-picker-row-info">
-        <div class="cs-picker-row-name">${badge}${record.name}</div>
-        <div class="cs-picker-row-sub">${sub}</div>
-      </div>
-    `;
-    row.onclick = () => showPickerDetail(record);
-    container.appendChild(row);
+  // Highlight appropriate menu item in sidebar
+  menuItems.forEach(mi => {
+    mi.classList.toggle('active', mi.getAttribute('data-category') === mainCategory);
   });
+
+  // Load the category in the main Compendium
+  await loadCategory(mainCategory);
+
+  // Show "Back to Sheet" button on sidebar
+  const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
+  if (sidebarBackBtn) {
+    sidebarBackBtn.style.display = 'block';
+  }
+
+  // Hide character sheet view to reveal compendium
+  document.getElementById('character-sheet-view').style.display = 'none';
+
+  updateDetailFooterUI();
 }
 
-function showPickerDetail(record) {
-  pickerSelectedRecord = record;
+function closePickerAndReturn() {
+  pickerActive = false;
+  pickerTargetListId = null;
 
-  // Highlight selected row
-  document.querySelectorAll('#cs-picker-list .cs-picker-row').forEach(r => {
-    r.classList.toggle('active', r.dataset.name === record.name);
+  // Hide the back-to-sheet button
+  const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
+  if (sidebarBackBtn) {
+    sidebarBackBtn.style.display = 'none';
+  }
+
+  // Hide pane detail footer
+  const footer = document.getElementById('pane-detail-footer');
+  if (footer) {
+    footer.style.display = 'none';
+  }
+
+  // Highlight Characters category in sidebar
+  menuItems.forEach(mi => {
+    mi.classList.toggle('active', mi.getAttribute('data-category') === 'characters');
   });
 
-  const content = document.getElementById('cs-picker-detail-content');
-  content.innerHTML = getDetailHTML(record, pickerCategory);
+  // Re-open character sheet
+  document.getElementById('character-sheet-view').style.display = 'flex';
+  renderCharacterSheetUI();
+}
 
-  // Show footer with add button
-  const footer = document.getElementById('cs-picker-detail-footer');
-  footer.style.display = 'flex';
+function updateDetailFooterUI() {
+  const footer = document.getElementById('pane-detail-footer');
+  const addBtn = document.getElementById('pane-detail-btn-add');
+  const statusDiv = document.getElementById('pane-detail-status');
 
-  // Show current state in status div
-  const arrMap = { feats: 'features', items: 'equipment', spells: 'spells', monsters: 'bestiary' };
-  const arr = currentCharacter[arrMap[pickerCategory]] || [];
-  const existing = arr.find(i => i.compendiumId === record.name || i.name === record.name);
-  const statusDiv = document.getElementById('cs-picker-detail-status');
-  if (existing) {
-    const st = existing.active ? 'Active/Equipped' : (existing.selected ? 'Carried/Prepared' : 'Stored');
-    statusDiv.textContent = `Already on character (${st})`;
+  if (!footer) return;
+
+  if (pickerActive && selectedItem && currentCharacter) {
+    footer.style.display = 'flex';
+
+    // Status on character: Active/Carried/Stored
+    const getItemState = (rec, category) => {
+      if (!currentCharacter) return null;
+      const arrMap = { feats: 'features', options: 'features', items: 'equipment', spells: 'spells', monsters: 'bestiary', 'class-feature': 'features' };
+      const arr = currentCharacter[arrMap[category]] || [];
+      const match = arr.find(i => i.compendiumId === rec.name || i.name === rec.name);
+      if (!match) return null;
+      if (match.active)   return 'Active';
+      if (match.selected) return 'Carried';
+      return 'Stored';
+    };
+
+    let statusCategory = currentCategory;
+    if (selectedItem.categoryType) {
+      if (selectedItem.categoryType === 'class-feature') statusCategory = 'feats';
+      else if (selectedItem.categoryType === 'class-overview') statusCategory = 'classes';
+      else statusCategory = selectedItem.categoryType + 's';
+    }
+
+    const stateStr = getItemState(selectedItem, statusCategory);
+    if (stateStr) {
+      statusDiv.innerHTML = `Status on character: <strong>${stateStr}</strong>`;
+    } else {
+      statusDiv.innerHTML = '';
+    }
+
+    // Set Add Button text
+    let targetListName = '';
+    if (pickerTargetListId) {
+      const allLists = [
+        ...(currentCharacter.featureLists || []),
+        ...(currentCharacter.itemLists || []),
+        ...(currentCharacter.spellLists || []),
+        ...(currentCharacter.bestiaryLists || [])
+      ];
+      const matchLst = allLists.find(l => l.id === pickerTargetListId);
+      if (matchLst) targetListName = matchLst.name;
+    }
+
+    if (targetListName) {
+      addBtn.textContent = `Add to ${targetListName}`;
+    } else {
+      addBtn.textContent = 'Add to Character';
+    }
   } else {
-    statusDiv.textContent = '';
+    footer.style.display = 'none';
   }
+}
+
+function addSelectedItemToCharacter() {
+  if (!selectedItem || !currentCharacter) return;
+
+  let category = currentCategory;
+  if (selectedItem.categoryType) {
+    if (selectedItem.categoryType === 'class-feature') category = 'feats';
+    else if (selectedItem.categoryType === 'option') category = 'options';
+    else if (selectedItem.categoryType === 'feat') category = 'feats';
+    else if (selectedItem.categoryType === 'item') category = 'items';
+    else if (selectedItem.categoryType === 'spell') category = 'spells';
+    else if (selectedItem.categoryType === 'monster') category = 'monsters';
+  }
+
+  addCompendiumEntityToCharacter(selectedItem, category);
+  closePickerAndReturn();
 }
 
 function addCompendiumEntityToCharacter(record, category) {
@@ -5266,17 +5338,16 @@ function addCompendiumEntityToCharacter(record, category) {
 
   ensureCharacterLists(currentCharacter);
 
-  // Assign to target list or first list
   if (category === 'items') {
     const listId = pickerTargetListId || currentCharacter.itemLists[0]?.id;
     clone.listId = listId;
     currentCharacter.equipment.push(clone);
   } else if (category === 'spells') {
-    clone.active = false; // not concentrating by default
+    clone.active = false;
     const listId = pickerTargetListId || currentCharacter.spellLists[0]?.id;
     clone.listId = listId;
     currentCharacter.spells.push(clone);
-  } else if (category === 'feats') {
+  } else if (category === 'feats' || category === 'options') {
     clone.active = true;
     const listId = pickerTargetListId || currentCharacter.featureLists[0]?.id;
     clone.listId = listId;
@@ -5290,12 +5361,16 @@ function addCompendiumEntityToCharacter(record, category) {
   }
 
   saveCurrentCharacterAndRefresh();
-  // Re-render picker list so badge updates
-  renderPickerList(document.getElementById('cs-picker-search')?.value || '');
 }
 
 async function syncLocalEntityWithCompendium(entity, category) {
-  const compRecord = allRecordsCache[category]?.find(r => r.name === entity.compendiumId);
+  let compRecord = null;
+  if (category === 'feats') {
+    compRecord = allRecordsCache['feats']?.find(r => r.name === entity.compendiumId) || 
+                 allRecordsCache['options']?.find(r => r.name === entity.compendiumId);
+  } else {
+    compRecord = allRecordsCache[category]?.find(r => r.name === entity.compendiumId);
+  }
   if (!compRecord) return; // silently do nothing if not found
 
   const { favorite, selected, active, id, compendiumId, listId } = entity;
@@ -5777,39 +5852,54 @@ function setupCharacterSheetEvents() {
   document.getElementById('cs-modal-btn-cancel').onclick = () => { document.getElementById('cs-creator-modal').style.display = 'none'; };
   document.getElementById('cs-modal-btn-save').onclick   = () => saveCharacterCreatorModal();
 
-  // Picker close / add / custom / search
-  document.getElementById('cs-picker-btn-close').onclick = () => { document.getElementById('cs-picker-modal').style.display = 'none'; };
-  document.getElementById('cs-picker-btn-add').onclick   = () => {
-    if (pickerSelectedRecord) addCompendiumEntityToCharacter(pickerSelectedRecord, pickerCategory);
-  };
-  document.getElementById('cs-picker-btn-custom').onclick = () => {
-    const name = prompt(`Enter custom ${pickerCategory === 'monsters' ? 'companion' : pickerCategory.slice(0,-1)} name:`);
-    if (!name) return;
-    ensureCharacterLists(currentCharacter);
-    const clone = { name, favorite: false, selected: true, active: false, id: generateId(), texts: ['Custom entry.'] };
-    if (pickerCategory === 'items') {
-      clone.weight = 0; clone.type = 'Gear';
-      clone.listId = pickerTargetListId || currentCharacter.itemLists[0]?.id;
-      currentCharacter.equipment.push(clone);
-    } else if (pickerCategory === 'spells') {
-      clone.level = 0; clone.school = 'Transmutation';
-      clone.listId = pickerTargetListId || currentCharacter.spellLists[0]?.id;
-      currentCharacter.spells.push(clone);
-    } else if (pickerCategory === 'feats') {
-      clone.active = true; clone.category = 'Feature';
-      clone.listId = pickerTargetListId || currentCharacter.featureLists[0]?.id;
-      currentCharacter.features.push(clone);
-    } else if (pickerCategory === 'monsters') {
-      clone.hp_max = 10; clone.hp_current = 10;
-      clone.listId = pickerTargetListId || currentCharacter.bestiaryLists[0]?.id;
-      currentCharacter.bestiary.push(clone);
-    }
-    document.getElementById('cs-picker-modal').style.display = 'none';
-    saveCurrentCharacterAndRefresh();
-  };
-  document.getElementById('cs-picker-search').oninput = (e) => {
-    renderPickerList(e.target.value);
-  };
+  // Pane detail footer buttons
+  const paneDetailBtnAdd = document.getElementById('pane-detail-btn-add');
+  if (paneDetailBtnAdd) {
+    paneDetailBtnAdd.onclick = () => {
+      addSelectedItemToCharacter();
+    };
+  }
+  const paneDetailBtnCancel = document.getElementById('pane-detail-btn-cancel');
+  if (paneDetailBtnCancel) {
+    paneDetailBtnCancel.onclick = () => {
+      closePickerAndReturn();
+    };
+  }
+  const sidebarBackToSheet = document.getElementById('sidebar-back-to-sheet');
+  if (sidebarBackToSheet) {
+    sidebarBackToSheet.onclick = (e) => {
+      e.preventDefault();
+      closePickerAndReturn();
+    };
+  }
+  const paneDetailBtnCustom = document.getElementById('pane-detail-btn-custom');
+  if (paneDetailBtnCustom) {
+    paneDetailBtnCustom.onclick = () => {
+      const name = prompt(`Enter custom ${pickerCategory === 'monsters' ? 'companion' : (pickerCategory === 'options' ? 'option' : pickerCategory.slice(0,-1))} name:`);
+      if (!name) return;
+      ensureCharacterLists(currentCharacter);
+      const clone = { name, favorite: false, selected: true, active: false, id: generateId(), texts: ['Custom entry.'] };
+      if (pickerCategory === 'items') {
+        clone.weight = 0; clone.type = 'Gear';
+        clone.listId = pickerTargetListId || currentCharacter.itemLists[0]?.id;
+        currentCharacter.equipment.push(clone);
+      } else if (pickerCategory === 'spells') {
+        clone.level = 0; clone.school = 'Transmutation';
+        clone.listId = pickerTargetListId || currentCharacter.spellLists[0]?.id;
+        currentCharacter.spells.push(clone);
+      } else if (pickerCategory === 'feats' || pickerCategory === 'options') {
+        clone.active = true; clone.category = pickerCategory === 'feats' ? 'Feature' : 'Option';
+        clone.listId = pickerTargetListId || currentCharacter.featureLists[0]?.id;
+        currentCharacter.features.push(clone);
+      } else if (pickerCategory === 'monsters') {
+        clone.hp_max = 10; clone.hp_current = 10;
+        clone.listId = pickerTargetListId || currentCharacter.bestiaryLists[0]?.id;
+        currentCharacter.bestiary.push(clone);
+      }
+      saveCurrentCharacterAndRefresh();
+      closePickerAndReturn();
+    };
+  }
 
   // Detail modal
   document.getElementById('cs-detail-btn-close').onclick = () => { document.getElementById('cs-detail-modal').style.display = 'none'; };

@@ -3030,7 +3030,7 @@ h1, h2, h3, h4, h5, h6 {
   padding: 16px 32px; border-top: 1px solid var(--border-color); background: var(--panel-bg); flex-shrink: 0;
 }
 /* two-pane for picker steps */
-.cs-wizard-two-pane { display: flex; flex: 1; overflow: hidden; }
+.cs-wizard-two-pane { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
 .cs-wizard-list-pane {
   width: 340px; flex-shrink: 0; border-right: 1px solid var(--border-color);
   display: flex; flex-direction: column; overflow: hidden; background: var(--panel-bg);
