@@ -8598,6 +8598,60 @@ if (typeof window !== 'undefined') {
    * Returns starting equipment strings for a given class name, stripping {@tag} markup.
    * Used by the Preact LevelHistorySection / StartingEquipment display.
    */
+  /**
+   * Search across all compendium stores by name fragment.
+   * Returns up to `limit` results with { name, type, record } shape.
+   */
+  window.__legacySearchCompendium = (query, limit = 20) => {
+    if (!query || query.length < 2) return [];
+    const q = query.toLowerCase();
+    const STORE_TYPES = [
+      { key: 'spells',    type: 'spell' },
+      { key: 'items',     type: 'item' },
+      { key: 'monsters',  type: 'monster' },
+      { key: 'feats',     type: 'feat' },
+      { key: 'classes',   type: 'class' },
+    ];
+    const results = [];
+    for (const { key, type } of STORE_TYPES) {
+      const records = allRecordsCache[key] || [];
+      for (const rec of records) {
+        if (results.length >= limit) break;
+        if (rec.name && rec.name.toLowerCase().includes(q)) {
+          results.push({ name: rec.name, type, record: rec });
+        }
+      }
+      if (results.length >= limit) break;
+    }
+    return results;
+  };
+
+  /**
+   * Open the legacy detail modal for a compendium record.
+   * type = 'spell' | 'item' | 'monster' | 'feat' | 'class' | 'feature'
+   */
+  window.__legacyOpenDetailForRecord = (record, type) => {
+    if (!record) return;
+    openItemDetailModal(record, type);
+  };
+
+  /**
+   * Look up a compendium entry by tag type + name (for {@spell Name} cross-refs).
+   * tagType = 'spell' | 'item' | 'condition' | 'creature' | 'feat' | 'class'
+   */
+  window.__legacyOpenTagRef = (tagType, name) => {
+    const storeMap = {
+      spell: 'spells', item: 'items', creature: 'monsters',
+      monster: 'monsters', feat: 'feats', class: 'classes',
+      condition: null, // conditions shown inline, no full modal needed
+    };
+    const storeKey = storeMap[tagType];
+    if (!storeKey) return;
+    const records = allRecordsCache[storeKey] || [];
+    const found = records.find(r => r.name && r.name.toLowerCase() === name.toLowerCase());
+    if (found) openItemDetailModal(found, tagType);
+  };
+
   window.__legacyGetStartingEquipment = (className) => {
     const classRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === className.toLowerCase());
     if (!classRecord || !classRecord.startingEquipment) return null;

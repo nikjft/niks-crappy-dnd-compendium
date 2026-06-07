@@ -3,6 +3,7 @@ import { currentCharacter, patchCharacter } from '../../state/stores.js';
 import { CustomFeatureModal } from './CustomFeatureModal.js';
 import { LevelHistorySection } from './LevelHistorySection.js';
 import { StartingEquipmentSection } from './StartingEquipmentSection.js';
+import { TagText } from '../shared/TagText.js';
 import type { FeatureList, CharacterFeature } from '../../data/types.js';
 
 // ─── Feature Row ──────────────────────────────────────────────────────────────
@@ -99,7 +100,11 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
       {expanded && (
         <div class="feat-detail">
           {texts.length > 0
-            ? texts.map((t, i) => <p key={i} class="feat-detail-text">{t}</p>)
+            ? texts.map((t, i) => (
+                <p key={i} class="feat-detail-text">
+                  <TagText text={t} />
+                </p>
+              ))
             : <p class="feat-detail-text" style={{ color: 'var(--text-muted)' }}>No description.</p>
           }
         </div>

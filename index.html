@@ -230,6 +230,9 @@
             <button id="cs-btn-level-up" class="cs-edit-btn" aria-label="Level Up" title="Level Up" style="color: var(--accent-color); border-color: var(--accent-color);">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
             </button>
+            <button id="cs-btn-quick-lookup" class="cs-edit-btn" aria-label="Quick Lookup (Ctrl+K)" title="Quick Lookup (Ctrl+K)" onclick="window.__openQuickLookup?.()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
           </div>
           <div id="cs-char-subtitle">Level 1 Fighter</div>
         </div>
@@ -697,6 +700,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Quick Lookup panel root — mounted by Preact (global overlay, z-index 2000) -->
+  <div id="quick-lookup-root"></div>
 
   <script type="module" src="app.js"></script>
   <script type="module" src="/src/main.tsx"></script>

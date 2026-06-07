@@ -1110,3 +1110,150 @@
   gap: 10px;
 }
 
+
+/* ── Quick Lookup Panel ───────────────────────────────────────────────────── */
+.ql-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+}
+
+.ql-panel {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  width: 540px;
+  max-width: 94vw;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+
+.ql-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ql-search-icon {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.ql-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 16px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+.ql-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ql-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+}
+
+.ql-results {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ql-result-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.ql-result-item:hover {
+  background: var(--panel-bg-hover);
+}
+
+.ql-result-icon {
+  font-size: 15px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.ql-result-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ql-result-type {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  background: var(--panel-bg);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.ql-no-results,
+.ql-hint {
+  padding: 18px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.ql-footer {
+  padding: 8px 18px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 18px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ── Tag reference inline button ─────────────────────────────────────────── */
+.tag-ref-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--accent-color);
+  font-size: inherit;
+  font-family: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.tag-ref-btn:hover {
+  text-decoration: underline;
+}
