@@ -13,7 +13,7 @@
 - [x] *DONE* Update system documentation at /docs/* so that agents can understand structure and make app changes. Break into small files for low-token reads of specific features. Start with "Architecture Changes.md" as the base.
 - [x] *DONE* Equipment lists incorrect. Should have multiple lists. Items added to list should have toggles for carried, equipped, or neither. Currently has multiple lists of different statuses which is incorrect. (Was correct prior to refactor to vite structure)
 - [x] *DONE* ENHANCEMENT: Equipment list should follow structure of other lists. Toggle to change status should be on the right-side of the list. Follow standard of empty circle for not carried, filled-in circle for carried (same as skills iconography) and shield icon when equipped. Click to cycle through each state.
-- [ ] ENHANCEMENT: Gray-on-black text hard to read. Increase brightness of gray descriptive text and subtitles. Meet general accessibility standards for contrast.
+- [x] *DONE* ENHANCEMENT: Gray-on-black text hard to read. Increase brightness of gray descriptive text and subtitles. Meet general accessibility standards for contrast.
 - [ ] ENHANCEMENT: Update icons so all are outlined material icons - no emojis, minimal coloring. https://fonts.google.com/icons
 - [ ] BUG: Adding a spell to spell list doesn't show it until you refresh the page
 - [ ] ENHANCEMENT: When adding items from compendium (spells, items, feats, options, beasts, etc.), do not leave compendium/picker view immediately so users can add multiple things at a time.
