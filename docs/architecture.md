@@ -20,7 +20,7 @@ The app serves two purposes:
 |------|------|
 | `index.html` | Single HTML shell. All panes are pre-defined in markup; JS shows/hides them. |
 | `index.css` | All styling (~73 KB). CSS custom properties drive the dark theme. |
-| `app.js` | Monolith UI controller (~6800 lines). Contains all rendering, event wiring, navigation, settings, character sheet, and wizard logic. |
+| `app.js` | Monolith UI controller (~8000 lines). Contains all rendering, event wiring, navigation, settings, character sheet, and wizard logic. |
 | `db.js` | IndexedDB abstraction layer. All reads/writes go through here. Exports `clearCompendium()` (preserves characters/favorites) and `clearDatabase()` (wipes everything). |
 | `engine.js` | Headless stat calculator. Reads a character object, returns a flat `state` dict of resolved numbers. |
 | `parser-5etools.js` | Ingestion adapter. Converts raw 5etools JSON → normalized internal records. |
@@ -30,7 +30,7 @@ The app serves two purposes:
 | `storage.js` | `navigator.storage.persist()` + quota monitoring. |
 | `ui-sync.js` | Sync/storage status banners and badges rendered in the UI. |
 | `feature-modifiers.js` | Static lookup table: `"FeatureName\|Source"` → modifier array. Used by engine. |
-| `sw.js` | Service worker. Cache-first with background network update. Bump `CACHE_NAME` version to force cache invalidation. |
+| `sw.js` | Service worker. Cache-first with background network update. Bump `CACHE_NAME` version to force cache invalidation. Currently `v31`. |
 | `source-data/` | Bundled SRD XML (fallback data source, not primary). |
 
 ---
@@ -70,11 +70,12 @@ app.js renderFacet1/2 → renderList → selectItem → getDetailHTML
 
 1. **No framework.** Vanilla JS ES modules. No build step. Served by any static file server or `python3 -m http.server 8085`.
 2. **All state lives in IndexedDB.** `allRecordsCache` is an in-memory mirror populated at category load time, never the source of truth.
-3. **`_modified_at` ISO timestamp** on every record enables LWW sync without a server clock.
+3. **`_modified_at` ISO timestamp** on every record enables LWW sync without a server clock. Note: compendium records imported from 5etools do NOT carry `_modified_at` — only characters, favorites, and hand-built records do. This is intentional; compendium data is re-importable.
 4. **`app.js` is a monolith by design.** Do not split it without a clear plan; many functions share top-level state variables (`currentCategory`, `selectedItem`, `currentCharacter`, etc.).
-5. **Service worker caches JS/CSS.** After editing JS/CSS, bump `CACHE_NAME` in `sw.js` (currently `v27`; increment to force cache invalidation). Users may also need to hard-reload (Cmd+Shift+R) or unregister the SW via DevTools.
+5. **Service worker caches JS/CSS.** After editing JS/CSS, bump `CACHE_NAME` in `sw.js` (currently `v31`; increment to force cache invalidation). Users may also need to hard-reload (Cmd+Shift+R) or unregister the SW via DevTools.
 6. **XPHB vs PHB data shape differs.** XPHB (2024 rules) races/backgrounds use free-form ability selection in nested `entries` rather than structured `ability[]` arrays. The parser normalizes both; XPHB ability/language fields may be empty strings when the data is inherently free-form.
 7. **Two distinct clear operations exist.** `clearCompendium()` wipes only compendium content stores (spells, items, monsters, etc.) and preserves `characters` and `favorites`. `clearDatabase()` clears **all** STORES including characters. `importAllData()` calls `clearDatabase()` by default; be careful not to use it as a re-import path without understanding this.
+8. **TCE Artificer is fully superseded by EFA (Eberron: Forge of the Artificer).** These sources are mutually exclusive — a user will never have both loaded. The source ranking system handles deduplication generically, but in practice only one will be present.
 
 ---
 

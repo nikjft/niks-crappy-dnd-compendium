@@ -1566,7 +1566,7 @@ async function execute5eToolsImport(sources) {
             if (entries.type === 'table') {
               const caption = entries.caption || '';
               if (caption.toLowerCase().includes('replicable items') || caption.toLowerCase().includes('magic item plans') || (f.name && f.name.toLowerCase().includes('replicate magic item'))) {
-                const match = caption.match(/(\d+)(?:st|nd|rd|th)-level/i);
+                const match = caption.match(/(\d+)(?:st|nd|rd|th)-level/i) || caption.match(/Level\s+(\d+)\+?/i);
                 const level = match ? parseInt(match[1]) : 0;
                 if (entries.rows) {
                   entries.rows.forEach(row => {
@@ -3242,12 +3242,12 @@ function getDetailHTML(item, category = currentCategory) {
       html = `
         <div class="detail-view-container">
           <header class="detail-header">
-            <div class="detail-subtitle">Character Class</div>
+            <div class="detail-subtitle">${cls.parentClass ? `${cls.parentClass} Subclass` : 'Character Class'}</div>
             <h1>${cls.name}</h1>
             <div style="font-style: italic; color: var(--accent-color)">Hit Die: d${cls.hd}</div>
           </header>
           <div class="detail-body">
-            <div class="detail-meta-box">
+            ${!cls.parentClass ? `<div class="detail-meta-box">
               <div class="meta-entry">
                 <span class="meta-label">Primary Proficiencies</span>
                 <span class="meta-value">${cls.proficiency || '—'}</span>
@@ -3264,9 +3264,9 @@ function getDetailHTML(item, category = currentCategory) {
                 <span class="meta-label">Tools</span>
                 <span class="meta-value">${cls.tools || 'None'}</span>
               </div>
-            </div>
+            </div>` : ''}
 
-            <h2 style="margin-top: 30px; margin-bottom: 12px; font-size: 20px; color: var(--accent-color)">Class Progression Table</h2>
+            <h2 style="margin-top: 30px; margin-bottom: 12px; font-size: 20px; color: var(--accent-color)">${cls.parentClass ? 'Subclass' : 'Class'} Progression Table</h2>
             <table class="class-features-table">
               <thead>
                 ${headerHtml}
@@ -7576,6 +7576,62 @@ function renderCharacterSheetUI() {
                         id: `dynamic-${clsName}-${cleanLabel}`,
                         name: `${cleanLabel}: ${val}`,
                         texts: [`This value is determined by your Level ${charClass.level} ${charClass.name} class progression.`],
+                        isDynamic: true
+                      });
+                    }
+                  });
+                }
+              }
+            });
+          }
+        }
+      }
+    } else if (listDef.name.startsWith('Subclass: ')) {
+      const subclassName = listDef.name.substring(10).trim();
+      const charClass = currentCharacter.classes?.find(cc =>
+        cc.subclass && cc.subclass.toLowerCase() === subclassName.toLowerCase()
+      );
+      if (charClass && allRecordsCache['subclasses']) {
+        const subRecord = allRecordsCache['subclasses'].find(s =>
+          s.name.toLowerCase() === subclassName.toLowerCase() &&
+          s.parentClass.toLowerCase() === charClass.name.toLowerCase()
+        );
+        const parentClassRecord = allRecordsCache['classes']?.find(c =>
+          c.name.toLowerCase() === charClass.name.toLowerCase()
+        );
+        if (subRecord) {
+          items.unshift({
+            id: `overview-subclass-${subclassName}`,
+            name: `${subclassName} Overview`,
+            texts: [`Click to view the ${subclassName} subclass progression and features.`],
+            isOverview: true,
+            classData: {
+              name: subRecord.name,
+              parentClass: charClass.name,
+              hd: parentClassRecord?.hd || 8,
+              classTableGroups: subRecord.subclassTableGroups || [],
+              autolevels: subRecord.autolevels || [],
+              source: subRecord.source
+            },
+            categoryType: 'class-overview'
+          });
+
+          if (subRecord.subclassTableGroups) {
+            const customSubGroups = subRecord.subclassTableGroups.filter(g =>
+              !g.title?.includes('Spell Slots') && !g.rowsSpellProgression
+            );
+            customSubGroups.forEach(g => {
+              if (g.colLabels && g.rows) {
+                const lvlIdx = charClass.level - 1;
+                if (g.rows[lvlIdx]) {
+                  g.colLabels.forEach((label, idx) => {
+                    const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
+                    const val = formatTableCellValue(g.rows[lvlIdx][idx]);
+                    if (val && val !== '—') {
+                      items.push({
+                        id: `dynamic-subclass-${subclassName}-${cleanLabel}`,
+                        name: `${cleanLabel}: ${val}`,
+                        texts: [`This value is determined by your Level ${charClass.level} ${subclassName} subclass progression.`],
                         isDynamic: true
                       });
                     }

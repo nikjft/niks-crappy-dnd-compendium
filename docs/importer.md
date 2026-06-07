@@ -12,21 +12,21 @@ All importer logic lives in `app.js`. The two entry points are:
 
 | Function | Trigger |
 |----------|---------|
-| `showSourceSelectionModal()` | "Load from GitHub" button in Settings panel |
+| `showSourceSelectionModal()` | "Load from GitHub" button in Settings panel (app.js L928) |
 | `dirInput` / `fileInput` change events | "Local Folder" / "Upload JSON" buttons in Settings |
 
 ---
 
 ## GitHub Import Flow
 
-### 1. Source Discovery (`showSourceSelectionModal` — app.js L722)
+### 1. Source Discovery (`showSourceSelectionModal` — app.js L928)
 
 1. Reads `githubRepoUrl` (default: `https://github.com/5etools-mirror-3/5etools-src`, user-configurable in Settings).
 2. `updateGithubBaseUrl()` converts the repo URL to a raw content base URL (`https://raw.githubusercontent.com/...`).
 3. Fetches `data/books.json` and `data/adventures.json` to get the list of available source books.
 4. Renders a modal listing each source with checkboxes. "Select All" and "Import Selection" buttons.
 
-### 2. Import Dispatch (`importFromGithub` or similar — app.js ~L800–1120)
+### 2. Import Dispatch (`importFromGithub` or similar — app.js ~L800–1630)
 
 For each selected source:
 1. Fetches index files (e.g. `data/races.json`, `data/spells.json`, etc.) from `githubBaseUrl + path`.
@@ -42,8 +42,6 @@ For each selected source:
 ---
 
 ## Deduplication & Magic Variant Generation
-
-To handle revisions (such as 2024 `XPHB` replacing 2014 `PHB` rules) and prevent name conflicts, the importer applies specific rules:
 
 ### 1. Dynamic Source Ranking
 - **Publication Dates**: The importer reads `data/books.json` and ranks sources based on publication timestamps. Newer core books (`XPHB`, `XDMG`, `XMM`) automatically outrank older editions (`PHB`, `DMG`, `MM`).
@@ -63,6 +61,23 @@ To handle revisions (such as 2024 `XPHB` replacing 2014 `PHB` rules) and prevent
 ### 4. Spell Lookup & Cross-Source Fallback
 - **Active Source Check**: Subclass links retrieved from the spell lookup mapping are verified. Only subclasses whose version source and subclass source exist in `activeSources` are associated with the spell, preventing third-party/unloaded sources (like Plane Shift `PSA` subclasses) from bleeding in.
 - **Cross-Source Lookup**: If a reprinted spell (such as `Aid` in `XPHB`) is not found under its reprinted source key in `gendata-spell-source-lookup.json`, the lookup table is searched across other sources (such as `PHB`) to retrieve classes and subclasses.
+
+### 5. Fighting Style Import Rules
+- Fighting Styles from `optionalfeatures.json` (featureType `FS:F`, `FS:B`, `FS:P`, `FS:R`) are imported as **Feats** (not Options), with `category: 'Fighting Style'`.
+- **Override**: When XPHB is loaded, TCE Fighting Styles tagged only for Ranger (`FS:R`) or Paladin (`FS:P`) are skipped. Fighter-tagged styles (`FS:F`) from TCE are kept regardless. This prevents duplicate fighting styles when both XPHB and TCE are loaded.
+
+### 6. Artificer Replicate Magic Item Options
+Two generation passes create individual `Replicate Magic Item: [Item Name]` option records:
+- **Pass 1** (app.js ~L1419): Processes TCE `optionalfeatures.json`, scanning "Replicable Items" tables. Handles ordinal-level captions like `Replicable Items (2nd-Level Artificer)`.
+- **Pass 2** (app.js ~L1557): Processes the EFA `class-artificer.json` classFeature, scanning "Magic Item Plans" tables. Handles `Magic Item Plans (Artificer Level 6+)` captions.
+
+**Note:** TCE Artificer is fully superseded by EFA — these sources are mutually exclusive. Only one pass will ever fire in a given import. See architecture.md §8.
+
+Each generated option record has:
+- `name`: `"Replicate Magic Item: Alchemy Jug"` etc.
+- `level`: minimum Artificer level from the table caption
+- `classes`: `['Artificer Infusion']`
+- `source`: the source of the originating feature
 
 ---
 
@@ -109,7 +124,7 @@ All records share these base fields:
   texts: string[],       // Main description paragraphs (markdown)
   traits: [{ name, texts, modifiers }],  // Named sub-entries
   modifiers: [],         // Engine modifier array (see engine.md)
-  _modified_at: string,  // ISO timestamp — set at import time
+  _modified_at: string,  // ISO timestamp — only set on characters/favorites, NOT on imported compendium data
 }
 ```
 
@@ -133,6 +148,35 @@ All records share these base fields:
   tools: string,         // Tool proficiency name(s)
   languages: string,     // Language grants
   feats: string,         // Feat name(s)
+}
+```
+
+**Class record fields** (from `normalize5etoolsClass`):
+```js
+{
+  name: string,
+  hd: number,            // Hit die size (e.g. 8 for d8)
+  proficiency: string,   // Saving throw proficiencies
+  armor: string,         // Armor training
+  weapons: string,       // Weapon proficiencies
+  tools: string,         // Tool proficiencies
+  spellAbility: string,  // 'int' | 'wis' | 'cha' | '' for non-casters
+  slotsTable: [{ level, slots }],  // Spell slots by level (casters only)
+  classTableGroups: [],  // Custom progression columns (e.g. Rage count, Ki points)
+  autolevels: [],        // Features gained at each level
+  features: [],          // Flat list of all class features
+}
+```
+
+**Subclass record fields:**
+```js
+{
+  name: string,
+  parentClass: string,   // e.g. "Fighter"
+  spellAbility: string,
+  autolevels: [],        // Features at each level
+  subclassTableGroups: [], // Custom subclass progression columns (e.g. Psi Warrior dice)
+  source: string,
 }
 ```
 

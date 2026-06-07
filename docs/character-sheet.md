@@ -8,7 +8,7 @@ The character sheet allows creating, viewing, editing, and leveling up D&D 5e/5.
 
 ## Character Data Model
 
-Created by `createNewCharacterTemplate()` (app.js L3511). The full shape:
+Created by `createNewCharacterTemplate()` (app.js ~L4178). The full shape:
 
 ```js
 {
@@ -58,8 +58,12 @@ Created by `createNewCharacterTemplate()` (app.js L3511). The full shape:
 
   // Organization
   featureLists: [],   // [{ id, name }] — groups features into sections
-  spellLists: [],
-  equipmentLists: [],
+  spellLists: [],     // [{ id, name, spellcastingAbility }]
+  itemLists: [],
+  bestiaryLists: [],
+
+  // Counters (class resource tracking)
+  counters: [],       // [{ id, name, max, value, reset_short, reset_long, isDynamic }]
 
   // Currency, conditions, notes
   currency: { pp, gp, ep, sp, cp },
@@ -116,7 +120,32 @@ To add a new programmatic modifier, add an entry to this file — no changes to 
 
 ---
 
-## Character Roster (`renderCharactersRoster` — app.js L3564)
+## Dynamic Counters (Combat Tab)
+
+On every render of `renderCharacterSheetUI()`, the counters section on the **Combat tab** (`#cs-counters-list`) is synchronized from class and subclass progression tables:
+
+1. For each class in `character.classes`, the matching `classRecord.classTableGroups` is scanned (excluding spell slot groups).
+2. For each subclass, `subclassRecord.subclassTableGroups` is also scanned.
+3. **Numeric values** (e.g. Rage count `4`, Ki Points `5`) are upserted into `character.counters` as `isDynamic: true` counters, clamped to the current level's value.
+4. **Non-numeric values** (e.g. Psi Die `d6`, Sneak Attack `3d6`) appear as read-only "Class Progression Stat" rows below the counters.
+5. Dynamic counters whose class/subclass is no longer active are pruned automatically.
+
+User-added counters (not `isDynamic`) are never modified by this process.
+
+---
+
+## Spell Slot Calculation (`calculateCharacterSlots` — app.js L6327)
+
+Handles all multiclass combinations:
+
+- **Single-class non-Warlock**: Uses `clsRecord.slotsTable` directly.
+- **Warlock (single)**: Uses `WARLOCK_PACT_SLOTS` table (all slots at highest available pact level).
+- **Multiclass**: Sums effective caster levels — full casters (Bard, Cleric, Druid, Sorcerer, Wizard) contribute full levels; half-casters (Artificer, Paladin, Ranger) contribute ⌈level/2⌉; third-casters (Eldritch Knight, Arcane Trickster) contribute ⌊level/3⌋. Looks up the total in `MULTICLASS_SLOTS`.
+- **Warlock + multiclass**: Warlock pact slots are added separately on top of the standard multiclass slots.
+
+---
+
+## Character Roster (`renderCharactersRoster` — app.js L4182)
 
 Rendered when `currentCategory === 'characters'`. Shows a card grid of all characters. Each card has:
 - Name, class, level
@@ -125,29 +154,47 @@ Rendered when `currentCategory === 'characters'`. Shows a card grid of all chara
 
 ---
 
-## Character Sheet View (`openCharacterSheet` — app.js L3668)
+## Character Sheet View (`openCharacterSheet` — app.js L4286)
 
 Opens a full-screen overlay modal (`.character-sheet-overlay`) on top of the compendium. Contains:
 
 - **Header bar** — character name, level/class, HP tracker, death saves, initiative.
-- **Stats tab** — ability scores, saves, skills, passive scores.
-- **Combat tab** — AC, speed, HP controls, attack rolls, spell DC/attack.
+- **Combat tab** (default) — AC, speed, HP controls, attack rolls, spell DC/attack, usage counters, class progression stats.
+- **Stats & Skills tab** — ability scores, saves, skills, passive scores.
 - **Features tab** — feature list with active toggles, organized by `featureLists`.
-- **Equipment tab** — equipped/unequipped items, currency.
-- **Spells tab** — spell list organized by `spellLists`.
+- **Inventory tab** — equipped/unequipped items, currency.
+- **Spells tab** — spell list organized by `spellLists`. Always visible regardless of class.
+- **Bestiary tab** — companions and summons.
 - **Notes tab** — backstory, personality, ideals, bonds, flaws, conditions.
 
 Whenever any toggle or stat changes, the sheet calls `saveCharacter(currentCharacter)` then re-renders the affected section. `saveCharacter` calls `saveRecord('characters', char)` in `db.js` and triggers `scheduleDebouncedSync()`.
 
 ---
 
-## Character Creator Modal (`showCharacterCreatorModal` — app.js L3665)
+## Feature Lists in the Features Tab
+
+Feature lists are organized by `featureLists` entries. Each list is rendered by `renderListSection`. Special injection logic runs per list type:
+
+### `Class: ClassName` lists
+- A clickable **"[ClassName] Overview"** row is prepended. Clicking opens the class's full progression table (`class-overview` renderer using `item.classData = matchingClass`).
+- **Dynamic table rows** from `classTableGroups` at the character's current level are appended (read-only, e.g. "Rages: 4").
+
+### `Subclass: SubclassName` lists
+- A clickable **"[SubclassName] Overview"** row is prepended. Clicking opens a subclass progression table (`class-overview` renderer using `item.classData = { name, parentClass, hd, classTableGroups: subclassTableGroups, autolevels }`). Subtitle reads "[ClassName] Subclass"; proficiency meta box is hidden.
+- **Dynamic table rows** from `subclassTableGroups` at the character's current level are appended (e.g. "Psionic Dice: d6").
+
+### Default feature list (named "Feats")
+No injection — renders stored features only.
+
+---
+
+## Character Creator Modal (`showCharacterCreatorModal` — app.js L4340)
 
 A simpler quick-create form (legacy path). Lets users set name, class, background, species, base stats manually. Less guided than the Wizard.
 
 ---
 
-## Character Creation Wizard (`openWizard` — app.js L3963)
+## Character Creation Wizard (`openWizard` — app.js L4503)
 
 A 5-step modal wizard. Renders into `#cs-wizard-modal`.
 
@@ -185,7 +232,7 @@ wizardState = {
 }
 ```
 
-`applyWizardResult()` (app.js L4872) converts `wizardState` into a new character using `createNewCharacterTemplate()`, then builds `features`, `featureLists`, and `modifiers` from species traits, background, and class Level 1 features.
+`applyWizardResult()` (app.js ~L5440) converts `wizardState` into a new character using `createNewCharacterTemplate()`, then builds `features`, `featureLists`, and `modifiers` from species traits, background, and class Level 1 features.
 
 ---
 
@@ -193,24 +240,24 @@ wizardState = {
 
 ### Entry Point
 
-"Level Up" button on the character sheet calls `openLevelUpModal(char)` (app.js L5144) which renders `#cs-levelup-modal`.
+"Level Up" button on the character sheet calls `openLevelUpModal(char)` (app.js L5684) which renders `#cs-levelup-modal`.
 
 ### Steps
 
 | Step | Function | Purpose |
 |------|----------|---------|
 | `choose_class` | `renderLevelUpChooseClass(body)` | Choose which class to advance (or multiclass into a new one) |
-| `level_details` | `renderLevelUpDetails(body)` | HP gain input, subclass picker (at L3), ASI controls (if ASI level), feature checklist |
+| `level_details` | `renderLevelUpDetails(body)` (app.js L5779) | HP gain input, subclass picker (at L3), ASI controls (if ASI level), feature checklist |
 
-### `renderLevelUpDetails` (app.js L5239)
+### `renderLevelUpDetails` (app.js L5779)
 
 1. Looks up `classRecord.autolevels` for features at the target level.
 2. Also loads `subclassRecord.autolevels` if a subclass is already chosen.
 3. Detects if `targetLevel === 3` and no subclass → shows subclass picker.
 4. Detects if any feature name contains "Ability Score Improvement" or "Feat" → shows ASI stat grid.
-5. Renders each feature with its `texts[]` description inline (no modal required to read it).
+5. Renders each feature with its `texts[]` description inline.
 
-### Apply Level-Up (`applyLevelUp` — app.js L5502)
+### Apply Level-Up (`applyLevelUp` — app.js L6042)
 
 1. Increments `char.classes[n].level` (or pushes a new class entry for multiclass).
 2. Updates `char.level` (sum of all class levels).
@@ -219,6 +266,15 @@ wizardState = {
 5. Adds subclass to `char.classes[n].subclass` if chosen.
 6. Adds `levelUpState.hpRoll` to `char.baseHpMax`.
 7. Saves and re-renders the character sheet.
+
+---
+
+## `ensureCharacterLists` (app.js L6444)
+
+Called on every sheet render and after level-up. Ensures all list arrays exist and are consistent:
+- `featureLists` defaults to `[{ name: 'Feats' }]`. Migrates legacy `'Features & Traits'` / `'Features and Traits'` names to `'Feats'`.
+- `spellLists` defaults to `[]` — no default list is created. Spell lists are only created when a spellcasting class is present. The Spells tab is always visible regardless.
+- Reconciles spell lists to match the character's current classes and subclasses.
 
 ---
 
