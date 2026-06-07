@@ -2,11 +2,11 @@
 
 **IMPORTANT: Agent should not execute any of these changes without specific instructions. When completing items in this list prefix them with `*DONE*` as a record. Ignore complete items.**
 
-BUG: Bestiary shows types (e.g. Dragon, Aberration, Beast) but the filter by type is blank. Ensure it shows all types in the list for easy filtering.
+*DONE* BUG: Bestiary shows types (e.g. Dragon, Aberration, Beast) but the filter by type is blank. Ensure it shows all types in the list for easy filtering.
 
-BUG: Imported TCE and EFA Artificer, ended up with Arcane Infusions in features even though that's TCE Artificer which should be superseded by EFA. Additionally artificer magic item plans should be in options per the subclass abilities. This has been marked complete before, bug may still exist.
+*DONE* BUG: Imported TCE and EFA Artificer, ended up with Arcane Infusions in features even though that's TCE Artificer which should be superseded by EFA. Additionally artificer magic item plans should be in options per the subclass abilities. This has been marked complete before, bug may still exist.
 
-ENHANCEMENT: Add custom elements to any list (spells, items, features, etc). 
+*DONE* ENHANCEMENT: Add custom elements to any list (spells, items, features, etc). 
 
 Provide dialog to enter common attributes for that item type. 
 

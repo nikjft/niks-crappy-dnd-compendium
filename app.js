@@ -1,4 +1,4 @@
-import { openDB, saveRecords, saveRecord, getAllRecords, clearDatabase, clearCompendium, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting } from './db.js';
+import { openDB, saveRecords, saveRecord, getAllRecords, clearDatabase, clearCompendium, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting, getCustomRecordsForStore, saveCustomRecord, deleteCustomRecord } from './db.js';
 import { ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
 import { initStorage, storageHealth, getStorageQuota, onQuotaWarning, onPersistenceResult } from './storage.js';
 import { initSync, syncNow, scheduleDebouncedSync, syncState, onSyncStatusChange, startDropboxOAuth, unlinkDropbox, isDropboxLinked, refreshAccessToken } from './sync.js';
@@ -266,6 +266,9 @@ const backFacet2 = document.getElementById('back-facet-2');
 const backList = document.getElementById('back-list');
 const backDetail = document.getElementById('back-detail');
 const btnFavorite = document.getElementById('btn-favorite');
+const btnEditRecord = document.getElementById('btn-edit-record');
+const btnSyncCompendium = document.getElementById('btn-sync-compendium');
+const btnAddCustom = document.getElementById('btn-add-custom');
 
 const FAVORITES_GROUP_NAMES = {
   'spells': 'Spells',
@@ -594,6 +597,44 @@ function setupEventListeners() {
       scheduleDebouncedSync();
     });
   }
+  // Edit record button
+  if (btnEditRecord) {
+    btnEditRecord.addEventListener('click', () => {
+      if (!selectedItem) return;
+      openCustomElementDialog(currentCategory, selectedItem);
+    });
+  }
+
+  // Sync from compendium button (resets custom override)
+  if (btnSyncCompendium) {
+    btnSyncCompendium.addEventListener('click', async () => {
+      if (!selectedItem || !selectedItem._custom || !selectedItem._overrides_compendium) return;
+      if (!confirm(`Reset "${selectedItem.name}" to the original compendium version? Your customizations will be permanently lost.`)) return;
+      const store = getStoreNameForCategory(currentCategory);
+      await deleteCustomRecord(store, selectedItem.name);
+      // Reload cache for this store and re-render
+      allRecordsCache[store] = await getAllRecords(store);
+      const customs = await getCustomRecordsForStore(store);
+      customs.forEach(cr => {
+        if (!allRecordsCache[store].find(r => r.name === cr.name)) allRecordsCache[store].push(cr);
+      });
+      currentRecords = allRecordsCache[store] || [];
+      const restored = currentRecords.find(r => r.name === selectedItem.name);
+      if (restored) {
+        selectedItem = restored;
+        renderDetails(restored);
+      }
+      applyFilters();
+    });
+  }
+
+  // Add custom record button (list pane "+")
+  if (btnAddCustom) {
+    btnAddCustom.addEventListener('click', () => {
+      openCustomElementDialog(currentCategory, null);
+    });
+  }
+
   setupCharacterSheetEvents();
 
   // Intercept relative link clicks for single-page app (SPA) internal navigation
@@ -641,11 +682,14 @@ function setupEventListeners() {
 
 function updateFavoriteButtonUI() {
   if (!btnFavorite) return;
-  if (!selectedItem || currentCategory === 'settings' || currentCategory === 'search') {
+  const noItem = !selectedItem || currentCategory === 'settings' || currentCategory === 'search';
+  if (noItem) {
     btnFavorite.style.display = 'none';
+    if (btnEditRecord) btnEditRecord.style.display = 'none';
+    if (btnSyncCompendium) btnSyncCompendium.style.display = 'none';
     return;
   }
-  
+
   // Show button and check if active
   btnFavorite.style.display = 'flex';
   const isFav = isItemFavorited(selectedItem, selectedItem.categoryType);
@@ -654,6 +698,24 @@ function updateFavoriteButtonUI() {
   } else {
     btnFavorite.classList.remove('active');
   }
+
+  // Edit button — shown for all compendium items (not characters/favorites/settings)
+  const editableCategories = ['spells', 'items', 'monsters', 'feats', 'options', 'backgrounds', 'races', 'classes', 'subclasses'];
+  if (btnEditRecord) {
+    btnEditRecord.style.display = editableCategories.includes(currentCategory) ? 'flex' : 'none';
+  }
+
+  // Sync button — only for custom records that override a compendium entry
+  if (btnSyncCompendium) {
+    btnSyncCompendium.style.display = (selectedItem._custom && selectedItem._overrides_compendium) ? 'flex' : 'none';
+  }
+}
+
+// Show/hide the "+" add custom button in the list pane header
+function updateAddCustomButtonUI() {
+  if (!btnAddCustom) return;
+  const noCustom = ['characters', 'favorites', 'search', 'settings'].includes(currentCategory);
+  btnAddCustom.style.display = noCustom || pickerActive ? 'none' : 'flex';
 }
 
 // Load all records across all stores into local memory cache
@@ -709,6 +771,29 @@ async function loadAllRecordsCache() {
       });
       
       cls.features = featuresList;
+    });
+  }
+
+  // Merge user custom records into each store's in-memory cache
+  const compendiumStores = STORES.filter(s => s !== 'favorites' && s !== 'characters');
+  for (const store of compendiumStores) {
+    const customs = await getCustomRecordsForStore(store);
+    if (customs.length === 0) continue;
+    if (!allRecordsCache[store]) allRecordsCache[store] = [];
+    customs.forEach(cr => {
+      if (cr._overrides_compendium) {
+        const idx = allRecordsCache[store].findIndex(r => r.name === cr.name);
+        if (idx >= 0) {
+          allRecordsCache[store][idx] = cr;
+        } else {
+          allRecordsCache[store].push(cr);
+        }
+      } else {
+        // New custom record — append only if not already present
+        if (!allRecordsCache[store].find(r => r.name === cr.name)) {
+          allRecordsCache[store].push(cr);
+        }
+      }
     });
   }
 }
@@ -1406,10 +1491,15 @@ async function execute5eToolsImport(sources) {
     showOverlay('Importing 5eTools...', 'Loading optional features data...');
     const optJson = await readJsonFile('data/optionalfeatures.json');
     if (optJson && optJson.optionalfeature) {
+      const hasEFA = sources.includes('EFA');
       const filtered = optJson.optionalfeature.filter(o => {
         if (!sources.includes(o.source)) return false;
         // Skip Fighting Styles as they are imported under Feats
         if (o.featureType && o.featureType.some(ft => ft === 'FS:F' || ft === 'FS:B' || ft === 'FS:P' || ft === 'FS:R')) {
+          return false;
+        }
+        // Skip TCE Artificer Infusions when EFA is loaded (EFA supersedes TCE Artificer)
+        if (hasEFA && o.source.toUpperCase() === 'TCE' && o.featureType && o.featureType.includes('AI')) {
           return false;
         }
         return true;
@@ -1735,6 +1825,7 @@ async function loadCategory(category) {
   renderFacet1();
   renderFacet2();
   applyFilters();
+  updateAddCustomButtonUI();
 
   // On mobile, set initial view
   if (hasFacet1()) {
@@ -1759,7 +1850,7 @@ function hasFacet1() {
 
 function hasFacet2() {
   if (currentCategory === 'monsters') {
-    return selectedFacet1 === 'By CR' || selectedFacet1 === 'By Type';
+    return selectedFacet1 !== 'All';
   }
   if (currentCategory === 'favorites') {
     return selectedFacet1 === 'spells' || selectedFacet1 === 'items' || selectedFacet1 === 'monsters' || selectedFacet1 === 'classes';
@@ -2054,8 +2145,10 @@ function renderFacet1() {
     });
     values = Array.from(types).sort();
   } else if (currentCategory === 'monsters') {
-    facetName = 'Filter';
-    values = ['By CR', 'By Type'];
+    facetName = 'Type';
+    const types = new Set();
+    currentRecords.forEach(m => { if (m.type) types.add(m.type.toLowerCase()); });
+    values = Array.from(types).sort();
   } else if (currentCategory === 'options') {
     facetName = 'Type';
     const types = new Set();
@@ -2139,7 +2232,7 @@ function renderFacet2() {
     } else if (currentCategory === 'classes') {
       recordsFacet1 = currentRecords.filter(c => c.name === selectedFacet1);
     } else if (currentCategory === 'monsters') {
-      // recordsFacet1 remains currentRecords
+      recordsFacet1 = currentRecords.filter(m => m.type && m.type.toLowerCase() === selectedFacet1.toLowerCase());
     } else if (currentCategory === 'favorites') {
       recordsFacet1 = currentRecords.filter(f => f.category === selectedFacet1);
     }
@@ -2161,31 +2254,19 @@ function renderFacet2() {
     });
     values = Array.from(sections).sort();
   } else if (currentCategory === 'monsters') {
-    if (selectedFacet1 === 'By CR') {
-      facetName = 'CR';
-      const crs = new Set();
-      recordsFacet1.forEach(m => {
-        if (m.cr !== undefined && m.cr !== null) crs.add(m.cr.toString());
-      });
-      // Sort CR values numerically
-      values = Array.from(crs).sort((a, b) => {
-        const parseCR = (cr) => {
-          if (cr && typeof cr === 'string' && cr.includes('/')) {
-            const parts = cr.split('/');
-            return parseFloat(parts[0]) / parseFloat(parts[1]);
-          }
-          return parseFloat(cr) || 0;
-        };
-        return parseCR(a) - parseCR(b);
-      });
-    } else if (selectedFacet1 === 'By Type') {
-      facetName = 'Type';
-      const types = new Set();
-      recordsFacet1.forEach(m => {
-        if (m.type) types.add(m.type.toLowerCase());
-      });
-      values = Array.from(types).sort();
-    }
+    facetName = 'CR';
+    const crs = new Set();
+    recordsFacet1.forEach(m => {
+      if (m.cr !== undefined && m.cr !== null) crs.add(m.cr.toString());
+    });
+    const parseCR = (cr) => {
+      if (cr && typeof cr === 'string' && cr.includes('/')) {
+        const parts = cr.split('/');
+        return parseFloat(parts[0]) / parseFloat(parts[1]);
+      }
+      return parseFloat(cr) || 0;
+    };
+    values = Array.from(crs).sort((a, b) => parseCR(a) - parseCR(b));
   } else if (currentCategory === 'favorites') {
     if (selectedFacet1 === 'spells') {
       facetName = 'Level';
@@ -2265,11 +2346,7 @@ function renderFacet2() {
         }
       }
     } else if (currentCategory === 'monsters') {
-      if (selectedFacet1 === 'By CR') {
-        count = recordsFacet1.filter(m => m.cr && m.cr.toString() === val).length;
-      } else if (selectedFacet1 === 'By Type') {
-        count = recordsFacet1.filter(m => m.type && m.type.toLowerCase() === val).length;
-      }
+      count = recordsFacet1.filter(m => m.cr && m.cr.toString() === val).length;
     } else if (currentCategory === 'favorites') {
       if (selectedFacet1 === 'spells') {
         count = recordsFacet1.filter(fav => {
@@ -2358,7 +2435,7 @@ function applyFilters() {
       } else if (currentCategory === 'items') {
         if (record.type !== selectedFacet1) return false;
       } else if (currentCategory === 'monsters') {
-        // Grouping facet only, no direct filter
+        if (!record.type || record.type.toLowerCase() !== selectedFacet1.toLowerCase()) return false;
       } else if (currentCategory === 'options') {
         if (!record.classes || !record.classes.includes(selectedFacet1)) return false;
       } else if (currentCategory === 'favorites') {
@@ -2373,11 +2450,7 @@ function applyFilters() {
       } else if (currentCategory === 'classes') {
         // Sections are flattened later
       } else if (currentCategory === 'monsters') {
-        if (selectedFacet1 === 'By CR') {
-          if (record.cr !== selectedFacet2) return false;
-        } else if (selectedFacet1 === 'By Type') {
-          if (!record.type || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
-        }
+        if (record.cr === undefined || record.cr === null || record.cr.toString() !== selectedFacet2) return false;
       } else if (currentCategory === 'favorites') {
         if (selectedFacet1 === 'spells') {
           const item = resolveFavoriteItem(record);
@@ -3488,6 +3561,309 @@ function renderDetails(item, category = currentCategory) {
   detailPaneContent.innerHTML = getDetailHTML(item, category);
   updateFavoriteButtonUI();
   updateDetailFooterUI();
+}
+
+// ─── Custom Element Dialog ────────────────────────────────────────────────────
+
+const MODIFIER_TARGETS = [
+  'ac', 'initiative',
+  'str.score', 'dex.score', 'con.score', 'int.score', 'wis.score', 'cha.score',
+  'save.str', 'save.dex', 'save.con', 'save.int', 'save.wis', 'save.cha', 'save.all',
+  'spell.attack', 'spell.dc',
+  'melee.attack', 'melee.damage', 'ranged.attack', 'ranged.damage'
+];
+
+const MODIFIER_TYPES = ['add', 'set', 'min', 'max'];
+
+function buildModifierRowHTML(mod = {}, idx) {
+  const targetOpts = MODIFIER_TARGETS.map(t =>
+    `<option value="${t}" ${mod.target === t ? 'selected' : ''}>${t}</option>`
+  ).join('');
+  const typeOpts = MODIFIER_TYPES.map(t =>
+    `<option value="${t}" ${mod.type === t ? 'selected' : ''}>${t}</option>`
+  ).join('');
+  return `
+    <div class="custom-mod-row" data-idx="${idx}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <select class="custom-mod-target" style="flex:2;padding:6px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:13px;">
+        ${targetOpts}
+      </select>
+      <select class="custom-mod-type" style="flex:1;padding:6px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:13px;">
+        ${typeOpts}
+      </select>
+      <input class="custom-mod-value" type="text" value="${escapeHtml(String(mod.value ?? ''))}" placeholder="e.g. 2 or {prof_bonus}" style="flex:2;padding:6px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:13px;">
+      <button type="button" class="custom-mod-delete" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px 6px;font-size:16px;" title="Remove modifier">✕</button>
+    </div>
+  `;
+}
+
+function getCategoryFields(category, item = {}) {
+  const esc = (v) => escapeHtml(String(v ?? ''));
+  const sel = (v, opts) => opts.map(o =>
+    `<option value="${o}" ${v === o ? 'selected' : ''}>${o}</option>`
+  ).join('');
+
+  const fieldBlock = (label, content) =>
+    `<div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${label}</label>${content}</div>`;
+
+  const textInput = (name, val, placeholder = '') =>
+    `<input name="${name}" type="text" value="${esc(val)}" placeholder="${placeholder}" style="width:100%;padding:8px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:14px;box-sizing:border-box;">`;
+
+  const textArea = (name, val, rows = 6) =>
+    `<textarea name="${name}" rows="${rows}" style="width:100%;padding:8px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:14px;box-sizing:border-box;resize:vertical;">${esc(val)}</textarea>`;
+
+  const numInput = (name, val, placeholder = '') =>
+    `<input name="${name}" type="number" value="${esc(val)}" placeholder="${placeholder}" style="width:100%;padding:8px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:14px;box-sizing:border-box;">`;
+
+  const selectInput = (name, val, opts) =>
+    `<select name="${name}" style="width:100%;padding:8px;background:var(--panel-bg);border:1px solid var(--border-color);color:var(--text-primary);border-radius:4px;font-size:14px;">${sel(val, opts)}</select>`;
+
+  const descVal = (item.texts && item.texts.length) ? item.texts.join('\n\n') : '';
+
+  const common = fieldBlock('Description (Markdown)', textArea('description', descVal));
+  const modifierSection = `
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:8px;">MODIFIERS
+        <span style="font-size:11px;color:var(--text-muted);font-weight:normal;"> — target · type · value (supports {prof_bonus}, {str.mod}, etc.)</span>
+      </label>
+      <div id="custom-mod-list">
+        ${(item.modifiers || []).map((m, i) => buildModifierRowHTML(m, i)).join('')}
+      </div>
+      <button type="button" id="btn-add-modifier" style="background:none;border:1px solid var(--border-color);color:var(--accent-color);cursor:pointer;padding:6px 12px;border-radius:4px;font-size:13px;margin-top:4px;">+ Add Modifier</button>
+    </div>
+  `;
+
+  if (category === 'spells') {
+    const schools = ['Abjuration','Conjuration','Divination','Enchantment','Evocation','Illusion','Necromancy','Transmutation'];
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Spell name')),
+      fieldBlock('Level (0 = Cantrip)', numInput('level', item.level ?? 1)),
+      fieldBlock('School', selectInput('school', item.school, schools)),
+      fieldBlock('Casting Time', textInput('time', item.time, 'e.g. 1 action')),
+      fieldBlock('Range', textInput('range', item.range, 'e.g. 60 feet')),
+      fieldBlock('Components', textInput('components', item.components, 'e.g. V, S, M (a pinch of dust)')),
+      fieldBlock('Duration', textInput('duration', item.duration, 'e.g. Concentration, up to 1 minute')),
+      fieldBlock('Spell Lists (comma-separated)', textInput('classes', (item.classes || []).join(', '), 'e.g. Wizard, Sorcerer')),
+      common,
+    ].join('');
+  } else if (category === 'items') {
+    const rarities = ['Common','Uncommon','Rare','Very Rare','Legendary','Artifact','Varies'];
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Item name')),
+      fieldBlock('Type', textInput('type', item.type, 'e.g. Weapon, Armor, Wondrous Item')),
+      fieldBlock('Rarity', selectInput('rarity', item.rarity || 'Common', rarities)),
+      fieldBlock('Requires Attunement', `<input name="attunement" type="checkbox" ${item.attunement ? 'checked' : ''}>`),
+      fieldBlock('Weight (lbs)', numInput('weight', item.weight, '0')),
+      fieldBlock('Value (gp)', numInput('value', item.value, '0')),
+      common,
+      modifierSection,
+    ].join('');
+  } else if (category === 'feats') {
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Feat name')),
+      fieldBlock('Prerequisite', textInput('prerequisite', item.prerequisite, 'e.g. Strength 13 or higher')),
+      common,
+      modifierSection,
+    ].join('');
+  } else if (category === 'options') {
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Option name')),
+      fieldBlock('Class / Type (e.g. Artificer Infusion, Metamagic)', textInput('optionType', (item.classes || [])[0] || '', 'e.g. Eldritch Invocation')),
+      fieldBlock('Prerequisite Level', numInput('level', item.level ?? 0, '0')),
+      common,
+      modifierSection,
+    ].join('');
+  } else if (category === 'monsters') {
+    const sizes = ['Tiny','Small','Medium','Large','Huge','Gargantuan'];
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Monster name')),
+      fieldBlock('Type', textInput('type', item.type, 'e.g. dragon, undead, beast')),
+      fieldBlock('CR', textInput('cr', item.cr ?? '', 'e.g. 1, 1/2, 15')),
+      fieldBlock('Size', selectInput('size', item.size || 'Medium', sizes)),
+      fieldBlock('AC', numInput('ac', item.ac, '10')),
+      fieldBlock('HP', textInput('hp', item.hp ?? '', 'e.g. 52 (8d8+16)')),
+      common,
+    ].join('');
+  } else if (category === 'backgrounds') {
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Background name')),
+      common,
+      modifierSection,
+    ].join('');
+  } else if (category === 'races') {
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Species name')),
+      common,
+      modifierSection,
+    ].join('');
+  } else {
+    return [
+      fieldBlock('Name', textInput('name', item.name, 'Name')),
+      common,
+      modifierSection,
+    ].join('');
+  }
+}
+
+function openCustomElementDialog(category, existingItem) {
+  const isEdit = !!existingItem;
+  const title = isEdit ? `Edit: ${existingItem.name}` : `New ${category.slice(0, -1) || category}`;
+
+  // Remove any existing dialog
+  const old = document.getElementById('custom-element-dialog');
+  if (old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'custom-element-dialog';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  overlay.innerHTML = `
+    <div style="background:var(--panel-bg);border:1px solid var(--border-color);border-radius:12px;width:100%;max-width:600px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="margin:0;font-size:18px;color:var(--text-primary);">${escapeHtml(title)}</h2>
+        <button id="custom-dialog-close" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:20px;padding:4px 8px;">✕</button>
+      </div>
+      <form id="custom-element-form" style="overflow-y:auto;padding:20px 24px;flex:1;">
+        <input type="hidden" name="source" value="${escapeHtml(existingItem?.source || 'Custom')}">
+        ${getCategoryFields(category, existingItem || {})}
+      </form>
+      <div style="padding:16px 24px;border-top:1px solid var(--border-color);display:flex;justify-content:flex-end;gap:10px;">
+        ${isEdit && existingItem._custom && !existingItem._overrides_compendium ? `
+          <button id="custom-dialog-delete" type="button" style="margin-right:auto;background:none;border:1px solid var(--danger-color,#e53e3e);color:var(--danger-color,#e53e3e);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px;">Delete Custom Record</button>
+        ` : ''}
+        <button id="custom-dialog-cancel" type="button" style="background:var(--panel-bg-hover);border:1px solid var(--border-color);color:var(--text-secondary);padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;">Cancel</button>
+        <button id="custom-dialog-save" type="button" style="background:var(--accent-color);border:none;color:#000;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Modifier add/delete wiring
+  let modCount = (existingItem?.modifiers || []).length;
+  overlay.querySelector('#btn-add-modifier')?.addEventListener('click', () => {
+    const list = overlay.querySelector('#custom-mod-list');
+    if (!list) return;
+    const div = document.createElement('div');
+    div.innerHTML = buildModifierRowHTML({}, modCount++);
+    list.appendChild(div.firstElementChild);
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target.classList.contains('custom-mod-delete')) {
+      e.target.closest('.custom-mod-row').remove();
+    }
+  });
+
+  // Close handlers
+  overlay.querySelector('#custom-dialog-close').onclick = () => overlay.remove();
+  overlay.querySelector('#custom-dialog-cancel').onclick = () => overlay.remove();
+
+  // Delete handler (only for purely-custom records)
+  const deleteBtn = overlay.querySelector('#custom-dialog-delete');
+  if (deleteBtn) {
+    deleteBtn.onclick = async () => {
+      if (!confirm(`Permanently delete "${existingItem.name}"?`)) return;
+      const store = getStoreNameForCategory(category);
+      await deleteCustomRecord(store, existingItem.name);
+      allRecordsCache[store] = (allRecordsCache[store] || []).filter(r => r.name !== existingItem.name);
+      currentRecords = allRecordsCache[store] || [];
+      selectedItem = null;
+      detailPaneContent.innerHTML = '';
+      updateFavoriteButtonUI();
+      applyFilters();
+      overlay.remove();
+    };
+  }
+
+  // Save handler
+  overlay.querySelector('#custom-dialog-save').onclick = async () => {
+    const form = overlay.querySelector('#custom-element-form');
+    const data = new FormData(form);
+    const name = form.querySelector('[name="name"]')?.value?.trim();
+    if (!name) { alert('Name is required.'); return; }
+
+    // Collect modifiers from DOM
+    const mods = [];
+    overlay.querySelectorAll('.custom-mod-row').forEach(row => {
+      const target = row.querySelector('.custom-mod-target')?.value;
+      const type = row.querySelector('.custom-mod-type')?.value;
+      const value = row.querySelector('.custom-mod-value')?.value?.trim();
+      if (target && type && value !== '') {
+        const numVal = parseFloat(value);
+        mods.push({ target, type, value: isNaN(numVal) ? value : numVal });
+      }
+    });
+
+    const store = getStoreNameForCategory(category);
+    const isOverride = isEdit && !existingItem._custom;
+    const wasCustomNew = isEdit && existingItem._custom && !existingItem._overrides_compendium;
+
+    let record = { name, source: data.get('source') || 'Custom', modifiers: mods, texts: [] };
+
+    // Description → texts array
+    const desc = form.querySelector('[name="description"]')?.value?.trim();
+    if (desc) record.texts = desc.split(/\n{2,}/).map(t => t.trim()).filter(Boolean);
+
+    // Category-specific field extraction
+    if (category === 'spells') {
+      record.level = parseInt(form.querySelector('[name="level"]')?.value) || 0;
+      record.school = form.querySelector('[name="school"]')?.value || 'Evocation';
+      record.time = form.querySelector('[name="time"]')?.value || '';
+      record.range = form.querySelector('[name="range"]')?.value || '';
+      record.components = form.querySelector('[name="components"]')?.value || '';
+      record.duration = form.querySelector('[name="duration"]')?.value || '';
+      const classesStr = form.querySelector('[name="classes"]')?.value || '';
+      record.classes = classesStr.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (category === 'items') {
+      record.type = form.querySelector('[name="type"]')?.value || 'Gear';
+      record.rarity = form.querySelector('[name="rarity"]')?.value || 'Common';
+      record.attunement = form.querySelector('[name="attunement"]')?.checked || false;
+      record.weight = parseFloat(form.querySelector('[name="weight"]')?.value) || 0;
+      record.value = parseFloat(form.querySelector('[name="value"]')?.value) || 0;
+    } else if (category === 'feats') {
+      record.prerequisite = form.querySelector('[name="prerequisite"]')?.value || '';
+    } else if (category === 'options') {
+      const optType = form.querySelector('[name="optionType"]')?.value || '';
+      record.classes = optType ? [optType] : [];
+      record.level = parseInt(form.querySelector('[name="level"]')?.value) || 0;
+    } else if (category === 'monsters') {
+      record.type = form.querySelector('[name="type"]')?.value || 'beast';
+      record.cr = form.querySelector('[name="cr"]')?.value || '0';
+      record.size = form.querySelector('[name="size"]')?.value || 'Medium';
+      record.ac = parseInt(form.querySelector('[name="ac"]')?.value) || 10;
+      record.hp = form.querySelector('[name="hp"]')?.value || '';
+    }
+
+    if (isOverride || wasCustomNew) {
+      record._overrides_compendium = isOverride;
+    } else if (!isEdit) {
+      record._overrides_compendium = false;
+    }
+
+    const saved = await saveCustomRecord(store, record);
+
+    // Merge into allRecordsCache
+    if (!allRecordsCache[store]) allRecordsCache[store] = [];
+    if (saved._overrides_compendium) {
+      const idx = allRecordsCache[store].findIndex(r => r.name === saved.name);
+      if (idx >= 0) allRecordsCache[store][idx] = saved;
+      else allRecordsCache[store].push(saved);
+    } else {
+      const idx = allRecordsCache[store].findIndex(r => r.name === saved.name);
+      if (idx >= 0) allRecordsCache[store][idx] = saved;
+      else allRecordsCache[store].push(saved);
+    }
+
+    currentRecords = allRecordsCache[store] || [];
+    selectedItem = saved;
+    applyFilters();
+    renderDetails(saved, category);
+    overlay.remove();
+  };
+
+  // Close on backdrop click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
 }
 
 // Settings Control Panel Handlers

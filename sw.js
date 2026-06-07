@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dnd-compendium-cache-v31';
+const CACHE_NAME = 'dnd-compendium-cache-v32';
 const ASSETS = [
   './',
   './index.html',

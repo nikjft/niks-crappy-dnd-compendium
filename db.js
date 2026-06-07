@@ -4,9 +4,10 @@
 //   v5: adds _sync_meta, _app_settings; adds _modified_at timestamps
 
 const DB_NAME = 'dnd_compendium_db';
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 export const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'classFeatures', 'subclassFeatures', 'feats', 'backgrounds', 'races', 'options', 'favorites', 'characters'];
+export const CUSTOM_STORE = 'custom_records';
 const META_STORE = '_sync_meta';
 const SETTINGS_STORE = '_app_settings';
 
@@ -28,6 +29,11 @@ export function openDB() {
           db.createObjectStore(storeName, { keyPath });
         }
       });
+
+      // Custom user-created / user-edited compendium records
+      if (!db.objectStoreNames.contains(CUSTOM_STORE)) {
+        db.createObjectStore(CUSTOM_STORE, { keyPath: '_id' });
+      }
 
       // Sync metadata store (per-store sync state)
       if (!db.objectStoreNames.contains(META_STORE)) {
@@ -235,6 +241,49 @@ export async function deleteAppSetting(key) {
     const transaction = db.transaction(SETTINGS_STORE, 'readwrite');
     const store = transaction.objectStore(SETTINGS_STORE);
     store.delete(key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = (e) => reject(e.target.error);
+  });
+}
+
+// ─── Custom Records ──────────────────────────────────────────────────────────
+
+export async function getCustomRecordsForStore(storeName) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CUSTOM_STORE, 'readonly');
+    const store = transaction.objectStore(CUSTOM_STORE);
+    const results = [];
+    const request = store.openCursor();
+    request.onsuccess = (e) => {
+      const cursor = e.target.result;
+      if (cursor) {
+        if (cursor.value._storeName === storeName) results.push(cursor.value);
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function saveCustomRecord(storeName, record) {
+  const db = await openDB();
+  const entry = { ...record, _storeName: storeName, _custom: true, _id: `${storeName}::${record.name}` };
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CUSTOM_STORE, 'readwrite');
+    transaction.objectStore(CUSTOM_STORE).put(entry);
+    transaction.oncomplete = () => resolve(entry);
+    transaction.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function deleteCustomRecord(storeName, name) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CUSTOM_STORE, 'readwrite');
+    transaction.objectStore(CUSTOM_STORE).delete(`${storeName}::${name}`);
     transaction.oncomplete = () => resolve();
     transaction.onerror = (e) => reject(e.target.error);
   });
