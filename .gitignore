@@ -49,3 +49,4 @@ dist-ssr/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+.DS_Store
