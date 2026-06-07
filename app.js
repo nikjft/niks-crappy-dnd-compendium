@@ -4502,9 +4502,8 @@ async function saveCurrentCharacterAndRefresh() {
   if (!currentCharacter) return;
   currentCharacter._modified_at = new Date().toISOString();
   await saveCharacterToDb(currentCharacter);
-  // Sync to Preact signal so combat tab re-renders with latest data
   if (window.__dndStore?.currentCharacter) {
-    window.__dndStore.currentCharacter.value = Object.assign({}, currentCharacter);
+    window.__dndStore.currentCharacter.value = JSON.parse(JSON.stringify(currentCharacter));
   }
   renderCharacterSheetUI();
 }

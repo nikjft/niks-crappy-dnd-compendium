@@ -15,7 +15,7 @@
 - [x] *DONE* ENHANCEMENT: Equipment list should follow structure of other lists. Toggle to change status should be on the right-side of the list. Follow standard of empty circle for not carried, filled-in circle for carried (same as skills iconography) and shield icon when equipped. Click to cycle through each state.
 - [x] *DONE* ENHANCEMENT: Gray-on-black text hard to read. Increase brightness of gray descriptive text and subtitles. Meet general accessibility standards for contrast.
 - [ ] ENHANCEMENT: Update icons so all are outlined material icons - no emojis, minimal coloring. https://fonts.google.com/icons
-- [ ] BUG: Adding a spell to spell list doesn't show it until you refresh the page
+- [x] *DONE* BUG: Adding a spell to spell list doesn't show it until you refresh the page
 - [ ] ENHANCEMENT: When adding items from compendium (spells, items, feats, options, beasts, etc.), do not leave compendium/picker view immediately so users can add multiple things at a time.
 - [ ] ENHANCEMENT: Cannot edit elements from compendium. All feats, spells, items, abilities, species and class features should be editable, including modifier adding/editing. May require significant modal work, start with:
     - Weapons, be able to add attack, damage, modifiers, range, etc.
