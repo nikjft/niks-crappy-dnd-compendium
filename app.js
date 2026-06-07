@@ -1750,7 +1750,7 @@ function updateDBStatus(msg) {
 // Category Loader
 async function loadCategory(category) {
   currentCategory = category;
-  selectedFacet1 = 'All';
+  selectedFacet1 = (category === 'monsters') ? 'By CR' : 'All';
   selectedFacet2 = 'All';
   searchChits = [];
   renderChits();
@@ -2155,10 +2155,8 @@ function renderFacet1() {
     });
     values = Array.from(types).sort();
   } else if (currentCategory === 'monsters') {
-    facetName = 'Type';
-    const types = new Set();
-    currentRecords.forEach(m => { if (m.type) types.add(m.type.toLowerCase()); });
-    values = Array.from(types).sort();
+    facetName = 'Group By';
+    values = ['By CR', 'By Type'];
   } else if (currentCategory === 'options') {
     facetName = 'Type';
     const types = new Set();
@@ -2180,17 +2178,19 @@ function renderFacet1() {
   facetTitle1.textContent = facetName;
 
   // Add "All" option
-  const allCount = currentRecords.length;
-  appendFacetItem(facetList1, 'All', 'All', allCount, selectedFacet1 === 'All', (val) => {
-    selectedFacet1 = val;
-    selectedFacet2 = 'All'; // Reset facet 2
-    renderFacet1();
-    renderFacet2();
-    applyFilters();
-    if (hasFacet2()) showMobilePane('facet-2');
-    else showMobilePane('list');
-    if (!isNavigatingHistory) pushCurrentState(false);
-  });
+  if (currentCategory !== 'monsters') {
+    const allCount = currentRecords.length;
+    appendFacetItem(facetList1, 'All', 'All', allCount, selectedFacet1 === 'All', (val) => {
+      selectedFacet1 = val;
+      selectedFacet2 = 'All'; // Reset facet 2
+      renderFacet1();
+      renderFacet2();
+      applyFilters();
+      if (hasFacet2()) showMobilePane('facet-2');
+      else showMobilePane('list');
+      if (!isNavigatingHistory) pushCurrentState(false);
+    });
+  }
 
   // Add dynamic values
   values.forEach(val => {
@@ -2242,7 +2242,7 @@ function renderFacet2() {
     } else if (currentCategory === 'classes') {
       recordsFacet1 = currentRecords.filter(c => c.name === selectedFacet1);
     } else if (currentCategory === 'monsters') {
-      recordsFacet1 = currentRecords.filter(m => m.type && m.type.toLowerCase() === selectedFacet1.toLowerCase());
+      recordsFacet1 = currentRecords;
     } else if (currentCategory === 'favorites') {
       recordsFacet1 = currentRecords.filter(f => f.category === selectedFacet1);
     }
@@ -2264,19 +2264,15 @@ function renderFacet2() {
     });
     values = Array.from(sections).sort();
   } else if (currentCategory === 'monsters') {
-    facetName = 'CR';
-    const crs = new Set();
-    recordsFacet1.forEach(m => {
-      if (m.cr !== undefined && m.cr !== null) crs.add(m.cr.toString());
-    });
-    const parseCR = (cr) => {
-      if (cr && typeof cr === 'string' && cr.includes('/')) {
-        const parts = cr.split('/');
-        return parseFloat(parts[0]) / parseFloat(parts[1]);
-      }
-      return parseFloat(cr) || 0;
-    };
-    values = Array.from(crs).sort((a, b) => parseCR(a) - parseCR(b));
+    if (selectedFacet1 === 'By CR') {
+      facetName = 'CR Range';
+      values = ['< 1', '1', '2 - 5', '6 - 10', '11 - 16', '17 - 20', '21+'];
+    } else {
+      facetName = 'Type';
+      const types = new Set();
+      recordsFacet1.forEach(m => { if (m.type) types.add(m.type.toLowerCase()); });
+      values = Array.from(types).sort();
+    }
   } else if (currentCategory === 'favorites') {
     if (selectedFacet1 === 'spells') {
       facetName = 'Level';
@@ -2356,7 +2352,31 @@ function renderFacet2() {
         }
       }
     } else if (currentCategory === 'monsters') {
-      count = recordsFacet1.filter(m => m.cr && m.cr.toString() === val).length;
+      if (selectedFacet1 === 'By CR') {
+        const parseCR = (crVal) => {
+          if (crVal && typeof crVal === 'string' && crVal.includes('/')) {
+            const parts = crVal.split('/');
+            return parseFloat(parts[0]) / parseFloat(parts[1]);
+          }
+          return parseFloat(crVal) || 0;
+        };
+        const matchCRRange = (crVal, range) => {
+          const v = parseCR(crVal);
+          if (range === '< 1') return v < 1;
+          if (range === '1') return v === 1;
+          if (range === '2 - 5') return v >= 2 && v <= 5;
+          if (range === '6 - 10') return v >= 6 && v <= 10;
+          if (range === '11 - 16') return v >= 11 && v <= 16;
+          if (range === '17 - 20') return v >= 17 && v <= 20;
+          if (range === '21+') return v >= 21;
+          return true;
+        };
+        count = recordsFacet1.filter(m => m.cr !== undefined && m.cr !== null && matchCRRange(m.cr, val)).length;
+        label = `CR ${val}`;
+      } else {
+        count = recordsFacet1.filter(m => m.type && m.type.toLowerCase() === val.toLowerCase()).length;
+        label = val.charAt(0).toUpperCase() + val.slice(1);
+      }
     } else if (currentCategory === 'favorites') {
       if (selectedFacet1 === 'spells') {
         count = recordsFacet1.filter(fav => {
@@ -2445,7 +2465,7 @@ function applyFilters() {
       } else if (currentCategory === 'items') {
         if (record.type !== selectedFacet1) return false;
       } else if (currentCategory === 'monsters') {
-        if (!record.type || record.type.toLowerCase() !== selectedFacet1.toLowerCase()) return false;
+        // Grouping choice, no filter on Facet 1
       } else if (currentCategory === 'options') {
         if (!record.classes || !record.classes.includes(selectedFacet1)) return false;
       } else if (currentCategory === 'favorites') {
@@ -2460,7 +2480,29 @@ function applyFilters() {
       } else if (currentCategory === 'classes') {
         // Sections are flattened later
       } else if (currentCategory === 'monsters') {
-        if (record.cr === undefined || record.cr === null || record.cr.toString() !== selectedFacet2) return false;
+        if (selectedFacet1 === 'By CR') {
+          const parseCR = (crVal) => {
+            if (crVal && typeof crVal === 'string' && crVal.includes('/')) {
+              const parts = crVal.split('/');
+              return parseFloat(parts[0]) / parseFloat(parts[1]);
+            }
+            return parseFloat(crVal) || 0;
+          };
+          const matchCRRange = (crVal, range) => {
+            const v = parseCR(crVal);
+            if (range === '< 1') return v < 1;
+            if (range === '1') return v === 1;
+            if (range === '2 - 5') return v >= 2 && v <= 5;
+            if (range === '6 - 10') return v >= 6 && v <= 10;
+            if (range === '11 - 16') return v >= 11 && v <= 16;
+            if (range === '17 - 20') return v >= 17 && v <= 20;
+            if (range === '21+') return v >= 21;
+            return true;
+          };
+          if (record.cr === undefined || record.cr === null || !matchCRRange(record.cr, selectedFacet2)) return false;
+        } else {
+          if (!record.type || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
+        }
       } else if (currentCategory === 'favorites') {
         if (selectedFacet1 === 'spells') {
           const item = resolveFavoriteItem(record);
