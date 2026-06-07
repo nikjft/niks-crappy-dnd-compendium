@@ -279,7 +279,7 @@ until parity is reached.
 
 | Phase | Deliverable | Depends on |
 |---|---|---|
-| **0 — Toolchain** | Vite + TS + Preact + PWA scaffold; legacy app runs under build; tests ported to Vitest. | — |
+| **0 — Toolchain** | Vite + TS + Preact + PWA scaffold; legacy app runs under build; tests ported to Vitest.; update github action to build under new model (keep up to date with current actions) | — |
 | **1 — Foundation** | Typed data layer; **breakdown engine** + armor AC + finesse + tool-prof + concentration; signal state store; persistence effect; escaping handled by component rendering (no raw `innerHTML`). | 0 |
 | **2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
 | **3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
