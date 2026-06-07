@@ -11,7 +11,7 @@
 
 - [x] *DONE* CRITICAL: Paths wrong on github pages when built. Looking for assets at https://nikjft.github.io/assets/manifest-_6nc69fN.json should be https://nikjft.github.io/niks-crappy-dnd-compendium/assets/manifest-_6nc69fN.json
 - [x] *DONE* Update system documentation at /docs/* so that agents can understand structure and make app changes. Break into small files for low-token reads of specific features. Start with "Architecture Changes.md" as the base.
-- [ ] Equipment lists incorrect. Should have multiple lists. Items added to list should have toggles for carried, equipped, or neither. Currently has multiple lists of different statuses which is incorrect. (Was correct prior to refactor to vite structure)
+- [x] *DONE* Equipment lists incorrect. Should have multiple lists. Items added to list should have toggles for carried, equipped, or neither. Currently has multiple lists of different statuses which is incorrect. (Was correct prior to refactor to vite structure)
 - [ ] Gray-on-black text hard to read. Increase brightness of gray descriptive text and subtitles. Meet general accessibility standards for contrast.
 - [ ] Update icons so all are outlined material icons - no emojis, minimal coloring. https://fonts.google.com/icons
 - [ ] Cannot edit elements from compendium. All feats, spells, items, abilities, species and class features should be editable, including modifier adding/editing. May require significant modal work, start with:
