@@ -115,7 +115,7 @@ export interface Character {
   inspiration?: boolean;
 
   // Lists
-  equipment?: unknown[];
+  equipment?: EquipmentItem[];
   spells?: unknown[];
   spellLists?: unknown[];
   features?: unknown[];
@@ -123,7 +123,8 @@ export interface Character {
   modifiers?: unknown[];
   counters?: unknown[];
   featureLists?: unknown[];
-  bestiaryList?: unknown[];
+  bestiaryLists?: unknown[];
+  itemLists?: { id: string; name: string; }[];
 
   // Phase 1 additions
   conditions?: CharacterCondition[];
@@ -135,6 +136,7 @@ export interface Character {
   levelHistory?: LevelHistoryEntry[];
   languages?: string[];
   otherProficiencies?: string[];
+  currency?: { pp?: number; gp?: number; ep?: number; sp?: number; cp?: number; };
 
   // Profile
   background?: string;
@@ -160,6 +162,7 @@ export interface Character {
 // ─── Compendium record (base shape) ──────────────────────────────────────────
 
 export interface CompendiumRecord {
+  id?: string;
   name: string;
   source: string;
   type?: string;
@@ -173,6 +176,7 @@ export interface EquipmentItem extends CompendiumRecord {
   active?: boolean;
   selected?: boolean;
   quantity?: number;
+  listId?: string;
   /** Parsed armor type: LA = light, MA = medium, HA = heavy, S = shield */
   armorType?: 'LA' | 'MA' | 'HA' | 'S';
   /** Base AC value for armor (e.g. 13 for studded leather) */

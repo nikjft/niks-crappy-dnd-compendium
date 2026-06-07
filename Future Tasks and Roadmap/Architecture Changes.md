@@ -200,9 +200,9 @@ To be added to `data/types.ts` and the `Character` interface:
 |---|---|---|
 | `pinnedActions` | `{ sourceList: string; sourceId: string }[]` | Quick Actions panel *(Completed in Phase 2)* |
 | `conditions` | `{ name: string; effects?: string; isConcentration?: boolean; spellName?: string }[]` | Conditions bar *(Completed in Phase 2)* |
-| `attunementMax` | `number` (default 3) | Attunement override |
+| `attunementMax` | `number` (default 3) | Attunement override *(Completed in Phase 4)* |
 | `toolProficiencies` | `{ name: string; attr: string; profLevel: number }[]` | Tool prof tracking *(Completed in Phase 1)* |
-| `weightTrackingEnabled` | `boolean` (default true) | Carry-weight toggle |
+| `weightTrackingEnabled` | `boolean` (default true) | Carry-weight toggle *(Completed in Phase 4)* |
 | `collapsedLists` | `Record<string, boolean>` | Persist list collapse state |
 | `levelHistory` | `{ level: number; class: string; choices: object }[]` | Level-down / respec audit |
 
@@ -278,7 +278,7 @@ until parity is reached.
 | **DONE: 1 — Foundation** | Typed data layer; **breakdown engine** + armor AC + finesse + tool-prof + concentration; signal state store; persistence effect; escaping handled by component rendering (no raw `innerHTML`). | 0 |
 | **DONE: 2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
 | **DONE: 3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
-| **4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
+| **DONE: 4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
 | **5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters. | 1 |
 | **6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
 | **7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |

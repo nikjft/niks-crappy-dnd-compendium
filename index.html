@@ -306,41 +306,9 @@
       </section>
 
       <!-- Tab 4: Inventory -->
+      <!-- Tab 4: Inventory — rendered by Preact (src/main.tsx → InventoryTab) -->
       <section id="cs-tab-inventory" class="cs-tab-panel">
-        <!-- Currency block -->
-        <div class="cs-currency-box">
-          <div class="cs-currency-item">
-            <span class="cs-coin gp">GP</span>
-            <input type="number" id="cs-coin-gp" value="0" min="0">
-          </div>
-          <div class="cs-currency-item">
-            <span class="cs-coin sp">SP</span>
-            <input type="number" id="cs-coin-sp" value="0" min="0">
-          </div>
-          <div class="cs-currency-item">
-            <span class="cs-coin cp">CP</span>
-            <input type="number" id="cs-coin-cp" value="0" min="0">
-          </div>
-          <div class="cs-currency-item">
-            <span class="cs-coin ep">EP</span>
-            <input type="number" id="cs-coin-ep" value="0" min="0">
-          </div>
-          <div class="cs-currency-item">
-            <span class="cs-coin pp">PP</span>
-            <input type="number" id="cs-coin-pp" value="0" min="0">
-          </div>
-        </div>
-
-        <div class="cs-inventory-header" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-          <div id="cs-carry-capacity" class="cs-carry-capacity" style="margin: 0;">
-            Weight Carried: <span id="cs-inventory-weight">0</span> / <span id="cs-max-weight">150</span> lbs.
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button id="cs-btn-add-item-list" class="cs-btn-small">+ Add Gear List</button>
-          </div>
-        </div>
-
-        <div id="cs-inventory-lists-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
+        <div id="inventory-root"></div>
       </section>
 
       <!-- Tab 5: Spells -->

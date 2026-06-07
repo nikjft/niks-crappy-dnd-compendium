@@ -8219,16 +8219,24 @@ function renderCharacterSheetUI() {
     if (item.active || item.selected) totalWeight += (parseFloat(item.weight) || 0);
   });
   const maxWeight = state['str.score'] * 15;
-  document.getElementById('cs-inventory-weight').textContent = totalWeight.toFixed(1);
-  document.getElementById('cs-max-weight').textContent = maxWeight;
-  document.getElementById('cs-carry-capacity').classList.toggle('overburdened', totalWeight > maxWeight);
+  
+  const elWeight = document.getElementById('cs-inventory-weight');
+  if (elWeight) elWeight.textContent = totalWeight.toFixed(1);
+  
+  const elMaxWeight = document.getElementById('cs-max-weight');
+  if (elMaxWeight) elMaxWeight.textContent = maxWeight;
+  
+  const elCarryCapacity = document.getElementById('cs-carry-capacity');
+  if (elCarryCapacity) elCarryCapacity.classList.toggle('overburdened', totalWeight > maxWeight);
 
   const inventoryContainer = document.getElementById('cs-inventory-lists-container');
-  inventoryContainer.innerHTML = '';
-  currentCharacter.itemLists.forEach(listDef => {
-    const items = getItemsForList(currentCharacter.equipment, listDef.id);
-    renderListSection(inventoryContainer, listDef, items, 'item', state);
-  });
+  if (inventoryContainer) {
+    inventoryContainer.innerHTML = '';
+    currentCharacter.itemLists.forEach(listDef => {
+      const items = getItemsForList(currentCharacter.equipment, listDef.id);
+      renderListSection(inventoryContainer, listDef, items, 'item', state);
+    });
+  }
 
   // ── Tab 5: Spells ────────────────────────────────────────────────────────────
   const calculatedSlots = calculateCharacterSlots(currentCharacter);
@@ -8530,6 +8538,8 @@ if (typeof window !== 'undefined') {
   window.closeCharacterSheet   = closeCharacterSheet;
   window.refreshCharactersList = refreshCharactersList;
   window.calculateCharacterState = calculateCharacterState;
+  window.getDetailHTML         = getDetailHTML;
+  window.syncLocalEntityWithCompendium = syncLocalEntityWithCompendium;
 
   // Bridge: let Preact components open legacy modals (counter/modifier add forms)
   window.__legacyOpenCounterModal = () => {

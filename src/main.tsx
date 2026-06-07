@@ -3,7 +3,10 @@ import { currentCharacter, patchCharacter } from './state/stores.js';
 import { startPersistenceEffect } from './state/persistence.js';
 import { CombatTab } from './components/combat/CombatTab.js';
 import { StatsTab } from './components/stats/StatsTab.js';
+import { InventoryTab } from './components/inventory/InventoryTab.js';
 import './combat.css';
+import './stats.css';
+import './inventory.css';
 
 // Mount combat tab
 const combatRoot = document.getElementById('combat-root');
@@ -15,6 +18,12 @@ if (combatRoot) {
 const statsRoot = document.getElementById('stats-root');
 if (statsRoot) {
   render(<StatsTab />, statsRoot);
+}
+
+// Mount inventory tab
+const inventoryRoot = document.getElementById('inventory-root');
+if (inventoryRoot) {
+  render(<InventoryTab />, inventoryRoot);
 }
 
 // Start debounced persistence
