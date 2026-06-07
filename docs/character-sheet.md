@@ -8,7 +8,7 @@ The character sheet allows creating, viewing, editing, and leveling up D&D 5e/5.
 
 ## Character Data Model
 
-Created by `createNewCharacterTemplate()` (app.js L3454). The full shape:
+Created by `createNewCharacterTemplate()` (app.js L3511). The full shape:
 
 ```js
 {
@@ -116,7 +116,7 @@ To add a new programmatic modifier, add an entry to this file — no changes to 
 
 ---
 
-## Character Roster (`renderCharactersRoster` — app.js L3507)
+## Character Roster (`renderCharactersRoster` — app.js L3564)
 
 Rendered when `currentCategory === 'characters'`. Shows a card grid of all characters. Each card has:
 - Name, class, level
@@ -125,7 +125,7 @@ Rendered when `currentCategory === 'characters'`. Shows a card grid of all chara
 
 ---
 
-## Character Sheet View (`openCharacterSheet` — app.js L3611)
+## Character Sheet View (`openCharacterSheet` — app.js L3668)
 
 Opens a full-screen overlay modal (`.character-sheet-overlay`) on top of the compendium. Contains:
 
@@ -147,7 +147,7 @@ A simpler quick-create form (legacy path). Lets users set name, class, backgroun
 
 ---
 
-## Character Creation Wizard (`openWizard` — app.js L3826)
+## Character Creation Wizard (`openWizard` — app.js L3963)
 
 A 5-step modal wizard. Renders into `#cs-wizard-modal`.
 
@@ -185,7 +185,7 @@ wizardState = {
 }
 ```
 
-`applyWizardResult()` (app.js L4707) converts `wizardState` into a new character using `createNewCharacterTemplate()`, then builds `features`, `featureLists`, and `modifiers` from species traits, background, and class Level 1 features.
+`applyWizardResult()` (app.js L4872) converts `wizardState` into a new character using `createNewCharacterTemplate()`, then builds `features`, `featureLists`, and `modifiers` from species traits, background, and class Level 1 features.
 
 ---
 
@@ -193,7 +193,7 @@ wizardState = {
 
 ### Entry Point
 
-"Level Up" button on the character sheet calls `openLevelUpModal(char)` which renders `#cs-levelup-modal`.
+"Level Up" button on the character sheet calls `openLevelUpModal(char)` (app.js L5144) which renders `#cs-levelup-modal`.
 
 ### Steps
 
@@ -202,7 +202,7 @@ wizardState = {
 | `choose_class` | `renderLevelUpChooseClass(body)` | Choose which class to advance (or multiclass into a new one) |
 | `level_details` | `renderLevelUpDetails(body)` | HP gain input, subclass picker (at L3), ASI controls (if ASI level), feature checklist |
 
-### `renderLevelUpDetails` (app.js L5074)
+### `renderLevelUpDetails` (app.js L5239)
 
 1. Looks up `classRecord.autolevels` for features at the target level.
 2. Also loads `subclassRecord.autolevels` if a subclass is already chosen.
@@ -210,7 +210,7 @@ wizardState = {
 4. Detects if any feature name contains "Ability Score Improvement" or "Feat" → shows ASI stat grid.
 5. Renders each feature with its `texts[]` description inline (no modal required to read it).
 
-### Apply Level-Up (`applyLevelUp` — app.js ~L5280)
+### Apply Level-Up (`applyLevelUp` — app.js L5502)
 
 1. Increments `char.classes[n].level` (or pushes a new class entry for multiclass).
 2. Updates `char.level` (sum of all class levels).

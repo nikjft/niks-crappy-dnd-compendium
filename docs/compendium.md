@@ -76,7 +76,7 @@ let selectedFacet2 = 'All';
 let searchChits = [];  // [{ field: 'school', value: 'conjuration' }, ...]
 ```
 
-### `applyFilters()` (app.js L1807)
+### `applyFilters()` (app.js L1923)
 
 1. Starts from `allRecordsCache[store]`.
 2. Applies `selectedFacet1` and `selectedFacet2` predicates (category-specific logic).
@@ -90,7 +90,7 @@ Filter chips that appear below the search bar. Each chit has a `field` and `valu
 
 ---
 
-## List Rendering (`renderList` — app.js L1971)
+## List Rendering (`renderList` — app.js L2087)
 
 Renders items as list rows in `#item-list`. Each row shows:
 - Name (bolded)
@@ -105,7 +105,7 @@ For **global search** (cross-category), `renderList(items, isGlobalSearch=true)`
 
 ## Detail Rendering
 
-### `getDetailHTML(item, category)` (app.js L2401)
+### `getDetailHTML(item, category)` (app.js L2517)
 
 Returns the full HTML string for the right pane. Each category has a dedicated template block:
 
@@ -130,11 +130,11 @@ Races, backgrounds, feats, and classes show a prominent **Grants** info box at t
 - **🎒 Background Grants** — Ability Increases, Skill Proficiencies, Tool Proficiency, Languages, Feat
 - **⚔️ Class Grants (Level 1)** — Saving Throws, Armor Training, Weapon Proficiencies, Skill Choices, Spellcasting Ability
 
-### `parseMarkdown(text)` (app.js L2224)
+### `parseMarkdown(text)` (app.js L2340)
 
 Converts markdown (headings, bold, italic, lists, tables, horizontal rules, code blocks) to HTML. Used for `texts[]` arrays in records. Also handles a custom table syntax `=col1|col2|col3=`.
 
-### `parseInlineMarkdown(text)` (app.js L2119)
+### `parseInlineMarkdown(text)` (app.js L2275)
 
 Inline-only subset: bold, italic, code, links. Used for single-line fields.
 
@@ -150,7 +150,7 @@ Favorites are stored in the `favorites` IndexedDB store. A favorite record mirro
 
 ---
 
-## Universal Search (`renderUniversalSearchPanel` — app.js L3195)
+## Universal Search (`renderUniversalSearchPanel` — app.js L3330)
 
 Accessible via the 🔍 sidebar icon. Searches `allRecordsCache` across all loaded categories simultaneously. Results are rendered grouped by category. Clicking a result navigates to that item's category and selects it.
 
@@ -170,11 +170,14 @@ http://localhost:8085/?category=spells&pane=detail&item=Fireball+(XPHB)
 
 ---
 
-## Settings Panel (`renderSettingsPage` — app.js L2896)
+## Settings Panel (`renderSettingsPage` — app.js L3013)
 
 Rendered in the detail pane when Settings is clicked. Sections:
 1. **Import from GitHub** — repo URL, source selection modal trigger.
 2. **Import from Local** — file/directory picker buttons.
-3. **Data Management** — Clear database, export JSON, import JSON.
+3. **Data Management** — Two separate clear actions:
+   - **Clear Compendium** (`clearCompendiumAction` → `clearCompendium()`) — wipes all content stores; characters and favorites are preserved.
+   - **Clear Database** (`clearDatabaseAction` → `clearDatabase()`) — wipes everything including characters; prompts user to back up first.
+   - Export JSON / Import JSON (full data portability via `exportAllData` / `importAllData`).
 4. **Dropbox Sync** — App Key input, link/unlink, sync status badge, conflict history.
 5. **Storage Health** — Persistence status, quota usage bar.

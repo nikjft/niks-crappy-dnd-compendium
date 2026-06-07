@@ -19,14 +19,13 @@ The app serves two purposes:
 | `index.html` | Single HTML shell. All panes are pre-defined in markup; JS shows/hides them. |
 | `index.css` | All styling (~73 KB). CSS custom properties drive the dark theme. |
 | `app.js` | Monolith UI controller (~6800 lines). Contains all rendering, event wiring, navigation, settings, character sheet, and wizard logic. |
-| `db.js` | IndexedDB abstraction layer. All reads/writes go through here. |
+| `db.js` | IndexedDB abstraction layer. All reads/writes go through here. Exports `clearCompendium()` (preserves characters/favorites) and `clearDatabase()` (wipes everything). |
 | `engine.js` | Headless stat calculator. Reads a character object, returns a flat `state` dict of resolved numbers. |
 | `parser-5etools.js` | Ingestion adapter. Converts raw 5etools JSON → normalized internal records. |
 | `parser.js` | Re-exports type constants (ITEM_TYPES, SPELL_SCHOOLS, etc.) from parser-5etools. |
 | `sync.js` | Dropbox OAuth PKCE + bidirectional sync cycle. |
 | `conflict.js` | Last-Write-Wins (LWW) merge strategy for sync conflicts. |
 | `storage.js` | `navigator.storage.persist()` + quota monitoring. |
-| `db.js` exports `clearCompendium()` | Clears only compendium stores (preserves `characters` and `favorites`). Separate from `clearDatabase()` which clears everything. |
 | `ui-sync.js` | Sync/storage status banners and badges rendered in the UI. |
 | `feature-modifiers.js` | Static lookup table: `"FeatureName\|Source"` → modifier array. Used by engine. |
 | `sw.js` | Service worker. Cache-first with background network update. Bump `CACHE_NAME` version to force cache invalidation. |
