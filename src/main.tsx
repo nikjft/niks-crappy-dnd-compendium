@@ -5,10 +5,12 @@ import { CombatTab } from './components/combat/CombatTab.js';
 import { StatsTab } from './components/stats/StatsTab.js';
 import { InventoryTab } from './components/inventory/InventoryTab.js';
 import { SpellsTab } from './components/spells/SpellsTab.js';
+import { FeaturesTab } from './components/features/FeaturesTab.js';
 import './combat.css';
 import './stats.css';
 import './inventory.css';
 import './spells.css';
+import './features.css';
 
 // Mount combat tab
 const combatRoot = document.getElementById('combat-root');
@@ -32,6 +34,12 @@ if (inventoryRoot) {
 const spellsRoot = document.getElementById('spells-root');
 if (spellsRoot) {
   render(<SpellsTab />, spellsRoot);
+}
+
+// Mount features tab
+const featuresRoot = document.getElementById('features-root');
+if (featuresRoot) {
+  render(<FeaturesTab />, featuresRoot);
 }
 
 // Start debounced persistence

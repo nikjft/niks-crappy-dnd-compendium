@@ -125,6 +125,28 @@ export interface SpellList {
   spellcastingAbility?: string;
 }
 
+/** A named feature list on a character (Species, Background, Class, Subclass, Feats, etc.) */
+export interface FeatureList {
+  id: string;
+  name: string;
+}
+
+/** A feature/trait/feat as it lives on a character */
+export interface CharacterFeature {
+  id?: string;
+  name: string;
+  category?: string;
+  texts?: string[];
+  active?: boolean;
+  selected?: boolean;
+  compendiumId?: string;
+  listId?: string;
+  isDynamic?: boolean;
+  isOverview?: boolean;
+  classData?: unknown;
+  [key: string]: unknown;
+}
+
 /** Minimal shape every character object must satisfy. Optional fields default via migrateCharacter(). */
 export interface Character {
   id?: string;
@@ -149,11 +171,11 @@ export interface Character {
   equipment?: EquipmentItem[];
   spells?: CharacterSpell[];
   spellLists?: SpellList[];
-  features?: unknown[];
+  features?: CharacterFeature[];
   options?: unknown[];
   modifiers?: unknown[];
   counters?: unknown[];
-  featureLists?: unknown[];
+  featureLists?: FeatureList[];
   bestiaryLists?: unknown[];
   itemLists?: { id: string; name: string; }[];
 

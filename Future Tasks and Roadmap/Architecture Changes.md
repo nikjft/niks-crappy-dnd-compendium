@@ -279,8 +279,8 @@ until parity is reached.
 | **DONE: 2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
 | **DONE: 3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
 | **DONE: 4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
-| **5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters. | 1 |
-| **6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
+| **DONE: 5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters, custom spell creation, pact slot tracker, concentration interlocking with conditions bar. | 1 |
+| **DONE: 6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
 | **7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |
 | **8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
 | **9 — Backlog** | Address any tracked backlogged or deferred items which are not already fixed. | 
@@ -322,3 +322,4 @@ until parity is reached.
 - [ ] Applied conditions should have popup when clicked on show the effect of the condition.
 - [ ] LOW PRIORITY: Jack of All Trades should be applied as a bonus to all non-proficient skills based on class feature, not toggled manually in skills.
 - [ ] Supernatural boon for Goliath doesn't appear in character creator. Should be able to select as an ability.
+- [ ] Make all entities available for pinning - beasts, items, spells, in addition to things on the Combat tab already

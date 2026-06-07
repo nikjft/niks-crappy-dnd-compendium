@@ -290,19 +290,15 @@
         <div id="stats-root"></div>
       </section>
 
-      <!-- Tab 3: Features & Traits -->
+      <!-- Tab 3: Features & Traits — rendered by Preact -->
       <section id="cs-tab-features" class="cs-tab-panel">
-        <div class="cs-features-header" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-          <div class="cs-build-summary" style="margin: 0;">
-            <span style="margin-right: 12px;"><strong>Species:</strong> <span id="cs-summary-species">—</span></span>
-            <span style="margin-right: 12px;"><strong>Background:</strong> <span id="cs-summary-background">—</span></span>
-            <span><strong>Subclass:</strong> <span id="cs-summary-subclass">—</span></span>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button id="cs-btn-add-feature-list" class="cs-btn-small">+ Add Feature List</button>
-          </div>
-        </div>
-        <div id="cs-features-lists-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
+        <div id="features-root"></div>
+        <!-- Legacy anchors kept so app.js DOM queries don't throw -->
+        <span id="cs-summary-species" style="display:none"></span>
+        <span id="cs-summary-background" style="display:none"></span>
+        <span id="cs-summary-subclass" style="display:none"></span>
+        <button id="cs-btn-add-feature-list" style="display:none"></button>
+        <div id="cs-features-lists-container" style="display:none"></div>
       </section>
 
       <!-- Tab 4: Inventory -->
