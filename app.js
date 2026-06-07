@@ -7012,8 +7012,8 @@ function renderListRow(item, type, opts = {}) {
   else if (type === 'feature') sub = `${item.category || ''}`;
   else if (type === 'beast') sub = item.size ? `${item.size} ${item.type || ''}` : (item.notes || '');
 
-  const syncBtn  = item.compendiumId
-    ? `<button class="cs-list-row-btn btn-sync" title="Sync with Compendium">${SVG_SYNC}</button>`
+  const syncBtn  = (item.compendiumId || item.isOverview)
+    ? `<button class="cs-list-row-btn btn-sync" title="${item.isOverview ? 'Resync class features from compendium' : 'Sync with Compendium'}">${SVG_SYNC}</button>`
     : '';
 
   // Shield toggle = equipped/active; Pack toggle = in carried pack
@@ -7053,11 +7053,16 @@ function renderListRow(item, type, opts = {}) {
     if (opts.onCarried) opts.onCarried(item);
     else saveCurrentCharacterAndRefresh();
   };
-  if (item.compendiumId) {
+  if (item.compendiumId || item.isOverview) {
     row.querySelector('.btn-sync').onclick = (e) => {
       e.stopPropagation();
-      const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
-      syncLocalEntityWithCompendium(item, catMap[type]);
+      if (item.isOverview && item.classData) {
+        const className = item.classData.parentClass || item.classData.name;
+        resyncClassFeatures(className);
+      } else {
+        const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
+        syncLocalEntityWithCompendium(item, catMap[type]);
+      }
     };
   }
   row.querySelector('.btn-delete').onclick = (e) => {
@@ -7481,6 +7486,96 @@ async function syncLocalEntityWithCompendium(entity, category) {
     // Close the detail modal after sync
     document.getElementById('cs-detail-modal').style.display = 'none';
   }
+}
+
+async function resyncClassFeatures(className) {
+  if (!currentCharacter) return;
+  const classEntry = currentCharacter.classes?.find(c => c.name.toLowerCase() === className.toLowerCase());
+  if (!classEntry) { alert(`No class entry found for ${className}.`); return; }
+
+  const classRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === className.toLowerCase());
+  if (!classRecord) { alert(`${className} not found in compendium. Import it first.`); return; }
+
+  if (!confirm(`Re-sync ${className} (levels 1–${classEntry.level}) from the current compendium?\n\nClass and subclass features will be replaced with the compendium versions. Your HP, stats, subclass selection, spells, and equipment are not affected.`)) return;
+
+  const classListId = classEntry.featureListId;
+  const subclassListId = classEntry.subclassListId;
+
+  // Remove existing class and subclass features (preserve any user-created custom ones)
+  currentCharacter.features = currentCharacter.features.filter(f => {
+    if (f.listId === classListId) return !!f._custom;
+    if (subclassListId && f.listId === subclassListId) return !!f._custom;
+    return true;
+  });
+
+  // Remove counters tagged to this class
+  currentCharacter.counters = (currentCharacter.counters || []).filter(c => c.classTag !== className);
+
+  // Re-apply base class features and counters for all levels
+  for (let lvl = 1; lvl <= classEntry.level; lvl++) {
+    const als = classRecord.autolevels?.filter(a => a.level === lvl) || [];
+    als.forEach(al => {
+      (al.features || []).forEach(f => {
+        currentCharacter.features.push({
+          name: f.name, active: true, favorite: false, selected: true,
+          id: generateId(), listId: classListId,
+          texts: f.texts || [],
+          modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+        });
+      });
+      (al.counters || []).forEach(c => {
+        const existing = currentCharacter.counters.find(cc => cc.name === c.name);
+        if (!existing) {
+          currentCharacter.counters.push({
+            name: c.name, max: parseInt(c.value) || 1, value: parseInt(c.value) || 1,
+            reset_short: c.reset === 'S',
+            reset_long: c.reset === 'L' || c.reset === 'S',
+            id: generateId(), classTag: className
+          });
+        } else {
+          existing.max = parseInt(c.value) || existing.max;
+        }
+      });
+    });
+  }
+
+  // Re-apply subclass features if applicable
+  if (classEntry.subclass && subclassListId) {
+    const subRecord = allRecordsCache['subclasses']?.find(s =>
+      s.name.toLowerCase() === classEntry.subclass.toLowerCase() &&
+      s.parentClass.toLowerCase() === className.toLowerCase()
+    );
+    if (subRecord) {
+      for (let lvl = 1; lvl <= classEntry.level; lvl++) {
+        const subAls = subRecord.autolevels?.filter(a => a.level === lvl) || [];
+        subAls.forEach(al => {
+          (al.features || []).forEach(f => {
+            currentCharacter.features.push({
+              name: f.name, active: true, favorite: false, selected: true,
+              id: generateId(), listId: subclassListId,
+              texts: f.texts || [],
+              modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+            });
+          });
+          (al.counters || []).forEach(c => {
+            const existing = currentCharacter.counters.find(cc => cc.name === c.name);
+            if (!existing) {
+              currentCharacter.counters.push({
+                name: c.name, max: parseInt(c.value) || 1, value: parseInt(c.value) || 1,
+                reset_short: c.reset === 'S',
+                reset_long: c.reset === 'L' || c.reset === 'S',
+                id: generateId(), classTag: className
+              });
+            } else {
+              existing.max = parseInt(c.value) || existing.max;
+            }
+          });
+        });
+      }
+    }
+  }
+
+  await saveCurrentCharacterAndRefresh();
 }
 
 function saveCustomModifierModal() {

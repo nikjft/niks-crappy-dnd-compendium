@@ -16,7 +16,7 @@ Add option to edit any existing element with same structure. This will require c
 
 Sync with compendium will be a sync button in the detail view (and nowhere else). This should warn that it will overwrite any customizations.
 
-ENHANCEMENT: Following above enhancement, enable class resync. Syncing a class overview with a compendium will offer an option to re-sync class and subclass features, in which case it will update everything to match current compendium as though leveling up and making same selections where possible. This will ensure that new features are added, and out of data features are deleted.
+*DONE* ENHANCEMENT: Following above enhancement, enable class resync. Syncing a class overview with a compendium will offer an option to re-sync class and subclass features, in which case it will update everything to match current compendium as though leveling up and making same selections where possible. This will ensure that new features are added, and out of data features are deleted.
 
 
 
