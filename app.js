@@ -8551,6 +8551,28 @@ if (typeof window !== 'undefined') {
     saveCurrentCharacterAndRefresh();
   };
 
+  window.__legacyAddFeatureList = () => {
+    if (!currentCharacter) return;
+    const name = window.prompt('Feature list name:', 'Custom Features');
+    if (!name) return;
+    if (!currentCharacter.featureLists) currentCharacter.featureLists = [];
+    currentCharacter.featureLists.push({ id: generateId(), name });
+    saveCurrentCharacterAndRefresh();
+  };
+
+  window.__legacyOpenFeatureDetail = (feature) => {
+    if (!feature) return;
+    openItemDetailModal(feature, 'feature');
+  };
+
+  window.__legacyResyncClass = (feature) => {
+    if (!feature) return;
+    if (feature.classData) {
+      const className = feature.classData.parentClass || feature.classData.name;
+      if (className) resyncClassFeatures(className);
+    }
+  };
+
   window.__legacyRestoreSpellSlots = () => {
     if (!currentCharacter) return;
     const calculatedSlots = calculateCharacterSlots(currentCharacter);

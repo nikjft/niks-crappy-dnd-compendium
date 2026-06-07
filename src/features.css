@@ -1,0 +1,262 @@
+/* ── Features tab root ────────────────────────────────────────────────────── */
+.features-tab-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* ── Build summary bar ────────────────────────────────────────────────────── */
+.feat-build-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.feat-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.feat-summary-label {
+  font-family: var(--font-header);
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.feat-summary-value {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.feat-summary-sep {
+  color: var(--border-color);
+  padding: 0 2px;
+}
+
+/* ── Feature list section ─────────────────────────────────────────────────── */
+.feat-lists-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feat-list-section {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.feat-list-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--panel-bg-active);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.feat-list-header:hover {
+  background: var(--panel-bg-hover);
+}
+
+.feat-list-collapse-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.feat-list-name {
+  flex: 1;
+  font-family: var(--font-header);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.feat-list-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--panel-bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-family: var(--font-header);
+}
+
+.feat-list-header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.feat-add-btn {
+  white-space: nowrap;
+}
+
+/* ── Feature list body ────────────────────────────────────────────────────── */
+.feat-list-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.feat-empty-hint {
+  padding: 12px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* ── Feature row ──────────────────────────────────────────────────────────── */
+.feat-row {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feat-row:last-child {
+  border-bottom: none;
+}
+
+.feat-row.feat-active .feat-row-main {
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.feat-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.feat-row-main:hover {
+  background: var(--panel-bg-hover);
+}
+
+.feat-name-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.feat-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.feat-category {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-header);
+}
+
+.feat-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feat-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.feat-action-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  padding: 0;
+}
+
+.feat-action-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.feat-action-btn.feat-btn-active {
+  background: var(--accent-muted);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.feat-action-btn.danger:hover {
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+
+/* ── Detail expand ────────────────────────────────────────────────────────── */
+.feat-detail {
+  padding: 10px 14px 12px 28px;
+  border-top: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+}
+
+.feat-detail-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 4px 0;
+}
+
+/* ── Dynamic / overview rows ─────────────────────────────────────────────── */
+.feat-row-dynamic .feat-row-main {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.feat-row-overview .feat-row-main {
+  cursor: pointer;
+  background: rgba(212, 175, 55, 0.04);
+}
+
+.feat-row-overview .feat-row-main:hover {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.feat-overview-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.feat-empty-state {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── Bottom controls ──────────────────────────────────────────────────────── */
+.feat-bottom-controls {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
