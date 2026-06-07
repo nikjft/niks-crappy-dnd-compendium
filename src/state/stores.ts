@@ -30,5 +30,8 @@ export const allRecords = signal<CompendiumRecord[]>([]);
 export function patchCharacter(patch: Partial<Character>): void {
   const prev = currentCharacter.value;
   if (!prev) return;
-  currentCharacter.value = { ...prev, ...patch, _modified_at: new Date().toISOString() };
+  const next = { ...prev, ...patch, _modified_at: new Date().toISOString() };
+  currentCharacter.value = next;
+  // Keep legacy app.js global in sync so other tabs see updated data
+  if (typeof window !== 'undefined') (window as any).currentCharacter = next;
 }

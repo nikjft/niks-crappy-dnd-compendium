@@ -798,12 +798,21 @@ async function loadAllRecordsCache() {
   }
 }
 
-// Check if IndexedDB is empty
+// Check if IndexedDB is empty — if so, auto-import XPHB, XDMG, XMM from GitHub
 async function checkAndSeedDatabase() {
   try {
     const spells = await getAllRecords('spells');
     if (spells.length === 0) {
-      updateDBStatus('Compendium (Empty)');
+      updateDBStatus('Importing default sources…');
+      console.log('[app] DB empty — auto-importing XPHB, XDMG, XMM from GitHub');
+      importSourceType = 'github';
+      try {
+        await execute5eToolsImport(['XPHB', 'XDMG', 'XMM']);
+        updateDBStatus('Compendium Ready');
+      } catch (err) {
+        console.error('[app] Auto-import failed:', err);
+        updateDBStatus('Auto-import failed — import manually in Settings');
+      }
     } else {
       updateDBStatus('Compendium Ready');
     }
@@ -812,6 +821,7 @@ async function checkAndSeedDatabase() {
     updateDBStatus('Compendium (Error)');
   }
 }
+
 
 // Handle XML or JSON import files
 async function handleImportFile(e) {
@@ -4492,6 +4502,10 @@ async function saveCurrentCharacterAndRefresh() {
   if (!currentCharacter) return;
   currentCharacter._modified_at = new Date().toISOString();
   await saveCharacterToDb(currentCharacter);
+  // Sync to Preact signal so combat tab re-renders with latest data
+  if (window.__dndStore?.currentCharacter) {
+    window.__dndStore.currentCharacter.value = Object.assign({}, currentCharacter);
+  }
   renderCharacterSheetUI();
 }
 
@@ -4670,6 +4684,10 @@ function renderCharactersRoster(chars) {
 
 function openCharacterSheet(char) {
   currentCharacter = migrateCharacter(char);
+  // Sync to Preact signal so combat tab renders immediately
+  if (window.__dndStore?.currentCharacter) {
+    window.__dndStore.currentCharacter.value = currentCharacter;
+  }
   document.getElementById('character-sheet-view').style.display = 'flex';
   
   const tabs = document.querySelectorAll('.cs-tab-btn');
@@ -6985,6 +7003,18 @@ function migrateCharacter(char) {
   if (char.weightTrackingEnabled == null) char.weightTrackingEnabled = false;
   if (!char.collapsedLists)        char.collapsedLists        = {};
   if (!char.levelHistory)          char.levelHistory          = [];
+  if (!char.currency)              char.currency              = { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
+  if (!char.notes)                 char.notes                 = { freeNotes: [] };
+  if (!char.notes.freeNotes)       char.notes.freeNotes       = [];
+  if (!char.equipment)             char.equipment             = [];
+  if (!char.spells)                char.spells                = [];
+  if (!char.features)              char.features              = [];
+  if (!char.classes)               char.classes               = [];
+  if (!char.itemLists)             char.itemLists             = [];
+  if (!char.spellLists)            char.spellLists            = [];
+  if (!char.featureLists)          char.featureLists          = [];
+  if (!char.bestiary)              char.bestiary              = [];
+  if (!char.bestiaryLists)         char.bestiaryLists         = [];
   return char;
 }
 
@@ -7709,102 +7739,114 @@ function renderCharacterSheetUI() {
   // ── Death Saves ─────────────────────────────────────────────────────────────
   [1, 2, 3].forEach(i => {
     const chk = document.getElementById(`cs-death-s-${i}`);
-    chk.checked = currentCharacter.deathSaves.successes >= i;
-    chk.onclick = () => {
-      currentCharacter.deathSaves.successes = [1,2,3].filter(j => document.getElementById(`cs-death-s-${j}`).checked).length;
-      saveCurrentCharacterAndRefresh();
-    };
+    if (chk) {
+      chk.checked = currentCharacter.deathSaves.successes >= i;
+      chk.onclick = () => {
+        currentCharacter.deathSaves.successes = [1,2,3].filter(j => document.getElementById(`cs-death-s-${j}`)?.checked).length;
+        saveCurrentCharacterAndRefresh();
+      };
+    }
   });
   [1, 2, 3].forEach(i => {
     const chk = document.getElementById(`cs-death-f-${i}`);
-    chk.checked = currentCharacter.deathSaves.failures >= i;
-    chk.onclick = () => {
-      currentCharacter.deathSaves.failures = [1,2,3].filter(j => document.getElementById(`cs-death-f-${j}`).checked).length;
-      saveCurrentCharacterAndRefresh();
-    };
+    if (chk) {
+      chk.checked = currentCharacter.deathSaves.failures >= i;
+      chk.onclick = () => {
+        currentCharacter.deathSaves.failures = [1,2,3].filter(j => document.getElementById(`cs-death-f-${j}`)?.checked).length;
+        saveCurrentCharacterAndRefresh();
+      };
+    }
   });
 
   // ── Tab 1: Combat ───────────────────────────────────────────────────────────
-  document.getElementById('cs-val-ac').textContent = state['ac'];
-  document.getElementById('cs-val-initiative').textContent = formatModifier(state['initiative']);
-  document.getElementById('cs-val-speed').textContent = `${state['speed']} ft`;
-  document.getElementById('cs-val-prof-bonus').textContent = formatModifier(state['prof_bonus']);
+  const valAc = document.getElementById('cs-val-ac');
+  if (valAc) valAc.textContent = state['ac'];
+  const valInit = document.getElementById('cs-val-initiative');
+  if (valInit) valInit.textContent = formatModifier(state['initiative']);
+  const valSpeed = document.getElementById('cs-val-speed');
+  if (valSpeed) valSpeed.textContent = `${state['speed']} ft`;
+  const valProfBonus = document.getElementById('cs-val-prof-bonus');
+  if (valProfBonus) valProfBonus.textContent = formatModifier(state['prof_bonus']);
 
   // Attacks list
   const attacksList = document.getElementById('cs-attacks-list');
-  attacksList.innerHTML = '';
-  const activeEquipment = (currentCharacter.equipment || []).filter(e => e.active);
-  activeEquipment.forEach(item => {
-    const isWeapon = item.type && (item.type.includes('Weapon') || item.dmg1);
-    if (isWeapon) {
-      const isRanged = item.type && item.type.includes('Ranged');
-      const atkBonus = isRanged ? state['ranged.attack'] : state['melee.attack'];
-      const dmgBonus = isRanged ? state['ranged.damage'] : state['melee.damage'];
-      const row = document.createElement('div');
-      row.className = 'cs-list-row';
-      row.innerHTML = `
-        <div class="cs-list-row-info">
-          <div class="cs-list-row-name">${item.name}</div>
-          <div class="cs-list-row-sub">Attack: ${formatModifier(atkBonus)} · Dmg: ${item.dmg1 || '1d4'} ${dmgBonus >= 0 ? '+' + dmgBonus : dmgBonus} ${item.dmgType || ''}</div>
-        </div>
-      `;
-      attacksList.appendChild(row);
+  if (attacksList) {
+    attacksList.innerHTML = '';
+    const activeEquipment = (currentCharacter.equipment || []).filter(e => e.active);
+    activeEquipment.forEach(item => {
+      const isWeapon = item.type && (item.type.includes('Weapon') || item.dmg1);
+      if (isWeapon) {
+        const isRanged = item.type && item.type.includes('Ranged');
+        const atkBonus = isRanged ? state['ranged.attack'] : state['melee.attack'];
+        const dmgBonus = isRanged ? state['ranged.damage'] : state['melee.damage'];
+        const row = document.createElement('div');
+        row.className = 'cs-list-row';
+        row.innerHTML = `
+          <div class="cs-list-row-info">
+            <div class="cs-list-row-name">${item.name}</div>
+            <div class="cs-list-row-sub">Attack: ${formatModifier(atkBonus)} · Dmg: ${item.dmg1 || '1d4'} ${dmgBonus >= 0 ? '+' + dmgBonus : dmgBonus} ${item.dmgType || ''}</div>
+          </div>
+        `;
+        attacksList.appendChild(row);
+      }
+    });
+    const activeSpells = (currentCharacter.spells || []).filter(s => s.active);
+    activeSpells.forEach(spell => {
+      if (spell.rolls && spell.rolls.length > 0) {
+        const row = document.createElement('div');
+        row.className = 'cs-list-row';
+        // Find which spell list this spell belongs to for per-list DC/attack
+        const spellList = currentCharacter.spellLists?.find(l => l.id === spell.listId);
+        const ab = spellList?.spellcastingAbility || currentCharacter.spellcastingAbility || 'wis';
+        const mod = state[`${ab}.mod`] || 0;
+        const pb  = state['prof_bonus'] || 2;
+        const spellAtk = pb + mod;
+        const spellDC  = 8 + pb + mod;
+        row.innerHTML = `
+          <div class="cs-list-row-info">
+            <div class="cs-list-row-name">${spell.name} (Spell)</div>
+            <div class="cs-list-row-sub">Atk: ${formatModifier(spellAtk)} · DC: ${spellDC} · ${spell.rolls.join(', ')}</div>
+          </div>
+        `;
+        attacksList.appendChild(row);
+      }
+    });
+    if (!attacksList.hasChildNodes()) {
+      attacksList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No active weapons or spells. Mark items active in Inventory/Spells tab.</div>';
     }
-  });
-  const activeSpells = (currentCharacter.spells || []).filter(s => s.active);
-  activeSpells.forEach(spell => {
-    if (spell.rolls && spell.rolls.length > 0) {
-      const row = document.createElement('div');
-      row.className = 'cs-list-row';
-      // Find which spell list this spell belongs to for per-list DC/attack
-      const spellList = currentCharacter.spellLists?.find(l => l.id === spell.listId);
-      const ab = spellList?.spellcastingAbility || currentCharacter.spellcastingAbility || 'wis';
-      const mod = state[`${ab}.mod`] || 0;
-      const pb  = state['prof_bonus'] || 2;
-      const spellAtk = pb + mod;
-      const spellDC  = 8 + pb + mod;
-      row.innerHTML = `
-        <div class="cs-list-row-info">
-          <div class="cs-list-row-name">${spell.name} (Spell)</div>
-          <div class="cs-list-row-sub">Atk: ${formatModifier(spellAtk)} · DC: ${spellDC} · ${spell.rolls.join(', ')}</div>
-        </div>
-      `;
-      attacksList.appendChild(row);
-    }
-  });
-  if (!attacksList.hasChildNodes()) {
-    attacksList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No active weapons or spells. Mark items active in Inventory/Spells tab.</div>';
   }
 
   // Custom Modifiers
   const modifiersList = document.getElementById('cs-modifiers-list');
-  modifiersList.innerHTML = '';
-  const mods = currentCharacter.modifiers || [];
-  mods.forEach((mod, idx) => {
-    const row = document.createElement('div');
-    row.className = 'cs-list-row';
-    const mDetails = mod.modifiers ? mod.modifiers.map(m => `${m.target}: ${m.type} ${m.value}`).join(', ') : '';
-    row.innerHTML = `
-      <input type="checkbox" class="cs-list-row-checkbox" ${mod.active ? 'checked' : ''}>
-      <div class="cs-list-row-info">
-        <div class="cs-list-row-name">${mod.name}</div>
-        <div class="cs-list-row-sub">${mDetails}</div>
-      </div>
-      <div class="cs-list-row-actions">
-        <button class="cs-list-row-btn danger btn-del-mod" title="Delete">${SVG_TRASH}</button>
-      </div>
-    `;
-    row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
-      mod.active = e.target.checked;
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.btn-del-mod').onclick = () => {
-      mods.splice(idx, 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    modifiersList.appendChild(row);
-  });
-  if (!mods.length) modifiersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No custom modifiers.</div>';
+  if (modifiersList) {
+    modifiersList.innerHTML = '';
+    const mods = currentCharacter.modifiers || [];
+    mods.forEach((mod, idx) => {
+      const row = document.createElement('div');
+      row.className = 'cs-list-row';
+      const mDetails = mod.modifiers ? mod.modifiers.map(m => `${m.target}: ${m.type} ${m.value}`).join(', ') : '';
+      row.innerHTML = `
+        <input type="checkbox" class="cs-list-row-checkbox" ${mod.active ? 'checked' : ''}>
+        <div class="cs-list-row-info">
+          <div class="cs-list-row-name">${mod.name}</div>
+          <div class="cs-list-row-sub">${mDetails}</div>
+        </div>
+        <div class="cs-list-row-actions">
+          <button class="cs-list-row-btn danger btn-del-mod" title="Delete">${SVG_TRASH}</button>
+        </div>
+      `;
+      row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
+        mod.active = e.target.checked;
+        saveCurrentCharacterAndRefresh();
+      };
+      row.querySelector('.btn-del-mod').onclick = () => {
+        mods.splice(idx, 1);
+        saveCurrentCharacterAndRefresh();
+      };
+      modifiersList.appendChild(row);
+    });
+    if (!mods.length) modifiersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No custom modifiers.</div>';
+  }
 
   // Dynamic counters synchronization and rendering
   if (!currentCharacter.counters) currentCharacter.counters = [];
@@ -7915,49 +7957,51 @@ function renderCharacterSheetUI() {
 
   // Usage Counters
   const countersList = document.getElementById('cs-counters-list');
-  countersList.innerHTML = '';
-  const cnts = currentCharacter.counters || [];
-  cnts.forEach((cnt, idx) => {
-    const row = document.createElement('div');
-    row.className = 'cs-list-row';
-    row.innerHTML = `
-      <div class="cs-list-row-info">
-        <div class="cs-list-row-name">${cnt.name}</div>
-        <div class="cs-list-row-sub">Resets: ${cnt.reset_short ? 'Short' : ''}${cnt.reset_short && cnt.reset_long ? '/' : ''}${cnt.reset_long ? 'Long' : ''}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button class="cs-btn-small btn-dec" style="font-size:14px;padding:2px 8px">−</button>
-        <span style="font-weight:bold;min-width:20px;text-align:center">${cnt.value}</span>
-        <button class="cs-btn-small btn-inc" style="font-size:14px;padding:2px 8px">+</button>
-        <span style="color:var(--text-muted);font-size:12px">/ ${cnt.max}</span>
-      </div>
-      <div class="cs-list-row-actions" style="margin-left:6px">
-        ${cnt.isDynamic ? '' : `<button class="cs-list-row-btn danger btn-del-cnt" title="Delete">${SVG_TRASH}</button>`}
-      </div>
-    `;
-    row.querySelector('.btn-dec').onclick = () => { cnt.value = Math.max(0, cnt.value - 1); saveCurrentCharacterAndRefresh(); };
-    row.querySelector('.btn-inc').onclick = () => { cnt.value = Math.min(cnt.max, cnt.value + 1); saveCurrentCharacterAndRefresh(); };
-    if (!cnt.isDynamic) {
-      row.querySelector('.btn-del-cnt').onclick = () => { cnts.splice(idx, 1); saveCurrentCharacterAndRefresh(); };
+  if (countersList) {
+    countersList.innerHTML = '';
+    const cnts = currentCharacter.counters || [];
+    cnts.forEach((cnt, idx) => {
+      const row = document.createElement('div');
+      row.className = 'cs-list-row';
+      row.innerHTML = `
+        <div class="cs-list-row-info">
+          <div class="cs-list-row-name">${cnt.name}</div>
+          <div class="cs-list-row-sub">Resets: ${cnt.reset_short ? 'Short' : ''}${cnt.reset_short && cnt.reset_long ? '/' : ''}${cnt.reset_long ? 'Long' : ''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="cs-btn-small btn-dec" style="font-size:14px;padding:2px 8px">−</button>
+          <span style="font-weight:bold;min-width:20px;text-align:center">${cnt.value}</span>
+          <button class="cs-btn-small btn-inc" style="font-size:14px;padding:2px 8px">+</button>
+          <span style="color:var(--text-muted);font-size:12px">/ ${cnt.max}</span>
+        </div>
+        <div class="cs-list-row-actions" style="margin-left:6px">
+          ${cnt.isDynamic ? '' : `<button class="cs-list-row-btn danger btn-del-cnt" title="Delete">${SVG_TRASH}</button>`}
+        </div>
+      `;
+      row.querySelector('.btn-dec').onclick = () => { cnt.value = Math.max(0, cnt.value - 1); saveCurrentCharacterAndRefresh(); };
+      row.querySelector('.btn-inc').onclick = () => { cnt.value = Math.min(cnt.max, cnt.value + 1); saveCurrentCharacterAndRefresh(); };
+      if (!cnt.isDynamic) {
+        row.querySelector('.btn-del-cnt').onclick = () => { cnts.splice(idx, 1); saveCurrentCharacterAndRefresh(); };
+      }
+      countersList.appendChild(row);
+    });
+
+    informativeStats.forEach(stat => {
+      const row = document.createElement('div');
+      row.className = 'cs-list-row';
+      row.innerHTML = `
+        <div class="cs-list-row-info">
+          <div class="cs-list-row-name">${stat.name}</div>
+          <div class="cs-list-row-sub">Class Progression Stat</div>
+        </div>
+        <div style="font-weight:bold;margin-right:12px">${stat.value}</div>
+      `;
+      countersList.appendChild(row);
+    });
+
+    if (!cnts.length && !informativeStats.length) {
+      countersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No counters.</div>';
     }
-    countersList.appendChild(row);
-  });
-
-  informativeStats.forEach(stat => {
-    const row = document.createElement('div');
-    row.className = 'cs-list-row';
-    row.innerHTML = `
-      <div class="cs-list-row-info">
-        <div class="cs-list-row-name">${stat.name}</div>
-        <div class="cs-list-row-sub">Class Progression Stat</div>
-      </div>
-      <div style="font-weight:bold;margin-right:12px">${stat.value}</div>
-    `;
-    countersList.appendChild(row);
-  });
-
-  if (!cnts.length && !informativeStats.length) {
-    countersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No counters.</div>';
   }
 
   // ── Tab 2: Stats & Skills ────────────────────────────────────────────────────
@@ -8396,25 +8440,31 @@ function setupCharacterSheetEvents() {
   // Modifier modal
   document.getElementById('cs-mod-btn-cancel').onclick = () => { document.getElementById('cs-modifier-modal').style.display = 'none'; };
   document.getElementById('cs-mod-btn-save').onclick   = () => saveCustomModifierModal();
-  document.getElementById('cs-btn-add-modifier').onclick = () => {
-    document.getElementById('cs-mod-name-input').value  = '';
-    document.getElementById('cs-mod-value-input').value = '';
-    document.getElementById('cs-mod-name-input').style.borderColor  = '';
-    document.getElementById('cs-mod-value-input').style.borderColor = '';
-    document.getElementById('cs-modifier-modal').style.display = 'flex';
-  };
+  const btnAddModifier = document.getElementById('cs-btn-add-modifier');
+  if (btnAddModifier) {
+    btnAddModifier.onclick = () => {
+      document.getElementById('cs-mod-name-input').value  = '';
+      document.getElementById('cs-mod-value-input').value = '';
+      document.getElementById('cs-mod-name-input').style.borderColor  = '';
+      document.getElementById('cs-mod-value-input').style.borderColor = '';
+      document.getElementById('cs-modifier-modal').style.display = 'flex';
+    };
+  }
 
   // Counter modal
   document.getElementById('cs-counter-btn-cancel').onclick = () => { document.getElementById('cs-counter-modal').style.display = 'none'; };
   document.getElementById('cs-counter-btn-save').onclick   = () => saveCustomCounterModal();
-  document.getElementById('cs-btn-add-counter').onclick = () => {
-    document.getElementById('cs-counter-name-input').value = '';
-    document.getElementById('cs-counter-max-input').value  = '4';
-    document.getElementById('cs-counter-reset-short').checked = true;
-    document.getElementById('cs-counter-reset-long').checked  = true;
-    document.getElementById('cs-counter-name-input').style.borderColor = '';
-    document.getElementById('cs-counter-modal').style.display = 'flex';
-  };
+  const btnAddCounter = document.getElementById('cs-btn-add-counter');
+  if (btnAddCounter) {
+    btnAddCounter.onclick = () => {
+      document.getElementById('cs-counter-name-input').value = '';
+      document.getElementById('cs-counter-max-input').value  = '4';
+      document.getElementById('cs-counter-reset-short').checked = true;
+      document.getElementById('cs-counter-reset-long').checked  = true;
+      document.getElementById('cs-counter-name-input').style.borderColor = '';
+      document.getElementById('cs-counter-modal').style.display = 'flex';
+    };
+  }
 
   // Temp HP modal
   document.getElementById('cs-hp-temp-btn').onclick    = () => {
@@ -8465,4 +8515,31 @@ if (typeof window !== 'undefined') {
   window.closeCharacterSheet   = closeCharacterSheet;
   window.refreshCharactersList = refreshCharactersList;
   window.calculateCharacterState = calculateCharacterState;
+
+  // Bridge: let Preact components open legacy modals (counter/modifier add forms)
+  window.__legacyOpenCounterModal = () => {
+    const modal = document.getElementById('cs-counter-modal');
+    if (!modal) return;
+    document.getElementById('cs-counter-name-input').value = '';
+    document.getElementById('cs-counter-max-input').value  = '4';
+    document.getElementById('cs-counter-reset-short').checked = true;
+    document.getElementById('cs-counter-reset-long').checked  = true;
+    modal.style.display = 'flex';
+  };
+  window.__legacyOpenModifierModal = () => {
+    const modal = document.getElementById('cs-modifier-modal');
+    if (!modal) return;
+    document.getElementById('cs-mod-name-input').value  = '';
+    document.getElementById('cs-mod-value-input').value = '';
+    modal.style.display = 'flex';
+  };
+  window.__legacyRestoreSpellSlots = () => {
+    if (!currentCharacter) return;
+    const calculatedSlots = calculateCharacterSlots(currentCharacter);
+    if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
+    for (let l = 1; l <= 9; l++) {
+      const maxVal = calculatedSlots[l] || 0;
+      currentCharacter.spellSlots[l] = { current: maxVal, max: maxVal };
+    }
+  };
 }

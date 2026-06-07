@@ -279,8 +279,8 @@ until parity is reached.
 
 | Phase | Deliverable | Depends on |
 |---|---|---|
-| **0 — Toolchain** | Vite + TS + Preact + PWA scaffold; legacy app runs under build; tests ported to Vitest.; update github action to build under new model (keep up to date with current actions) | — |
-| **1 — Foundation** | Typed data layer; **breakdown engine** + armor AC + finesse + tool-prof + concentration; signal state store; persistence effect; escaping handled by component rendering (no raw `innerHTML`). | 0 |
+| **DONE: 0 — Toolchain** | Vite + TS + Preact + PWA scaffold; legacy app runs under build; tests ported to Vitest.; update github action to build under new model (keep up to date with current actions) | — |
+| **DONE: 1 — Foundation** | Typed data layer; **breakdown engine** + armor AC + finesse + tool-prof + concentration; signal state store; persistence effect; escaping handled by component rendering (no raw `innerHTML`). | 0 |
 | **2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
 | **3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
 | **4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
@@ -288,7 +288,8 @@ until parity is reached.
 | **6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
 | **7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |
 | **8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
-| **9 — Cutover** | Migrate compendium browser; delete `app.js`/`sw.js`; remove legacy flag. | all |
+| **9 — Backlog** | Address any tracked backlogged or deferred items which are not already fixed. | 
+| **10 — Cutover** | Migrate compendium browser; delete `app.js`/`sw.js`; remove legacy flag. | all |
 
 ---
 
@@ -315,7 +316,11 @@ until parity is reached.
 5. **Conditions/rules reference data** — parse from 5etools vs. bundle a small static SRD set.
 6. **Enriched Data/Rules** - Some data may be unavailable in 5etools raw data - how should this be managed?
 
----
+## 13. Backlog
 
-*End of proposal. No application code, build config, or branch has been created by this document; it is the basis
-for the rebuild branch once the §12 decisions are confirmed.*
+*Running list of all items that need to be addressed. Should be reviewed prior to dev of each step in case it is a dependency. Review at stage 9 of section 10 for open items. As items are completed, mark complete*
+
+- Magic bonus (e.g. +1 Club) not applying to total combat bonus
+- Clicking on item for popup of how things are added up does not show damage, only attack. Should show both.
+- Applied conditions should have popup when clicked on show the effect of the condition.
+- 

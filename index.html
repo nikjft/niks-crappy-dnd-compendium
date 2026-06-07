@@ -280,82 +280,9 @@
 
     <!-- Tab Contents -->
     <main class="cs-tabs-content">
-      <!-- Tab 1: Combat -->
+      <!-- Tab 1: Combat — rendered by Preact (src/main.tsx → CombatTab) -->
       <section id="cs-tab-combat" class="cs-tab-panel active">
-        <!-- top row grids -->
-        <div class="cs-combat-stats-grid">
-          <div class="cs-combat-stat-card clickable" id="cs-ac-card">
-            <span class="cs-combat-stat-label">Armor Class</span>
-            <span class="cs-combat-stat-val" id="cs-val-ac">10</span>
-          </div>
-          <div class="cs-combat-stat-card">
-            <span class="cs-combat-stat-label">Initiative</span>
-            <span class="cs-combat-stat-val" id="cs-val-initiative">+0</span>
-          </div>
-          <div class="cs-combat-stat-card">
-            <span class="cs-combat-stat-label">Speed</span>
-            <span class="cs-combat-stat-val" id="cs-val-speed">30 ft</span>
-          </div>
-          <div class="cs-combat-stat-card">
-            <span class="cs-combat-stat-label">Prof Bonus</span>
-            <span class="cs-combat-stat-val" id="cs-val-prof-bonus">+2</span>
-          </div>
-        </div>
-
-        <div class="cs-combat-main-layout">
-          <div class="cs-combat-left">
-            <!-- Death Saves -->
-            <div class="cs-combat-card">
-              <h3>Death Saves</h3>
-              <div class="cs-death-saves-row">
-                <span>Successes</span>
-                <input type="checkbox" class="cs-death-check success" id="cs-death-s-1">
-                <input type="checkbox" class="cs-death-check success" id="cs-death-s-2">
-                <input type="checkbox" class="cs-death-check success" id="cs-death-s-3">
-              </div>
-              <div class="cs-death-saves-row">
-                <span>Failures</span>
-                <input type="checkbox" class="cs-death-check failure" id="cs-death-f-1">
-                <input type="checkbox" class="cs-death-check failure" id="cs-death-f-2">
-                <input type="checkbox" class="cs-death-check failure" id="cs-death-f-3">
-              </div>
-            </div>
-
-            <!-- Attacks / Actions -->
-            <div class="cs-combat-card">
-              <div class="cs-card-header">
-                <h3>Attacks & Actions</h3>
-              </div>
-              <div id="cs-attacks-list" class="cs-list-container">
-                <!-- Active Weapons and Spells -->
-              </div>
-            </div>
-          </div>
-
-          <div class="cs-combat-right">
-            <!-- Custom Modifiers -->
-            <div class="cs-combat-card">
-              <div class="cs-card-header">
-                <h3>Custom Modifiers</h3>
-                <button id="cs-btn-add-modifier" class="cs-btn-small">+ Add</button>
-              </div>
-              <div id="cs-modifiers-list" class="cs-list-container">
-                <!-- User custom active bonuses -->
-              </div>
-            </div>
-            
-            <!-- Generic Counters -->
-            <div class="cs-combat-card">
-              <div class="cs-card-header">
-                <h3>Usage Counters</h3>
-                <button id="cs-btn-add-counter" class="cs-btn-small">+ Add</button>
-              </div>
-              <div id="cs-counters-list" class="cs-list-container">
-                <!-- Usage counters -->
-              </div>
-            </div>
-          </div>
-        </div>
+        <div id="combat-root"></div>
       </section>
 
       <!-- Tab 2: Stats & Skills -->
@@ -879,6 +806,7 @@
   </div>
 
   <script type="module" src="app.js"></script>
+  <script type="module" src="/src/main.tsx"></script>
   <!-- Service worker registration is handled by vite-plugin-pwa in production builds -->
 </body>
 </html>

@@ -89,6 +89,11 @@ export interface CharacterHp {
   temp: number;
 }
 
+export interface DeathSaves {
+  successes: number;
+  failures: number;
+}
+
 /** Minimal shape every character object must satisfy. Optional fields default via migrateCharacter(). */
 export interface Character {
   id?: string;
@@ -99,6 +104,7 @@ export interface Character {
   // HP
   baseHpMax: number;
   hp?: CharacterHp;
+  deathSaves?: DeathSaves;
 
   // Combat
   speed: number;
