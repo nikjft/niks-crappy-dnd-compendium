@@ -35,6 +35,125 @@ let currentCharacter = null; // Currently open character
 let importFilesMap = {}; // Maps relative path (lowercase) to File object
 let foundBooks = [];
 let foundAdventures = [];
+
+const SOURCE_MAP = {
+  "PHB": "Player's Handbook",
+  "XPHB": "Player's Handbook (2024)",
+  "DMG": "Dungeon Master's Guide",
+  "XDMG": "Dungeon Master's Guide (2024)",
+  "MM": "Monster Manual",
+  "XMM": "Monster Manual (2024)",
+  "TCE": "Tasha's Cauldron of Everything",
+  "XGE": "Xanathar's Guide to Everything",
+  "VGM": "Volo's Guide to Monsters",
+  "MTOF": "Mordenkainen's Tome of Foes",
+  "MToF": "Mordenkainen's Tome of Foes",
+  "FTD": "Fizban's Treasury of Dragons",
+  "MPMM": "Mordenkainen Presents: Monsters of the Multiverse",
+  "SCAG": "Sword Coast Adventurer's Guide",
+  "ERLW": "Eberron: Rising from the Last War",
+  "GGR": "Guildmasters' Guide to Ravnica",
+  "MOT": "Mythic Odysseys of Theros",
+  "VRG": "Van Richten's Guide to Ravenloft",
+  "SCC": "Strixhaven: A Curriculum of Chaos",
+  "AAG": "Astral Adventurer's Guide",
+  "BAM": "Boo's Astral Menagerie",
+  "BGG": "Bigby Presents: Glory of the Giants",
+  "COS": "Curse of Strahd",
+  "CoS": "Curse of Strahd",
+  "TOA": "Tomb of Annihilation",
+  "ToA": "Tomb of Annihilation",
+  "WDH": "Waterdeep: Dragon Heist",
+  "WDMM": "Waterdeep: Mad Mage",
+  "GOS": "Ghosts of Saltmarsh",
+  "GoS": "Ghosts of Saltmarsh",
+  "DIA": "Baldur's Gate: Descent Into Avernus",
+  "DiA": "Baldur's Gate: Descent Into Avernus",
+  "ROT": "The Rise of Tiamat",
+  "RoT": "The Rise of Tiamat",
+  "HOTDQ": "Hoard of the Dragon Queen",
+  "HotDQ": "Hoard of the Dragon Queen",
+  "POTA": "Princes of the Apocalypse",
+  "PotA": "Princes of the Apocalypse",
+  "OOTA": "Out of the Abyss",
+  "OotA": "Out of the Abyss",
+  "SKT": "Storm King's Thunder",
+  "TYP": "Tales from the Yawning Portal",
+  "ACI": "Acquisitions Incorporated",
+  "AcI": "Acquisitions Incorporated",
+  "IDROTF": "Icewind Dale: Rime of the Frostmaiden",
+  "IDRotF": "Icewind Dale: Rime of the Frostmaiden",
+  "WBTW": "The Wild Beyond the Witchlight",
+  "WBtW": "The Wild Beyond the Witchlight",
+  "SJD": "Spelljammer: Light of Xaryxis",
+  "LOX": "Light of Xaryxis",
+  "LoX": "Light of Xaryxis",
+  "KFTGV": "Keys from the Golden Vault",
+  "KftGV": "Keys from the Golden Vault",
+  "PHAND": "Phandelver and Below: The Shattered Obelisk",
+  "PhAnd": "Phandelver and Below: The Shattered Obelisk",
+  "BOMT": "The Book of Many Things",
+  "BoMT": "The Book of Many Things",
+  "GOTG": "Glory of the Giants",
+  "GotG": "Glory of the Giants",
+  "SATO": "Shadow of the Dragon Queen",
+  "SatO": "Shadow of the Dragon Queen",
+  "DSOTDQ": "Dragonlance: Shadow of the Dragon Queen",
+  "DSotDQ": "Dragonlance: Shadow of the Dragon Queen",
+  "VEOR": "Vecna: Eve of Ruin",
+  "VEoR": "Vecna: Eve of Ruin",
+  "QFTIS": "Quests from the Infinite Staircase",
+  "QftIS": "Quests from the Infinite Staircase",
+  "TTP": "The Tortle Package",
+  "AL": "Adventurers League",
+  "EEPC": "Elemental Evil Player's Companion",
+  "UA": "Unearthed Arcana",
+  "PSA": "Plane Shift: Amonkhet",
+  "PSI": "Plane Shift: Innistrad",
+  "PSK": "Plane Shift: Kaladesh",
+  "PSD": "Plane Shift: Zendikar",
+  "PSX": "Plane Shift: Ixalan",
+  "EET": "Elemental Evil: Temple of Elemental Evil",
+  "LMOP": "Lost Mine of Phandelver",
+  "LMoP": "Lost Mine of Phandelver",
+  "DOIP": "Dragon of Icespire Peak",
+  "DoIP": "Dragon of Icespire Peak",
+  "LLK": "Lost Laboratory of Kwalish",
+  "KK": "Krenko's Way",
+  "LR": "Locathah Rising",
+  "SDW": "Storm Lord's Wrath",
+  "SLW": "Storm Lord's Wrath",
+  "DIP": "Divine Contention",
+  "DC": "Divine Contention",
+  "EGW": "Explorer's Guide to Wildemount",
+  "EGtW": "Explorer's Guide to Wildemount",
+  "LDR": "Legendary Dragons",
+  "Od": "Odyssey of the Dragonlords",
+  "TC": "Tasha's Crucible of Everything Else",
+  "BFT": "Bigby's Friendly Guide to the Multiverse",
+  "TftYP": "Tales from the Yawning Portal",
+  "AftO": "Adventure from the Ooze",
+  "SC": "Spelljammer: Light of Xaryxis"
+};
+
+function getFullSourceName(sourceAbv) {
+  if (!sourceAbv) return '';
+  const abvUpper = sourceAbv.toUpperCase();
+  for (const [key, val] of Object.entries(SOURCE_MAP)) {
+    if (key.toUpperCase() === abvUpper) {
+      return val;
+    }
+  }
+  if (Array.isArray(foundBooks)) {
+    const book = foundBooks.find(b => b.id.toUpperCase() === abvUpper || b.source?.toUpperCase() === abvUpper);
+    if (book) return book.name;
+  }
+  if (Array.isArray(foundAdventures)) {
+    const adv = foundAdventures.find(a => a.id.toUpperCase() === abvUpper || a.source?.toUpperCase() === abvUpper);
+    if (adv) return adv.name;
+  }
+  return sourceAbv;
+}
 let importSourceType = 'github'; // 'github' or 'local'
 let githubRepoUrl = 'https://github.com/5etools-mirror-3/5etools-src';
 let githubBaseUrl = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/';
@@ -434,6 +553,48 @@ function setupEventListeners() {
     });
   }
   setupCharacterSheetEvents();
+
+  // Intercept relative link clicks for single-page app (SPA) internal navigation
+  document.addEventListener('click', async (e) => {
+    const link = e.target.closest('a');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    if (!href) return;
+    
+    if (href.startsWith('?') || href.startsWith('/') || href.includes('category=')) {
+      e.preventDefault();
+      
+      const urlParams = new URLSearchParams(href.substring(href.indexOf('?')));
+      const category = urlParams.get('category');
+      const itemName = urlParams.get('item');
+      const pane = urlParams.get('pane') || 'detail';
+      const facet1 = urlParams.get('facet1') || 'All';
+      const facet2 = urlParams.get('facet2') || 'All';
+      
+      if (category) {
+        const newState = {
+          category: category,
+          pane: pane,
+          selectedItemName: itemName,
+          selectedFacet1: facet1,
+          selectedFacet2: facet2
+        };
+        
+        pushCurrentState(false);
+        
+        isNavigatingHistory = true;
+        try {
+          await restoreState(newState);
+          window.history.pushState(newState, '', '?' + urlParams.toString());
+          lastHistoryState = newState;
+        } catch (err) {
+          console.error('Error navigating via link:', err);
+        } finally {
+          isNavigatingHistory = false;
+        }
+      }
+    }
+  });
 }
 
 function updateFavoriteButtonUI() {
@@ -1181,6 +1342,36 @@ async function execute5eToolsImport(sources) {
     if (optJson && optJson.optionalfeature) {
       const filtered = optJson.optionalfeature.filter(o => sources.includes(o.source));
       const parsed = filtered.map(o => parse5etoolsOption(o, o.source));
+      
+      // Generate sub-options for "Replicate Magic Item"
+      const replicateOptions = [];
+      filtered.forEach(o => {
+        if (o.name === 'Replicate Magic Item' && o.entries) {
+          o.entries.forEach(entry => {
+            if (entry.type === 'table' && entry.caption && entry.caption.includes('Replicable Items')) {
+              const match = entry.caption.match(/(\d+)(?:st|nd|rd|th)-Level/i);
+              const lvl = match ? parseInt(match[1]) : 0;
+              if (entry.rows) {
+                entry.rows.forEach(row => {
+                  if (row && row[0]) {
+                    const cleanName = parse5etoolsText(row[0], true);
+                    replicateOptions.push({
+                      name: `Replicate Magic Item: ${cleanName}`,
+                      level: lvl,
+                      texts: [`Using this infusion, you replicate a ${cleanName}.`],
+                      modifiers: [],
+                      classes: ['Artificer Infusion'],
+                      source: o.source
+                    });
+                  }
+                });
+              }
+            }
+          });
+        }
+      });
+      parsed.push(...replicateOptions);
+
       const deduped = deduplicateByRank(parsed);
       if (deduped.length > 0) {
         await saveRecords('options', deduped);
@@ -1379,7 +1570,22 @@ async function loadCategory(category) {
       rawFavorites = await getAllRecords(category);
       allRecordsCache[category] = rawFavorites;
     }
-    currentRecords = rawFavorites.filter(f => !f._deleted);
+    let filtered = rawFavorites.filter(f => !f._deleted);
+    if (pickerActive) {
+      filtered = filtered.filter(f => {
+        if (pickerCategory === 'items') {
+          return f.category === 'items';
+        } else if (pickerCategory === 'spells') {
+          return f.category === 'spells';
+        } else if (pickerCategory === 'feats' || pickerCategory === 'options') {
+          return f.category === 'feats' || f.category === 'options' || f.category === 'features';
+        } else if (pickerCategory === 'monsters') {
+          return f.category === 'monsters';
+        }
+        return false;
+      });
+    }
+    currentRecords = filtered;
   } else if (category === 'characters') {
     let rawCharacters = allRecordsCache[category];
     if (!rawCharacters) {
@@ -1642,7 +1848,7 @@ async function restoreState(state) {
           if (item) break;
         } else {
           const recs = allRecordsCache[store] || [];
-          const found = recs.find(r => r.name === state.selectedItemName);
+          const found = recs.find(r => r.name === state.selectedItemName || r.originalName === state.selectedItemName);
           if (found) {
             item = { ...found, categoryType: store.substring(0, store.length - 1) };
             break;
@@ -1650,7 +1856,7 @@ async function restoreState(state) {
         }
       }
     } else {
-      const rec = currentRecords.find(r => r.name === state.selectedItemName);
+      const rec = currentRecords.find(r => r.name === state.selectedItemName || r.originalName === state.selectedItemName);
       if (rec) {
         item = { ...rec, categoryType: state.category.substring(0, state.category.length - 1) };
       }
@@ -2332,7 +2538,14 @@ function parseInlineMarkdown(text) {
   res = res.replace(/`(.*?)`/g, '<code>$1</code>');
 
   // Markdown links: [label](url)
-  res = res.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  res = res.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
+    const isRelative = url.startsWith('?') || url.startsWith('/') || !url.includes('://');
+    if (isRelative) {
+      return `<a href="${url}">${label}</a>`;
+    } else {
+      return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+    }
+  });
 
   return res;
 }
@@ -2645,7 +2858,7 @@ function getDetailHTML(item, category = currentCategory) {
           ` : ''}
           ${item.source ? `
             <div style="margin-top: 10px; color: var(--text-muted); font-size: 13px;">
-              Source: ${parseInlineMarkdown(item.source)}
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
             </div>
           ` : ''}
         </div>
@@ -2690,6 +2903,11 @@ function getDetailHTML(item, category = currentCategory) {
               <ul style="margin-top: 8px; list-style-type: square; padding-left: 20px;">
                 ${item.modifiers.map(m => `<li>${m.category}: ${m.value}</li>`).join('')}
               </ul>
+            </div>
+          ` : ''}
+          ${item.source ? `
+            <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
             </div>
           ` : ''}
         </div>
@@ -2787,6 +3005,11 @@ function getDetailHTML(item, category = currentCategory) {
               <div style="font-style: italic; color: var(--text-secondary)">${parseMarkdown(item.description)}</div>
             </div>
           ` : ''}
+          ${item.source ? `
+            <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -2865,6 +3088,11 @@ function getDetailHTML(item, category = currentCategory) {
                 ${tableRows}
               </tbody>
             </table>
+            ${cls.source ? `
+              <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+                Source: <em>${escapeHtml(getFullSourceName(cls.source))}</em>
+              </div>
+            ` : ''}
           </div>
         </div>
       `;
@@ -2886,11 +3114,27 @@ function getDetailHTML(item, category = currentCategory) {
                 </ul>
               </div>
             ` : ''}
+            ${item.source ? `
+              <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+                Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
+              </div>
+            ` : ''}
           </div>
         </div>
       `;
     }
   } else if (category === 'options' || category === 'option') {
+    let extraDetail = '';
+    if (item.name.startsWith('Replicate Magic Item:')) {
+      const targetItemName = item.name.substring('Replicate Magic Item:'.length).trim();
+      const items = allRecordsCache['items'] || [];
+      const foundItem = items.find(i => i.name.toLowerCase() === targetItemName.toLowerCase() || i.originalName?.toLowerCase() === targetItemName.toLowerCase());
+      if (foundItem) {
+        extraDetail = `<div style="margin-top: 20px; border-top: 2px dashed var(--border-color); padding-top: 20px;">
+          ${getDetailHTML(foundItem, 'items')}
+        </div>`;
+      }
+    }
     html = `
       <div class="detail-view-container">
         <header class="detail-header">
@@ -2899,9 +3143,10 @@ function getDetailHTML(item, category = currentCategory) {
         </header>
         <div class="detail-body">
           ${formatText(item.texts)}
+          ${extraDetail}
           ${item.source ? `
-            <div style="margin-top: 10px; color: var(--text-muted); font-size: 13px;">
-              Source: ${parseInlineMarkdown(item.source)}
+            <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
             </div>
           ` : ''}
         </div>
@@ -2923,6 +3168,11 @@ function getDetailHTML(item, category = currentCategory) {
               <ul style="margin-top: 8px; list-style-type: square; padding-left: 20px;">
                 ${item.modifiers.map(m => `<li>${m.category}: ${m.value}</li>`).join('')}
               </ul>
+            </div>
+          ` : ''}
+          ${item.source ? `
+            <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
             </div>
           ` : ''}
         </div>
@@ -2969,7 +3219,7 @@ function getDetailHTML(item, category = currentCategory) {
           ` : ''}
           ${item.source ? `
             <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
-              Source: ${parseInlineMarkdown(item.source)}
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
             </div>
           ` : ''}
         </div>
@@ -3034,7 +3284,7 @@ function getDetailHTML(item, category = currentCategory) {
           ` : ''}
           ${item.source ? `
             <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
-              Source: ${parseInlineMarkdown(item.source)}
+              Source: <em>${escapeHtml(getFullSourceName(item.source))}</em>
             </div>
           ` : ''}
         </div>
@@ -3524,6 +3774,13 @@ function renderUniversalSearchPanel() {
   if (inputEl) {
     inputEl.value = '';
   }
+
+  // Hide category selection when picking
+  const searchGroups = controls.querySelectorAll('.search-group');
+  if (searchGroups.length > 1) {
+    searchGroups[1].style.display = pickerActive ? 'none' : '';
+  }
+
   applyUniversalSearch();
 }
 
@@ -3533,13 +3790,25 @@ function applyUniversalSearch() {
   const query = uniInput.value.toLowerCase().trim();
 
   // Get selected categories to search
-  const selectedStores = [];
-  const checkboxes = document.querySelectorAll('.search-cat-cb');
-  checkboxes.forEach(cb => {
-    if (cb.checked) {
-      selectedStores.push(cb.getAttribute('data-store'));
+  let selectedStores = [];
+  if (pickerActive) {
+    if (pickerCategory === 'items') {
+      selectedStores = ['items'];
+    } else if (pickerCategory === 'spells') {
+      selectedStores = ['spells'];
+    } else if (pickerCategory === 'feats' || pickerCategory === 'options') {
+      selectedStores = ['feats', 'options', 'classes'];
+    } else if (pickerCategory === 'monsters') {
+      selectedStores = ['monsters'];
     }
-  });
+  } else {
+    const checkboxes = document.querySelectorAll('.search-cat-cb');
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        selectedStores.push(cb.getAttribute('data-store'));
+      }
+    });
+  }
 
   if (!query) {
     itemList.innerHTML = '<li style="padding: 20px; text-align: center; color: var(--text-muted)">Type in the search box to find items.</li>';
@@ -6224,6 +6493,25 @@ function deleteListAndItems() {
   saveCurrentCharacterAndRefresh();
 }
 
+function isItemRelevantForPicker(item) {
+  if (!pickerActive) return true;
+  if (!item) return false;
+  let itemCategory = currentCategory;
+  if (item.categoryType) {
+    if (item.categoryType === 'class-feature') itemCategory = 'feats';
+    else if (item.categoryType === 'class-overview') itemCategory = 'classes';
+    else itemCategory = item.categoryType + 's';
+  }
+  
+  if (pickerCategory === 'items') return itemCategory === 'items';
+  if (pickerCategory === 'spells') return itemCategory === 'spells';
+  if (pickerCategory === 'feats' || pickerCategory === 'options') {
+    return itemCategory === 'feats' || itemCategory === 'options' || itemCategory === 'classes';
+  }
+  if (pickerCategory === 'monsters') return itemCategory === 'monsters';
+  return false;
+}
+
 function updateSidebarVisibility() {
   menuItems.forEach(item => {
     const cat = item.getAttribute('data-category');
@@ -6231,7 +6519,7 @@ function updateSidebarVisibility() {
       item.style.display = '';
       return;
     }
-    if (cat === 'search' || cat === 'favorites' || cat === 'characters') {
+    if (cat === 'favorites') {
       item.style.display = '';
       return;
     }
@@ -6318,7 +6606,7 @@ function updateDetailFooterUI() {
 
   if (!footer) return;
 
-  if (pickerActive && selectedItem && currentCharacter) {
+  if (pickerActive && selectedItem && currentCharacter && isItemRelevantForPicker(selectedItem)) {
     footer.style.display = 'flex';
 
     // Status on character: Active/Carried/Stored

@@ -15,7 +15,32 @@ export const ITEM_TYPES = {
   'SC': 'Scroll',
   'W': 'Wondrous Item',
   'G': 'Adventuring Gear',
-  '$': 'Money'
+  '$': 'Money',
+  'SCF': 'Spellcasting Focus',
+  'INS': 'Musical Instrument',
+  'TAH': 'Tack and Harness',
+  'TG': 'Trade Goods',
+  'EXP': 'Explosive',
+  'CUR': 'Currency',
+  'T': 'Tools',
+  'SA': 'Special Ability',
+  'SG': 'Supernatural Gift',
+  'AF': 'Ammunition (Futuristic)',
+  'AIR': 'Vehicle (Air)',
+  'AT': "Artisan's Tools",
+  'FD': 'Food and Drink',
+  'GS': 'Gaming Set',
+  'MNT': 'Mount',
+  'SHP': 'Vehicle (Water)',
+  'SPC': 'Vehicle (Space)',
+  'VEH': 'Vehicle (Land)',
+  'TB': 'Trade Bar',
+  'OTH': 'Other',
+  'GV': 'Generic Variant',
+  'IDG': 'Illegal Drug',
+  '$A': 'Treasure (Art Object)',
+  '$C': 'Treasure (Coinage)',
+  '$G': 'Treasure (Gemstone)'
 };
 
 export const SPELL_SCHOOLS = {

@@ -23,7 +23,26 @@ export const ITEM_TYPES = {
   'TAH': 'Tack and Harness',
   'TG': 'Trade Goods',
   'EXP': 'Explosive',
-  'CUR': 'Currency'
+  'CUR': 'Currency',
+  'T': 'Tools',
+  'SA': 'Special Ability',
+  'SG': 'Supernatural Gift',
+  'AF': 'Ammunition (Futuristic)',
+  'AIR': 'Vehicle (Air)',
+  'AT': "Artisan's Tools",
+  'FD': 'Food and Drink',
+  'GS': 'Gaming Set',
+  'MNT': 'Mount',
+  'SHP': 'Vehicle (Water)',
+  'SPC': 'Vehicle (Space)',
+  'VEH': 'Vehicle (Land)',
+  'TB': 'Trade Bar',
+  'OTH': 'Other',
+  'GV': 'Generic Variant',
+  'IDG': 'Illegal Drug',
+  '$A': 'Treasure (Art Object)',
+  '$C': 'Treasure (Coinage)',
+  '$G': 'Treasure (Gemstone)'
 };
 
 export const SPELL_SCHOOLS = {
@@ -67,10 +86,11 @@ export const DAMAGE_TYPES = {
 // ─── Text Parsing & Markdown Generation ──────────────────────────────────────
 
 /**
- * Strips 5eTools formatting tags and cleans them to plain readable text.
- * Example: {@spell Air Bubble} -> "Air Bubble"
+ * Strips 5eTools formatting tags and cleans them to plain readable text,
+ * or optionally converts standard tags to internal Markdown links.
+ * Example: {@spell Air Bubble} -> "[Air Bubble](?category=spells&item=Air+Bubble)"
  */
-export function parse5etoolsText(text) {
+export function parse5etoolsText(text, keepPlain = true) {
   if (typeof text !== 'string') return text;
   
   // Format standard tags: {@tag value|source|label} or {@tag value}
@@ -78,9 +98,30 @@ export function parse5etoolsText(text) {
     const parts = contents.split('|');
     let label = parts[0];
     
+    const catMap = {
+      'spell': 'spells',
+      'item': 'items',
+      'monster': 'monsters',
+      'feat': 'feats',
+      'background': 'backgrounds',
+      'race': 'races',
+      'class': 'classes',
+      'optfeature': 'options',
+      'optionalfeature': 'options'
+    };
+    
     // Spell/item/monster tag links can have label as third item
-    if (['spell', 'item', 'monster', 'feat', 'condition', 'background', 'race', 'class', 'subclass'].includes(tag)) {
+    if (['spell', 'item', 'monster', 'feat', 'condition', 'background', 'race', 'class', 'subclass', 'optfeature', 'optionalfeature'].includes(tag)) {
       label = parts[2] || parts[0];
+      if (!keepPlain && catMap[tag]) {
+        const cat = catMap[tag];
+        let itemQuery = parts[0];
+        if (tag === 'class') {
+          itemQuery = parts[0] + ' Overview';
+        }
+        const encoded = encodeURIComponent(itemQuery).replace(/%20/g, '+');
+        return `[${label}](?category=${cat}&item=${encoded})`;
+      }
     } else if (tag === 'dice' || tag === 'damage') {
       label = parts[1] || parts[0];
     } else if (tag === 'bold' || tag === 'b') {
@@ -98,16 +139,16 @@ export function parse5etoolsText(text) {
 /**
  * Parses recursive entries arrays from 5eTools format into markdown string lines.
  */
-export function render5etoolsEntries(entries) {
+export function render5etoolsEntries(entries, keepPlain = false) {
   if (entries === undefined || entries === null) return [];
-  if (typeof entries === 'string') return [parse5etoolsText(entries)];
+  if (typeof entries === 'string') return [parse5etoolsText(entries, keepPlain)];
   if (Array.isArray(entries)) {
-    return entries.flatMap(e => render5etoolsEntries(e));
+    return entries.flatMap(e => render5etoolsEntries(e, keepPlain));
   }
   if (typeof entries === 'object') {
     if (entries.type === 'list') {
       return (entries.items || []).flatMap(item => {
-        const itemLines = render5etoolsEntries(item);
+        const itemLines = render5etoolsEntries(item, keepPlain);
         if (itemLines.length > 0) {
           return [`* ${itemLines[0]}`, ...itemLines.slice(1).map(l => `  ${l}`)];
         }
@@ -119,27 +160,27 @@ export function render5etoolsEntries(entries) {
       const rows = entries.rows || [];
       const lines = [];
       if (entries.caption) {
-        lines.push(`**${parse5etoolsText(entries.caption)}**`);
+        lines.push(`**${parse5etoolsText(entries.caption, keepPlain)}**`);
       }
-      lines.push(colLabels.map(l => parse5etoolsText(l)).join(' | '));
+      lines.push(colLabels.map(l => parse5etoolsText(l, keepPlain)).join(' | '));
       lines.push(colLabels.map(() => '---').join(' | '));
       rows.forEach(row => {
-        const parsedRow = row.map(cell => render5etoolsEntries(cell).join(' '));
+        const parsedRow = row.map(cell => render5etoolsEntries(cell, keepPlain).join(' '));
         lines.push(parsedRow.join(' | '));
       });
       return lines;
     }
     if (entries.type === 'entries') {
-      const header = entries.name ? `### ${parse5etoolsText(entries.name)}` : '';
-      const content = render5etoolsEntries(entries.entries);
+      const header = entries.name ? `### ${parse5etoolsText(entries.name, true)}` : '';
+      const content = render5etoolsEntries(entries.entries, keepPlain);
       return header ? [header, ...content] : content;
     }
     if (entries.type === 'quote') {
-      return render5etoolsEntries(entries.entries).map(l => `> ${l}`);
+      return render5etoolsEntries(entries.entries, keepPlain).map(l => `> ${l}`);
     }
     if (entries.type === 'inset') {
-      const header = entries.name ? `**${parse5etoolsText(entries.name)}**` : '';
-      const content = render5etoolsEntries(entries.entries).map(l => `  ${l}`);
+      const header = entries.name ? `**${parse5etoolsText(entries.name, true)}**` : '';
+      const content = render5etoolsEntries(entries.entries, keepPlain).map(l => `  ${l}`);
       return header ? [header, ...content] : content;
     }
   }
