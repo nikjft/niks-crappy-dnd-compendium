@@ -7,7 +7,8 @@ import type {
   CharacterState,
   EquipmentItem,
   PinnedAction,
-  SpellRecord,
+  CharacterSpell,
+  CharacterFeature,
 } from '../../data/types.js';
 
 interface Props {
@@ -17,6 +18,15 @@ interface Props {
 
 function sign(n: number): string {
   return n >= 0 ? `+${n}` : String(n);
+}
+
+interface Counter {
+  id: string;
+  name: string;
+  value: number;
+  max: number;
+  reset_short?: boolean;
+  reset_long?: boolean;
 }
 
 // ── Individual card types ────────────────────────────────────────────────────
@@ -58,6 +68,7 @@ function WeaponCard({ item, state, onUnpin }: WeaponCardProps) {
         <BreakdownPopup
           label={`${atk.name} Attack`}
           breakdown={atk.atkBonus}
+          extras={[{ label: 'Damage', value: `${atk.damageFormula}${atk.damageType ? ` ${atk.damageType}` : ''}` }]}
           onClose={() => setBdOpen(false)}
         />
       )}
@@ -66,7 +77,7 @@ function WeaponCard({ item, state, onUnpin }: WeaponCardProps) {
 }
 
 interface SpellCardProps {
-  spell: SpellRecord;
+  spell: CharacterSpell;
   onUnpin: () => void;
 }
 
@@ -102,6 +113,72 @@ function SpellCard({ spell, onUnpin }: SpellCardProps) {
   );
 }
 
+interface FeatureCardProps {
+  feature: CharacterFeature;
+  onUnpin: () => void;
+}
+
+function FeatureCard({ feature, onUnpin }: FeatureCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const desc = feature.texts?.[0];
+  return (
+    <div class="qa-card">
+      <div class="qa-card-header">
+        <button class="qa-card-name qa-card-name-btn" onClick={() => setExpanded(e => !e)} title="Toggle description">
+          {feature.name}
+        </button>
+        <button class="qa-unpin-btn" onClick={onUnpin} aria-label={`Unpin ${feature.name}`} title="Remove from Quick Actions">×</button>
+      </div>
+      {feature.category && (
+        <div class="qa-card-props">
+          <span class="qa-tag">{feature.category}</span>
+        </div>
+      )}
+      {expanded && desc && (
+        <p class="qa-card-desc">{desc}</p>
+      )}
+    </div>
+  );
+}
+
+interface CounterCardProps {
+  counter: Counter;
+  counters: Counter[];
+  onUnpin: () => void;
+}
+
+function CounterCard({ counter, counters, onUnpin }: CounterCardProps) {
+  function patch(newVal: number) {
+    const updated = counters.map(c => c.id === counter.id ? { ...c, value: Math.max(0, Math.min(c.max, newVal)) } : c);
+    patchCharacter({ counters: updated } as Partial<Character>);
+  }
+
+  const pips = Math.min(counter.max, 8);
+  const resetLabel = counter.reset_short ? 'Short Rest' : counter.reset_long ? 'Long Rest' : '';
+
+  return (
+    <div class="qa-card">
+      <div class="qa-card-header">
+        <span class="qa-card-name">{counter.name}</span>
+        <button class="qa-unpin-btn" onClick={onUnpin} aria-label={`Unpin ${counter.name}`} title="Remove from Quick Actions">×</button>
+      </div>
+      <div class="qa-counter-row">
+        <div class="qa-counter-pips">
+          {Array.from({ length: pips }, (_, i) => (
+            <span key={i} class={`qa-counter-pip${i < counter.value ? ' filled' : ''}`} />
+          ))}
+          {counter.max > 8 && <span class="qa-counter-num">{counter.value}/{counter.max}</span>}
+        </div>
+        <div class="qa-counter-btns">
+          <button class="cs-hp-btn sm" onClick={() => patch(counter.value - 1)} title="Use one">−</button>
+          <button class="cs-hp-btn sm" onClick={() => patch(counter.value + 1)} title="Recover one">+</button>
+          <button class="qa-reset-btn" onClick={() => patch(counter.max)} title={`Reset (${resetLabel || 'manual'})`}>↺</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Picker modal ──────────────────────────────────────────────────────────────
 
 interface PickerProps {
@@ -120,12 +197,14 @@ function QuickActionPicker({ character, onClose }: PickerProps) {
   }
 
   const weapons = ((character.equipment ?? []) as EquipmentItem[]).filter(e => e.weapon && e.name);
-  const spells: SpellRecord[] = [];
-  for (const sl of (character.spellLists ?? []) as Array<{ spells?: SpellRecord[] }>) {
-    for (const s of sl.spells ?? []) {
-      if (!spells.some(x => x.name === s.name)) spells.push(s);
-    }
-  }
+  // Spells come from the flat character.spells array
+  const spells = ((character.spells ?? []) as CharacterSpell[]).filter(s => s.name);
+  // Non-dynamic features only
+  const features = ((character.features ?? []) as CharacterFeature[]).filter(f => f.name && !f.isDynamic && !f.isOverview);
+  // Counters (exclude internal _-prefixed ones)
+  const counters = ((character.counters ?? []) as Counter[]).filter(c => c.id && !c.id.startsWith('_'));
+
+  const isEmpty = weapons.length === 0 && spells.length === 0 && features.length === 0 && counters.length === 0;
 
   return (
     <div class="bd-overlay" onClick={onClose}>
@@ -145,7 +224,7 @@ function QuickActionPicker({ character, onClose }: PickerProps) {
                 <button
                   key={String(w.name)}
                   class={`qa-picker-item${isPinned ? ' pinned' : ''}`}
-                  onClick={() => { if (!isPinned) { pin('equipment', String(w.name)); } }}
+                  onClick={() => { if (!isPinned) pin('equipment', String(w.name)); }}
                   disabled={isPinned}
                 >
                   {w.name}
@@ -166,7 +245,7 @@ function QuickActionPicker({ character, onClose }: PickerProps) {
                 <button
                   key={String(s.name)}
                   class={`qa-picker-item${isPinned ? ' pinned' : ''}`}
-                  onClick={() => { if (!isPinned) { pin('spells', String(s.name)); } }}
+                  onClick={() => { if (!isPinned) pin('spells', String(s.name)); }}
                   disabled={isPinned}
                 >
                   {s.name}
@@ -178,8 +257,53 @@ function QuickActionPicker({ character, onClose }: PickerProps) {
           </section>
         )}
 
-        {weapons.length === 0 && spells.length === 0 && (
-          <p class="empty-hint" style={{ padding: '12px' }}>No weapons or spells found. Add some in the Inventory and Spells tabs.</p>
+        {features.length > 0 && (
+          <section class="qa-picker-section">
+            <h4 class="qa-picker-section-title">Features</h4>
+            {features.map(f => {
+              const key = `features:${f.id ?? f.name}`;
+              const isPinned = pinnedSet.has(key);
+              return (
+                <button
+                  key={String(f.id ?? f.name)}
+                  class={`qa-picker-item${isPinned ? ' pinned' : ''}`}
+                  onClick={() => { if (!isPinned) pin('features', String(f.id ?? f.name)); }}
+                  disabled={isPinned}
+                >
+                  {f.name}
+                  {f.category && <span style={{ color: 'var(--text-muted)', marginLeft: '6px', fontSize: '11px' }}>({f.category})</span>}
+                  {isPinned && <span class="qa-pinned-label">Pinned</span>}
+                </button>
+              );
+            })}
+          </section>
+        )}
+
+        {counters.length > 0 && (
+          <section class="qa-picker-section">
+            <h4 class="qa-picker-section-title">Counters</h4>
+            {counters.map(c => {
+              const key = `counters:${c.id}`;
+              const isPinned = pinnedSet.has(key);
+              return (
+                <button
+                  key={c.id}
+                  class={`qa-picker-item${isPinned ? ' pinned' : ''}`}
+                  onClick={() => { if (!isPinned) pin('counters', c.id); }}
+                  disabled={isPinned}
+                >
+                  {c.name} ({c.value}/{c.max})
+                  {isPinned && <span class="qa-pinned-label">Pinned</span>}
+                </button>
+              );
+            })}
+          </section>
+        )}
+
+        {isEmpty && (
+          <p class="empty-hint" style={{ padding: '12px' }}>
+            No weapons, spells, features, or counters found yet.
+          </p>
         )}
       </div>
     </div>
@@ -196,18 +320,29 @@ export function QuickActionsSection({ character, state }: Props) {
     patchCharacter({ pinnedActions: pinned.filter(p => !(p.sourceList === list && p.sourceId === id)) });
   }
 
-  // Resolve each pinned action to its live data
+  // Build lookup maps
   const weaponMap = new Map<string, EquipmentItem>();
   for (const e of (character.equipment ?? []) as EquipmentItem[]) {
     if (e.name) weaponMap.set(String(e.name), e);
   }
 
-  const spellMap = new Map<string, SpellRecord>();
-  for (const sl of (character.spellLists ?? []) as Array<{ spells?: SpellRecord[] }>) {
-    for (const s of sl.spells ?? []) {
-      if (s.name && !spellMap.has(String(s.name))) spellMap.set(String(s.name), s);
-    }
+  // Spells from the flat character.spells array (not from list objects — those have no spells property)
+  const spellMap = new Map<string, CharacterSpell>();
+  for (const s of (character.spells ?? []) as CharacterSpell[]) {
+    if (s.name && !spellMap.has(String(s.name))) spellMap.set(String(s.name), s);
   }
+
+  const featureMap = new Map<string, CharacterFeature>();
+  for (const f of (character.features ?? []) as CharacterFeature[]) {
+    const key = String(f.id ?? f.name);
+    if (!featureMap.has(key)) featureMap.set(key, f);
+  }
+
+  const counterMap = new Map<string, Counter>();
+  for (const c of (character.counters ?? []) as Counter[]) {
+    if (c.id) counterMap.set(c.id, c);
+  }
+  const allCounters = [...counterMap.values()].filter(c => !c.id.startsWith('_'));
 
   return (
     <div class="qa-section">
@@ -218,22 +353,34 @@ export function QuickActionsSection({ character, state }: Props) {
 
       {pinned.length === 0 ? (
         <p class="qa-empty">
-          Pin your most-used attacks, spells, and features here for fast combat access.{' '}
+          Pin your most-used attacks, spells, features, and counters here for fast combat access.{' '}
           <button class="qa-empty-link" onClick={() => setPickerOpen(true)}>+ Pin an action</button>
         </p>
       ) : (
         <div class="qa-cards">
           {pinned.map(p => {
             const key = `${p.sourceList}:${p.sourceId}`;
+            const unpinFn = () => unpin(p.sourceList, p.sourceId);
+
             if (p.sourceList === 'equipment') {
               const item = weaponMap.get(p.sourceId);
               if (!item || !item.weapon) return null;
-              return <WeaponCard key={key} item={item} state={state} onUnpin={() => unpin(p.sourceList, p.sourceId)} />;
+              return <WeaponCard key={key} item={item} state={state} onUnpin={unpinFn} />;
             }
             if (p.sourceList === 'spells') {
               const spell = spellMap.get(p.sourceId);
               if (!spell) return null;
-              return <SpellCard key={key} spell={spell} onUnpin={() => unpin(p.sourceList, p.sourceId)} />;
+              return <SpellCard key={key} spell={spell} onUnpin={unpinFn} />;
+            }
+            if (p.sourceList === 'features') {
+              const feature = featureMap.get(p.sourceId);
+              if (!feature) return null;
+              return <FeatureCard key={key} feature={feature} onUnpin={unpinFn} />;
+            }
+            if (p.sourceList === 'counters') {
+              const counter = counterMap.get(p.sourceId);
+              if (!counter) return null;
+              return <CounterCard key={key} counter={counter} counters={allCounters} onUnpin={unpinFn} />;
             }
             return null;
           })}

@@ -8358,11 +8358,15 @@ function setupCharacterSheetEvents() {
   document.getElementById('cs-levelup-btn-cancel').onclick = () => { document.getElementById('cs-levelup-modal').style.display = 'none'; };
   document.getElementById('cs-levelup-btn-apply').onclick  = () => handleLevelUpApply();
 
-  document.getElementById('cs-btn-inspiration').onclick = () => {
+  // These buttons may be absent when Preact has replaced the combat tab
+  const insBtn2 = document.getElementById('cs-btn-inspiration');
+  if (insBtn2) insBtn2.onclick = () => {
     if (currentCharacter) { currentCharacter.inspiration = !currentCharacter.inspiration; saveCurrentCharacterAndRefresh(); }
   };
-  document.getElementById('cs-btn-short-rest').onclick = () => performShortRest();
-  document.getElementById('cs-btn-long-rest').onclick  = () => performLongRest();
+  const shortRestBtn = document.getElementById('cs-btn-short-rest');
+  if (shortRestBtn) shortRestBtn.onclick = () => performShortRest();
+  const longRestBtn = document.getElementById('cs-btn-long-rest');
+  if (longRestBtn) longRestBtn.onclick = () => performLongRest();
 
   // Creator / modal cancel/save
   document.getElementById('cs-modal-btn-cancel').onclick = () => { document.getElementById('cs-creator-modal').style.display = 'none'; };
@@ -8467,28 +8471,35 @@ function setupCharacterSheetEvents() {
     };
   }
 
-  // Temp HP modal
-  document.getElementById('cs-hp-temp-btn').onclick    = () => {
-    document.getElementById('cs-temp-hp-input').value = currentCharacter.hp.temp || 0;
-    document.getElementById('cs-temp-hp-modal').style.display = 'flex';
+  // Temp HP modal — cs-hp-temp-btn may be absent when Preact has replaced the combat tab
+  const tempHpBtn = document.getElementById('cs-hp-temp-btn');
+  if (tempHpBtn) tempHpBtn.onclick = () => {
+    const inp = document.getElementById('cs-temp-hp-input'); if (inp) inp.value = currentCharacter.hp.temp || 0;
+    const m = document.getElementById('cs-temp-hp-modal'); if (m) m.style.display = 'flex';
   };
-  document.getElementById('cs-temp-hp-save').onclick   = () => {
-    currentCharacter.hp.temp = Math.max(0, parseInt(document.getElementById('cs-temp-hp-input').value) || 0);
-    document.getElementById('cs-temp-hp-modal').style.display = 'none';
+  const tempHpSave = document.getElementById('cs-hp-temp-save');
+  if (tempHpSave) tempHpSave.onclick = () => {
+    currentCharacter.hp.temp = Math.max(0, parseInt(document.getElementById('cs-temp-hp-input')?.value) || 0);
+    const m = document.getElementById('cs-temp-hp-modal'); if (m) m.style.display = 'none';
     saveCurrentCharacterAndRefresh();
   };
-  document.getElementById('cs-temp-hp-cancel').onclick = () => { document.getElementById('cs-temp-hp-modal').style.display = 'none'; };
+  const tempHpCancel = document.getElementById('cs-temp-hp-cancel');
+  if (tempHpCancel) tempHpCancel.onclick = () => { const m = document.getElementById('cs-temp-hp-modal'); if (m) m.style.display = 'none'; };
 
   // Add new list buttons
   document.getElementById('cs-btn-add-feature-list').onclick = () => {
     ensureCharacterLists(currentCharacter);
     openListConfigModal({ id: generateId(), name: 'New Feature List' }, 'feature', true);
   };
-  document.getElementById('cs-btn-add-item-list').onclick = () => {
+  // cs-btn-add-item-list is inside the Preact-managed Inventory tab — guard
+  const addItemListBtn = document.getElementById('cs-btn-add-item-list');
+  if (addItemListBtn) addItemListBtn.onclick = () => {
     ensureCharacterLists(currentCharacter);
     openListConfigModal({ id: generateId(), name: 'New Gear List' }, 'item', true);
   };
-  document.getElementById('cs-btn-add-spell-list').onclick = () => {
+  // cs-btn-add-spell-list is inside the Preact-managed Spells tab — guard
+  const addSpellListBtn = document.getElementById('cs-btn-add-spell-list');
+  if (addSpellListBtn) addSpellListBtn.onclick = () => {
     ensureCharacterLists(currentCharacter);
     openListConfigModal({ id: generateId(), name: 'New Spell List', spellcastingAbility: currentCharacter.spellcastingAbility || 'wis' }, 'spell', true);
   };

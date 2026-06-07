@@ -48,6 +48,7 @@ function WeaponRow({ weapon: _weapon, atk }: WeaponRowProps) {
         <BreakdownPopup
           label={`${atk.name} Attack`}
           breakdown={atk.atkBonus}
+          extras={[{ label: 'Damage', value: `${atk.damageFormula}${atk.damageType ? ` ${atk.damageType}` : ''}` }]}
           onClose={() => setBdTarget(null)}
         />
       )}
@@ -55,6 +56,7 @@ function WeaponRow({ weapon: _weapon, atk }: WeaponRowProps) {
         <BreakdownPopup
           label={`${atk.name} (Alt) Attack`}
           breakdown={atk.atkBonusAlt}
+          extras={[{ label: 'Damage', value: `${atk.damageFormula}${atk.damageType ? ` ${atk.damageType}` : ''}` }]}
           onClose={() => setBdTarget(null)}
         />
       )}

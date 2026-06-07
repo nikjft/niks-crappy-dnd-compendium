@@ -1,10 +1,17 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { Breakdown, BreakdownPart } from '../../data/types.js';
 
+interface ExtraRow {
+  label: string;
+  value: string;
+}
+
 interface Props {
   label: string;
   breakdown: Breakdown;
   onClose: () => void;
+  /** Optional supplemental rows shown below the total (e.g. damage formula). */
+  extras?: ExtraRow[];
 }
 
 function sign(n: number): string {
@@ -24,7 +31,7 @@ function opDisplay(part: BreakdownPart): string {
   return `${opSymbol(part)} ${abs}`;
 }
 
-export function BreakdownPopup({ label, breakdown, onClose }: Props) {
+export function BreakdownPopup({ label, breakdown, onClose, extras }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,6 +72,16 @@ export function BreakdownPopup({ label, breakdown, onClose }: Props) {
           <span>Total</span>
           <span class="bd-total-val">{sign(breakdown.total)}</span>
         </div>
+        {extras && extras.length > 0 && (
+          <div class="bd-extras">
+            {extras.map((ex, i) => (
+              <div class="bd-extra-row" key={i}>
+                <span class="bd-extra-label">{ex.label}</span>
+                <span class="bd-extra-val">{ex.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
