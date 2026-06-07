@@ -1,0 +1,18 @@
+{
+  "short_name": "D&D Compendium",
+  "name": "D&D PWA Compendium",
+  "description": "An offline-first, browsable database of Dungeons & Dragons content.",
+  "icons": [
+    {
+      "src": "icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./index.html",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "display": "standalone",
+  "orientation": "any"
+}
