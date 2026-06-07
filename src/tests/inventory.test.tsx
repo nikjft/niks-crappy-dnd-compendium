@@ -126,26 +126,26 @@ describe('InventoryTab Component', () => {
     expect(screen.getByText(/Attuned:/)).toHaveTextContent('1 / 3');
   });
 
-  test('equip and carry buttons toggle item state independently', () => {
+  test('cycle button toggles item state sequentially', () => {
     render(<InventoryTab />);
     const item = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(item.active).toBe(false);
     expect(item.selected).toBe(true); // initially carried
 
-    // Click carry btn → Carried → Stored
-    fireEvent.click(screen.getByLabelText('Toggle carry for Rope, Hempen (50ft)'));
-    const stored = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
-    expect(stored.active).toBe(false);
-    expect(stored.selected).toBe(false);
-
-    // Click equip btn → Stored → Equipped
-    fireEvent.click(screen.getByLabelText('Toggle equip for Rope, Hempen (50ft)'));
+    // Click cycle btn once: Carried (●) → Equipped (🛡️)
+    fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
     const equipped = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(equipped.active).toBe(true);
     expect(equipped.selected).toBe(true);
 
-    // Click equip btn again → Equipped → Carried
-    fireEvent.click(screen.getByLabelText('Toggle equip for Rope, Hempen (50ft)'));
+    // Click cycle btn again: Equipped (🛡️) → Not Carried (○)
+    fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
+    const uncarried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
+    expect(uncarried.active).toBe(false);
+    expect(uncarried.selected).toBe(false);
+
+    // Click cycle btn again: Not Carried (○) → Carried (●)
+    fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
     const carried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(carried.active).toBe(false);
     expect(carried.selected).toBe(true);

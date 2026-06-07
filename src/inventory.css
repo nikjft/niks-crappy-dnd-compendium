@@ -697,35 +697,54 @@
   font-size: 12px;
 }
 
-/* ── Equip / Carry toggle buttons ─────────────────────────────────────────── */
-.item-equip-btn,
-.item-carry-btn {
+/* ── State cycle buttons ─────────────────────────────────────────────────── */
+.item-cycle-btn {
   background: none;
   border: 1px solid transparent;
   padding: 2px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  opacity: 0.3;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: opacity 0.15s, border-color 0.15s;
 }
 
-.item-equip-btn:hover,
-.item-carry-btn:hover {
-  opacity: 0.7;
+.item-cycle-btn:hover {
   border-color: var(--border-color);
+  background: rgba(255,255,255,0.05);
 }
 
-.item-equip-btn.equipped {
+.item-cycle-btn .state-icon {
+  font-size: 14px;
+  line-height: 1;
+  display: inline-block;
+}
+
+.item-cycle-btn.uncarried .state-icon {
+  opacity: 0.3;
+  color: var(--text-muted);
+}
+
+.item-cycle-btn.carried {
+  border-color: var(--accent-color);
+  background: var(--accent-muted);
+}
+
+.item-cycle-btn.carried .state-icon {
   opacity: 1;
+  color: var(--accent-color);
+}
+
+.item-cycle-btn.equipped {
   border-color: #4caf50;
   background: rgba(76, 175, 80, 0.12);
 }
 
-.item-carry-btn.carried {
+.item-cycle-btn.equipped .state-icon {
   opacity: 1;
-  border-color: var(--accent-color);
-  background: var(--accent-muted);
 }
 
 /* ── State chips ─────────────────────────────────────────────────────────── */

@@ -27,8 +27,7 @@ interface ItemRowProps {
   itemLists: any[];
   isPinned: boolean;
   weightEnabled: boolean;
-  onEquip: (item: EquipmentItem) => void;
-  onCarry: (item: EquipmentItem) => void;
+  onCycleState: (item: EquipmentItem) => void;
   onUpdateQty: (id: string, qty: number) => void;
   onMoveToList: (id: string, listId: string) => void;
   onDelete: (id: string) => void;
@@ -38,7 +37,7 @@ interface ItemRowProps {
 
 function ItemRow({
   item, equipment, itemLists, isPinned, weightEnabled,
-  onEquip, onCarry, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync
+  onCycleState, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync
 }: ItemRowProps) {
   const isExpanded = expandedRowId.value === item.id;
   const [isEditing, setIsEditing] = useState(false);
@@ -77,45 +76,53 @@ function ItemRow({
     return parts.join(' · ');
   }
 
+  // Render the cycling icon: Empty circle for not carried, filled circle for carried, shield for equipped
+  function renderStateIcon() {
+    if (isEquipped) {
+      return (
+        <span class="state-icon equipped-shield" title="Equipped">
+          🛡️
+        </span>
+      );
+    }
+    if (isCarried) {
+      return (
+        <span class="state-icon carried-dot" title="Carried">
+          ●
+        </span>
+      );
+    }
+    return (
+      <span class="state-icon uncarried-circle" title="Not Carried">
+        ○
+      </span>
+    );
+  }
+
   return (
     <div class="item-row-group">
       <div
         class="item-table-row"
         onClick={() => { expandedRowId.value = isExpanded ? null : (item.id ?? null); }}
       >
-        {/* Equip toggle (shield icon) */}
+        {/* Toggle State Icon Button */}
         <div class="col-state-icon" onClick={e => e.stopPropagation()}>
           <button
-            class={`item-equip-btn${isEquipped ? ' equipped' : ''}`}
-            onClick={() => onEquip(item)}
-            title={isEquipped ? 'Unequip' : 'Equip (mark active)'}
-            aria-label={`Toggle equip for ${item.name}`}
+            class={`item-cycle-btn ${isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
+            onClick={() => onCycleState(item)}
+            aria-label={`Cycle status for ${item.name}`}
           >
-            🛡️
-          </button>
-        </div>
-
-        {/* Carry toggle (pack icon) */}
-        <div class="col-state-icon" onClick={e => e.stopPropagation()}>
-          <button
-            class={`item-carry-btn${isCarried ? ' carried' : ''}`}
-            onClick={() => onCarry(item)}
-            title={isCarried ? 'Store (unmark carried)' : 'Carry (mark in pack)'}
-            aria-label={`Toggle carry for ${item.name}`}
-          >
-            🎒
+            {renderStateIcon()}
           </button>
         </div>
 
         <div class="col-item-details">
           <div class="item-name-line">
-            <span style="font-weight: 600;">{item.name}</span>
+            <span style="font-weight: 500;">{item.name}</span>
             {item.quantity && item.quantity > 1 && (
               <span class="item-qty-badge">×{item.quantity}</span>
             )}
-            {isAttunedRequired && <span class="item-badge-container">A</span>}
-            {isEquipped && <span class="item-state-chip equipped">Equipped</span>}
-            {isCarried && !isEquipped && <span class="item-state-chip carried">Carried</span>}
+            {isAttunedRequired && <span class="item-badge-container">a</span>}
           </div>
           <div class="item-sub-line">
             <span>{getItemSubtext()}</span>
@@ -229,8 +236,7 @@ interface ItemListSectionProps {
   allLists: any[];
   weightEnabled: boolean;
   pinnedActions: any[];
-  onEquip: (item: EquipmentItem) => void;
-  onCarry: (item: EquipmentItem) => void;
+  onCycleState: (item: EquipmentItem) => void;
   onUpdateQty: (id: string, qty: number) => void;
   onMoveToList: (id: string, listId: string) => void;
   onDelete: (id: string) => void;
@@ -241,7 +247,7 @@ interface ItemListSectionProps {
 
 function ItemListSection({
   listDef, items, allEquipment, allLists, weightEnabled, pinnedActions,
-  onEquip, onCarry, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync, onAddFromCompendium
+  onCycleState, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync, onAddFromCompendium
 }: ItemListSectionProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -283,8 +289,7 @@ function ItemListSection({
                 itemLists={allLists}
                 isPinned={pinnedActions.some((p: any) => p.sourceList === 'equipment' && p.sourceId === item.name)}
                 weightEnabled={weightEnabled}
-                onEquip={onEquip}
-                onCarry={onCarry}
+                onCycleState={onCycleState}
                 onUpdateQty={onUpdateQty}
                 onMoveToList={onMoveToList}
                 onDelete={onDelete}
@@ -361,28 +366,22 @@ export function InventoryTab() {
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
 
-  function handleEquip(item: EquipmentItem) {
+  function handleCycleState(item: EquipmentItem) {
     const updated = equipment.map(i => {
       if (i.id !== item.id) return i;
-      if (i.active) {
-        return { ...i, active: false, selected: true }; // Equipped → Carried
+      
+      const isEquipped = !!i.active;
+      const isCarried = !i.active && !!i.selected;
+      
+      if (!isEquipped && !isCarried) {
+        // Not Carried (○) -> Carried (●)
+        return { ...i, active: false, selected: true };
+      } else if (isCarried) {
+        // Carried (●) -> Equipped (🛡️)
+        return { ...i, active: true, selected: true };
       } else {
-        return { ...i, active: true, selected: true }; // Carried/Stored → Equipped
-      }
-    });
-    patchCharacter({ equipment: updated });
-  }
-
-  function handleCarry(item: EquipmentItem) {
-    // If already equipped, remove equip first
-    const updated = equipment.map(i => {
-      if (i.id !== item.id) return i;
-      if (i.active) {
-        return { ...i, active: false, selected: true }; // unequip but keep carried
-      } else if (i.selected) {
-        return { ...i, active: false, selected: false }; // Carried → Stored
-      } else {
-        return { ...i, active: false, selected: true }; // Stored → Carried
+        // Equipped (🛡️) -> Not Carried (○)
+        return { ...i, active: false, selected: false };
       }
     });
     patchCharacter({ equipment: updated });
@@ -543,8 +542,7 @@ export function InventoryTab() {
             allLists={itemLists}
             weightEnabled={weightEnabled}
             pinnedActions={char.pinnedActions ?? []}
-            onEquip={handleEquip}
-            onCarry={handleCarry}
+            onCycleState={handleCycleState}
             onUpdateQty={handleUpdateQty}
             onMoveToList={handleMoveToList}
             onDelete={handleDeleteItem}
@@ -567,8 +565,7 @@ export function InventoryTab() {
             allLists={itemLists}
             weightEnabled={weightEnabled}
             pinnedActions={char.pinnedActions ?? []}
-            onEquip={handleEquip}
-            onCarry={handleCarry}
+            onCycleState={handleCycleState}
             onUpdateQty={handleUpdateQty}
             onMoveToList={handleMoveToList}
             onDelete={handleDeleteItem}
