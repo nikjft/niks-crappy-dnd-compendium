@@ -148,12 +148,23 @@ export function render5etoolsEntries(entries) {
 
 // ─── Ingestion Normalization Mappers ─────────────────────────────────────────
 
+export const sourceRanksRegistry = {
+  'XPHB': 1726531200000,
+  'XDMG': 1730160000000,
+  'XMM': 1739836800000,
+  'PHB': 1408406400000,
+  'DMG': 1418083200000,
+  'MM': 1411084800000
+};
+
 export function getSourceRank(source) {
-  if (!source) return 20;
+  if (!source) return 0;
   const src = source.toUpperCase();
-  if (['XPHB', 'XDMG', 'XMM'].includes(src)) return 100;
-  if (['PHB', 'DMG', 'MM'].includes(src)) return 10;
-  return 20;
+  if (sourceRanksRegistry[src] !== undefined) {
+    return sourceRanksRegistry[src];
+  }
+  // Default fallback rank (e.g. 2015-01-01) which sits between 2014 core and 2024 core
+  return 1420070400000;
 }
 
 export function parse5etoolsSpell(spell, source, lookup = null, activeSources = null) {
@@ -226,28 +237,40 @@ export function parse5etoolsSpell(spell, source, lookup = null, activeSources = 
   if (lookup) {
     const spellSource = (spell.source || source || '').toLowerCase();
     const spellName = (spell.name || '').toLowerCase();
-    const spellEntry = lookup[spellSource]?.[spellName];
+    let spellEntry = lookup[spellSource]?.[spellName];
+    if (!spellEntry) {
+      for (const src in lookup) {
+        if (lookup[src]?.[spellName]) {
+          spellEntry = lookup[src][spellName];
+          break;
+        }
+      }
+    }
     if (spellEntry) {
       const classesSet = new Set();
       // Parse main classes
       if (spellEntry.class) {
-        Object.values(spellEntry.class).forEach(classMap => {
+        for (const [classSource, classMap] of Object.entries(spellEntry.class)) {
+          if (activeSources && !activeSources.includes(classSource.toUpperCase())) continue;
           Object.keys(classMap).forEach(clsName => classesSet.add(clsName));
-        });
+        }
       }
       // Parse variant classes
       if (spellEntry.classVariant) {
-        Object.values(spellEntry.classVariant).forEach(classMap => {
+        for (const [variantSource, classMap] of Object.entries(spellEntry.classVariant)) {
+          if (activeSources && !activeSources.includes(variantSource.toUpperCase())) continue;
           Object.keys(classMap).forEach(clsName => classesSet.add(clsName));
-        });
+        }
       }
       // Parse subclasses
       if (spellEntry.subclass) {
         const subclassHighestRank = {};
-        Object.values(spellEntry.subclass).forEach(parentClassMap => {
+        for (const [classVersionSource, parentClassMap] of Object.entries(spellEntry.subclass)) {
+          if (activeSources && !activeSources.includes(classVersionSource.toUpperCase())) continue;
+          
           for (const [parentClass, classSourceMap] of Object.entries(parentClassMap)) {
             for (const [subclassSource, subclassMap] of Object.entries(classSourceMap)) {
-              if (activeSources && !activeSources.includes(subclassSource)) continue;
+              if (activeSources && !activeSources.includes(subclassSource.toUpperCase())) continue;
               
               for (const [subclassShort, subclassObj] of Object.entries(subclassMap)) {
                 const subName = subclassObj.name || subclassShort;
@@ -260,7 +283,7 @@ export function parse5etoolsSpell(spell, source, lookup = null, activeSources = 
               }
             }
           }
-        });
+        }
         Object.values(subclassHighestRank).forEach(item => {
           classesSet.add(item.value);
         });
@@ -273,12 +296,17 @@ export function parse5etoolsSpell(spell, source, lookup = null, activeSources = 
   if (classesList.length === 0 && spell.classes) {
     const classesSet = new Set();
     if (spell.classes.fromClassList) {
-      spell.classes.fromClassList.forEach(c => classesSet.add(c.name));
+      spell.classes.fromClassList.forEach(c => {
+        if (activeSources && c.source && !activeSources.includes(c.source)) return;
+        classesSet.add(c.name);
+      });
     }
     if (spell.classes.fromSubclassList) {
       spell.classes.fromSubclassList.forEach(sc => {
         const parentClass = sc.class?.name || '';
         const subName = sc.subclass?.name || sc.subclass?.shortName || '';
+        const subSource = sc.subclass?.source || '';
+        if (activeSources && subSource && !activeSources.includes(subSource)) return;
         if (parentClass && subName) {
           classesSet.add(`${parentClass} (${subName})`);
         } else if (subName) {

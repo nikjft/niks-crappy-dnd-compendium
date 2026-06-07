@@ -16,7 +16,8 @@ import {
   parse5etoolsOption, 
   normalize5etoolsClass, 
   suffixDuplicateNames,
-  getSourceRank
+  getSourceRank,
+  sourceRanksRegistry
 } from './parser-5etools.js';
 
 // Application State
@@ -889,6 +890,23 @@ async function execute5eToolsImport(sources) {
       const cIdx = await readJsonFile('data/class/index.json');
       if (cIdx) classIndex = cIdx;
     }
+    // Load books.json to establish dynamic source ranking by publication date
+    showOverlay('Importing 5eTools...', 'Loading source metadata...');
+    const booksJson = await readJsonFile('data/books.json');
+    if (booksJson && booksJson.book) {
+      booksJson.book.forEach(b => {
+        if (b.id && b.published) {
+          const time = new Date(b.published).getTime();
+          if (!isNaN(time)) {
+            sourceRanksRegistry[b.id.toUpperCase()] = time;
+          }
+        }
+      });
+    }
+
+    // Load spell source lookup map
+    showOverlay('Importing 5eTools...', 'Loading spell source lookup...');
+    const lookup = await readJsonFile('data/generated/gendata-spell-source-lookup.json') || null;
 
     const matchItemForVariant = (baseItem, variant) => {
       if (variant.requires && Array.isArray(variant.requires)) {
@@ -897,11 +915,13 @@ async function execute5eToolsImport(sources) {
           let reqMatch = true;
           for (const key in req) {
             if (key === 'type') {
-              if (baseItem.rawType !== req.type) {
+              const reqType = req.type.includes('|') ? req.type.split('|')[0] : req.type;
+              const baseType = baseItem.rawType.includes('|') ? baseItem.rawType.split('|')[0] : baseItem.rawType;
+              if (baseType !== reqType) {
                 reqMatch = false;
               }
             } else {
-              if (!baseItem[key]) {
+              if (baseItem[key] !== req[key]) {
                 reqMatch = false;
               }
             }
@@ -1013,6 +1033,21 @@ async function execute5eToolsImport(sources) {
         for (const baseItem of allParsedItems) {
           // Magic variants should only be created from base/non-magical items
           if (baseItem.magic) continue;
+          
+          // Skip tools, adventuring gear, and other non-combat items
+          if (!baseItem.weapon && !baseItem.armor && !baseItem.shield && !baseItem.ammo) {
+            continue;
+          }
+
+          // Restrict armor modifiers to armor/shields
+          if (inherits.bonusAc && !baseItem.armor && !baseItem.shield) {
+            continue;
+          }
+
+          // Restrict weapon modifiers to weapons/ammo
+          if ((inherits.bonusWeapon || inherits.bonusWeaponAttack) && !baseItem.weapon && !baseItem.ammo) {
+            continue;
+          }
           
           if (matchItemForVariant(baseItem, variant)) {
             const namePrefix = inherits.namePrefix || '';
@@ -1187,6 +1222,14 @@ async function execute5eToolsImport(sources) {
 
     const subclassHighest = {};
     allRawSubclasses.forEach(sub => {
+      const keptClass = classHighest[sub.className];
+      if (!keptClass) return;
+
+      const subclassClassSource = sub.classSource || sub.source || "PHB";
+      if (subclassClassSource !== keptClass.value.source) {
+        return;
+      }
+
       if (sources.includes(sub.source)) {
         const key = `${sub.className.toLowerCase()}|${sub.name.toLowerCase()}`;
         const rank = getSourceRank(sub.source);

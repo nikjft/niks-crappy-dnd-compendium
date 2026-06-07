@@ -41,6 +41,31 @@ For each selected source:
 
 ---
 
+## Deduplication & Magic Variant Generation
+
+To handle revisions (such as 2024 `XPHB` replacing 2014 `PHB` rules) and prevent name conflicts, the importer applies specific rules:
+
+### 1. Dynamic Source Ranking
+- **Publication Dates**: The importer reads `data/books.json` and ranks sources based on publication timestamps. Newer core books (`XPHB`, `XDMG`, `XMM`) automatically outrank older editions (`PHB`, `DMG`, `MM`).
+- **Deduplication (`deduplicateByRank`)**: For compendium records like spells, items, feats, backgrounds, and races, if duplicates with the exact same name are imported, only the version from the highest-ranked source is kept.
+
+### 2. Class & Subclass Version Alignment
+- **Parent Class Match**: Subclasses must align with the source of the parent class that is kept. For example, if `XPHB` version of Druid is kept, only subclass versions designed for the `XPHB` class structure (where `subclass.classSource === "XPHB"`) are imported. Subclasses matching older versions of the parent class (e.g. `subclass.classSource === "PHB"`) are pruned.
+
+### 3. Magic Variant Generation
+- **Base Items**: Base/non-magical equipment is ingested from `data/items-base.json`.
+- **Variant Interpolation**: The importer matches base items against rules in `data/magicvariants.json` using strict key-value equality (such as checking `baseItem.armor` or `baseItem.weapon` flags) and generates magic variant records (e.g. `+1/+2/+3` armors, weapons, ammo, and shields) with updated values, AC bonuses, and entries.
+- **Restrictions**: 
+  - Weapon modifiers (like `bonusWeapon`) apply only to weapons and ammo.
+  - Armor modifiers (like `bonusAc`) apply only to armor and shields.
+  - Variant generation is skipped for non-combat gear like tools or adventuring kits.
+
+### 4. Spell Lookup & Cross-Source Fallback
+- **Active Source Check**: Subclass links retrieved from the spell lookup mapping are verified. Only subclasses whose version source and subclass source exist in `activeSources` are associated with the spell, preventing third-party/unloaded sources (like Plane Shift `PSA` subclasses) from bleeding in.
+- **Cross-Source Lookup**: If a reprinted spell (such as `Aid` in `XPHB`) is not found under its reprinted source key in `gendata-spell-source-lookup.json`, the lookup table is searched across other sources (such as `PHB`) to retrieve classes and subclasses.
+
+---
+
 ## Local File Import Flow
 
 The local path is a legacy/fallback path:

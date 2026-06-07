@@ -2,6 +2,49 @@
 
 **IMPORTANT: Agent should not execute any of these changes without specific instructions. These are for user's reference only.**
 
+BUG: Add to list shows incorrect categories.
+
+Current behavior...
+
+Click add on equipment list.
+
+See on sidebar:
+
+Items,
+Characters,
+Search,
+Bookmarks
+
+Expected: Only show Equipment, bookmarks
+
+ENHANCEMENT: Filter irrelevant categories from being selectable in bookmarks and search.
+
+Current behavior...
+
+Add equipment to character
+
+Go to bookmarks
+
+Click on non-equipment bookmark (e.g. spell) or search and click on something irrelevant.
+
+Get button "Add to inventory"
+
+Desired...
+
+ Do not show button for incorrect context
+
+Do not show irrelevant bookmarks or search results.
+
+BUG: Categories in equipment list abbreviated
+
+In equipment, see "T" as a category, should be "Tools". Also have categories of SA, SG, AF, AIR, AT, FD, GS, MNT, etc... all should be full readable words. 
+
+ENHANCEMENT: Show source for all elements. Just `*Source: TCE*` is sufficient, although full name of book is preferred `*Source: Tasha's Cauldron of Everything*`
+
+ENHANCEMENT: Artificer magic items plans should show up as an option, not only as a table. These should include the full description of the related items or a hyperlink to it.
+
+ENHANCEMENT: Hyperlinks from source 5etools data that cross-references  should be clickable and lead to the correct entry. (E.g. hyperlinks between tables)
+
 **DONE** ENHANCEMENT: Have separate options to clear compendium and clear database. The first will only clear compendium, the second will clear compendium and characters. If clearing characters, provide prompt to download and save first (which user would do manually).
 
 **DONE** BUG: Adding a level to the character shouldn't be possible. You must use the level up process to increase level. Do not let counter be edited.

@@ -93,6 +93,8 @@ After edits, hard-reload (Cmd+Shift+R in Chrome) to bypass the SW cache. If stal
 See [todo.md](../todo.md) for the full backlog. **Do not fix backlog items unless explicitly instructed.**
 
 Active known issues:
-- Not all equipment is imported: non-magical armor (e.g. leather armor), non-magical weapons (e.g. longsword), and magic bonus weapons/armor (+1/+2/+3) are missing from the database.
-- Equipment item categories are duplicated for books: categories like `"S|XPHB"` appear alongside `"Shield"` — categories should never be source-suffixed at the category level.
-- Duplicate records across sources are not de-duplicated: if Circle of Stars druid exists in PHB and XPHB, both appear. The desired behavior is to keep the most recent book's version and prune the older source's related records (spell lists, etc.).
+- Categories in equipment list are abbreviated (e.g. "T" instead of "Tools", "AT", "MNT", etc.).
+- Source display in compendium details should support full book names instead of just abbreviations (e.g., "Tasha's Cauldron of Everything" instead of just "TCE").
+- Artificer magic items list options: Artificer item replicate plans should be browsable options with descriptions or links rather than just tables.
+- Cross-reference hyperlinks in 5eTools entries are not clickable.
+- Adding items to list shows incorrect categories in the picker sidebar.

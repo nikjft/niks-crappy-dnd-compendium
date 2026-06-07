@@ -315,6 +315,48 @@ await test('parse5etoolsOption featureType mapping', () => {
   assertDeepEqual(parsed.classes, ["Eldritch Invocation"], "EI maps to Eldritch Invocation");
 });
 
+// --- Test 10: Spell Lookup subclass source filter (e.g. PSA bleed prevention) ---
+await test('parse5etoolsSpell activeSources check with lookup', () => {
+  const rawSpell = {
+    name: "Aid",
+    source: "XPHB",
+    level: 2,
+    school: "A",
+    entries: ["Aid entries"]
+  };
+
+  const mockLookup = {
+    "phb": {
+      "aid": {
+        "class": {
+          "PHB": { "Cleric": true }
+        },
+        "subclass": {
+          "XPHB": {
+            "Cleric": {
+              "PSA": {
+                "Solidarity (PSA)": { "name": "Solidarity Domain (PSA)" }
+              },
+              "TCE": {
+                "Peace": { "name": "Peace Domain" }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  const activeSources = ["XPHB", "TCE"];
+  const parsed = parse5etoolsSpell(rawSpell, "XPHB", mockLookup, activeSources);
+
+  const hasPSA = parsed.classes.some(c => c.includes("PSA") || c.includes("Solidarity"));
+  assertEqual(hasPSA, false, "Solidarity Domain (PSA) subclass was filtered out");
+
+  const hasPeace = parsed.classes.includes("Cleric (Peace Domain)");
+  assertEqual(hasPeace, true, "Peace Domain subclass is included");
+});
+
 console.log('\n══════════════════════════════════════════════════════════');
 if (failCount === 0) {
   console.log(`✅  ALL ${passCount} PARSER TESTS PASSED`);
