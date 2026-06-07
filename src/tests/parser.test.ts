@@ -37,6 +37,30 @@ describe('render5etoolsEntries', () => {
     expect(result).toContain('### Subheader');
     expect(result).toContain('Subsection content');
   });
+
+  it('handles section type (like entries but no required name)', () => {
+    const entries = [{ type: 'section', name: 'Construction Details', entries: ['You can customize it.'] }];
+    const result = render5etoolsEntries(entries);
+    expect(result).toContain('### Construction Details');
+    expect(result).toContain('You can customize it.');
+  });
+
+  it('handles item type (definition list: Term. definition)', () => {
+    const entries = [
+      { type: 'item', name: 'Finesse', entries: ['Use STR or DEX for attack.'] },
+      { type: 'item', name: 'Light', entry: 'Can dual-wield.' },
+    ];
+    const result = render5etoolsEntries(entries);
+    expect(result.some((l: string) => l.includes('**Finesse**') && l.includes('Use STR or DEX'))).toBe(true);
+    expect(result.some((l: string) => l.includes('**Light**') && l.includes('Can dual-wield'))).toBe(true);
+  });
+
+  it('handles insetReadaloud type like inset', () => {
+    const entries = [{ type: 'insetReadaloud', name: 'Scene', entries: ['You enter a dark room.'] }];
+    const result = render5etoolsEntries(entries);
+    expect(result.some((l: string) => l.includes('**Scene**'))).toBe(true);
+    expect(result.some((l: string) => l.includes('dark room'))).toBe(true);
+  });
 });
 
 describe('parse5etoolsSpell', () => {
@@ -76,6 +100,47 @@ describe('parse5etoolsSpell', () => {
     const parsed = parse5etoolsSpell(raw, 'PHB');
     expect(parsed.school).toBe('Enchantment');
     expect(parsed.range).toBe('Touch');
+  });
+
+  it('includes entriesHigherLevel in texts (At Higher Levels)', () => {
+    const raw = {
+      name: 'Fireball',
+      source: 'PHB',
+      level: 3,
+      school: 'V',
+      time: [{ number: 1, unit: 'action' }],
+      range: { type: 'point', distance: { type: 'feet', amount: 150 } },
+      components: { v: true, s: true, m: 'a ball of bat guano and sulfur' },
+      duration: [{ type: 'instant' }],
+      entries: ['A bright streak of fire blossoms into a 20-foot-radius sphere.'],
+      entriesHigherLevel: [
+        {
+          type: 'entries',
+          name: 'At Higher Levels',
+          entries: ['The damage increases by 1d6 for each slot level above 3rd.'],
+        },
+      ],
+    };
+    const parsed = parse5etoolsSpell(raw, 'PHB');
+    expect(parsed.texts.some((t: string) => t.includes('At Higher Levels'))).toBe(true);
+    expect(parsed.texts.some((t: string) => t.includes('1d6 for each slot level'))).toBe(true);
+  });
+
+  it('does not add spurious entries when entriesHigherLevel is absent', () => {
+    const raw = {
+      name: 'Mage Hand',
+      source: 'PHB',
+      level: 0,
+      school: 'C',
+      time: [{ number: 1, unit: 'action' }],
+      range: { type: 'point', distance: { type: 'feet', amount: 30 } },
+      components: { v: true, s: true },
+      duration: [{ type: 'timed', duration: { type: 'minute', amount: 1 } }],
+      entries: ['A spectral, floating hand appears.'],
+    };
+    const parsed = parse5etoolsSpell(raw, 'PHB');
+    expect(parsed.texts).toHaveLength(1);
+    expect(parsed.texts[0]).toContain('spectral');
   });
 });
 

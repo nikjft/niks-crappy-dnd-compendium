@@ -175,13 +175,33 @@ export function render5etoolsEntries(entries, keepPlain = false) {
       const content = render5etoolsEntries(entries.entries, keepPlain);
       return header ? [header, ...content] : content;
     }
+    // 'section' is a wrapper like 'entries' but typically without a prominent name
+    if (entries.type === 'section') {
+      const header = entries.name ? `### ${parse5etoolsText(entries.name, true)}` : '';
+      const content = render5etoolsEntries(entries.entries, keepPlain);
+      return header ? [header, ...content] : content;
+    }
     if (entries.type === 'quote') {
       return render5etoolsEntries(entries.entries, keepPlain).map(l => `> ${l}`);
     }
-    if (entries.type === 'inset') {
+    if (entries.type === 'inset' || entries.type === 'insetReadaloud') {
       const header = entries.name ? `**${parse5etoolsText(entries.name, true)}**` : '';
       const content = render5etoolsEntries(entries.entries, keepPlain).map(l => `  ${l}`);
       return header ? [header, ...content] : content;
+    }
+    // 'item' type = definition-list entry: {type:'item', name:'Term', entry:'...', entries:[...]}
+    if (entries.type === 'item') {
+      const nameStr = entries.name ? `**${parse5etoolsText(entries.name, true)}**` : '';
+      // 'entry' (singular) or 'entries' (array) can both appear
+      const body = entries.entries
+        ? render5etoolsEntries(entries.entries, keepPlain)
+        : entries.entry
+          ? [parse5etoolsText(String(entries.entry), keepPlain)]
+          : [];
+      if (nameStr && body.length > 0) {
+        return [`${nameStr}. ${body[0]}`, ...body.slice(1)];
+      }
+      return nameStr ? [nameStr, ...body] : body;
     }
   }
   return [];
@@ -372,7 +392,11 @@ export function parse5etoolsSpell(spell, source, lookup = null, activeSources = 
     duration: durStr,
     classes: classesList,
     source: spell.source || source,
-    texts: render5etoolsEntries(spell.entries),
+    // Include the main description and the "At Higher Levels" / upcast section (entriesHigherLevel)
+    texts: [
+      ...render5etoolsEntries(spell.entries),
+      ...render5etoolsEntries(spell.entriesHigherLevel || []),
+    ],
     rolls: [],
     modifiers: []
   };
