@@ -285,14 +285,24 @@ export function calculateCharacterState(character: Character): CharacterState {
   const skillsProf = (character.skillsProficiency ?? {}) as Record<string, number>;
   const skillOverrides = (character.skillsAttributeOverride ?? {}) as Record<string, string>;
 
+  // Jack of All Trades: Bard lvl ≥ 2 grants half-proficiency to non-proficient skills.
+  // Detect from class list OR from a feature named "Jack of All Trades".
+  const classes = (character.classes ?? []) as Array<{ name: string; level: number }>;
+  const features = (character.features ?? []) as Array<{ name?: string }>;
+  const hasJoaT =
+    classes.some(c => c.name.toLowerCase() === 'bard' && c.level >= 2) ||
+    features.some(f => f.name?.toLowerCase().includes('jack of all trades'));
+
   for (const [skill, defaultAttr] of Object.entries(SKILL_ATTRS)) {
     const attr = skillOverrides[skill] ?? defaultAttr;
-    const mult = parseFloat(String(skillsProf[skill])) || 0;
+    const rawMult = parseFloat(String(skillsProf[skill])) || 0;
+    // Apply JoaT: floor(prof/2) for any skill with no proficiency
+    const mult = hasJoaT && rawMult === 0 ? 0.5 : rawMult;
     const attrMod = flat[`${attr}.mod`];
-    const base = attrMod + mult * profBonus;
-    const profLabel = mult === 2 ? 'Expertise' : mult === 0.5 ? 'Half Prof' : mult > 0 ? 'Prof' : '';
+    const base = attrMod + Math.floor(mult * profBonus);
+    const profLabel = mult === 2 ? 'Expertise' : mult === 0.5 ? (rawMult === 0 ? 'Half Prof (JoaT)' : 'Half Prof') : mult > 0 ? 'Prof' : '';
     const baseLabel = profLabel
-      ? `${attr.toUpperCase()} Mod + ${profLabel} (+${mult * profBonus})`
+      ? `${attr.toUpperCase()} Mod + ${profLabel} (+${Math.floor(mult * profBonus)})`
       : `${attr.toUpperCase()} Mod`;
     set(`skill.${skill}`, resolve(`skill.${skill}`, base, baseLabel));
   }

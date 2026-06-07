@@ -256,6 +256,23 @@
   font-size: 11px;
 }
 
+.cond-chip-name {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.cond-chip-name:hover {
+  color: var(--accent-color);
+}
+
 .chip-remove {
   background: none;
   border: none;
@@ -268,6 +285,28 @@
 
 .chip-remove:hover {
   color: var(--error-color);
+}
+
+.cond-popup {
+  max-width: min(360px, 95vw);
+}
+
+.cond-spell-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+
+.cond-effects-list {
+  margin: 0 0 8px 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: disc;
 }
 
 .chip-add {
@@ -417,6 +456,36 @@
   font-family: var(--font-header);
   font-size: 22px;
   color: var(--text-primary);
+}
+
+.bd-extras {
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bd-extra-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.bd-extra-label {
+  color: var(--text-muted);
+  font-family: var(--font-header);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.bd-extra-val {
+  color: var(--text-primary);
+  font-family: var(--font-header);
+  font-size: 14px;
 }
 
 /* ── Attacks section ──────────────────────────────────────────────────────── */
@@ -844,19 +913,107 @@
   color: var(--text-muted);
 }
 
-.qa-tag {
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 500;
-}
-
 .qa-tag.conc {
   background: var(--accent-muted);
   color: var(--accent-color);
 }
 
 .qa-tag.ritual {
+  background: var(--panel-bg-active);
+  color: var(--text-secondary);
+}
+
+.qa-card-name-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-header);
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  flex: 1;
+}
+
+.qa-card-name-btn:hover {
+  color: var(--accent-color);
+}
+
+.qa-card-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 6px 0 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.qa-counter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.qa-counter-pips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  flex: 1;
+  align-items: center;
+}
+
+.qa-counter-pip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+  display: inline-block;
+}
+
+.qa-counter-pip.filled {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+.qa-counter-num {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+}
+
+.qa-counter-btns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.qa-reset-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.qa-reset-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.qa-tag {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
   background: var(--panel-bg-active);
   color: var(--text-secondary);
 }

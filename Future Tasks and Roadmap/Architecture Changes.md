@@ -318,8 +318,9 @@ until parity is reached.
 *Running list of all items that need to be addressed. Should be reviewed prior to dev of each step in case it is a dependency. Review at stage 9 of section 10 for open items. As items are completed, mark complete*
 
 - [x] Magic bonus (e.g. +1 Club) not applying to total combat bonus
-- [ ] Clicking on item for popup of how things are added up does not show damage, only attack. Should show both.
-- [ ] Applied conditions should have popup when clicked on show the effect of the condition.
-- [ ] LOW PRIORITY: Jack of All Trades should be applied as a bonus to all non-proficient skills based on class feature, not toggled manually in skills.
-- [ ] Supernatural boon for Goliath doesn't appear in character creator. Should be able to select as an ability.
-- [ ] Make all entities available for pinning - beasts, items, spells, in addition to things on the Combat tab already
+- [x] Clicking on item for popup of how things are added up does not show damage, only attack. Should show both. *Fixed: BreakdownPopup now accepts `extras` prop; attack popups include damage formula row.*
+- [x] Applied conditions should have popup when clicked on show the effect of the condition. *Fixed: clicking a condition chip name opens ConditionPopup with full mechanical effects list; × still removes directly.*
+- [x] LOW PRIORITY: Jack of All Trades should be applied as a bonus to all non-proficient skills based on class feature, not toggled manually in skills. *Fixed: engine.ts detects Bard level ≥ 2 (or feature named "Jack of All Trades") and auto-applies half-prof (floor) to non-proficient skills.*
+- [ ] Supernatural boon for Goliath doesn't appear in character creator. Should be able to select as an ability. *Deferred — requires changes to the legacy creation wizard; out of scope until Phase 10 cutover.*
+- [x] Make all entities available for pinning - beasts, items, spells, in addition to things on the Combat tab already. *Fixed: QuickActionsSection picker now includes Spells (from character.spells flat array, fixing prior bug), Features, and Counters. Feature and Counter cards added.*
+- [x] CRITICAL: Cannot navigate between tabs in character sheet. *Root cause: setupCharacterSheetEvents() in app.js threw TypeError on null elements (cs-btn-inspiration, cs-btn-short-rest, cs-btn-long-rest, cs-hp-temp-btn, cs-btn-add-item-list, cs-btn-add-spell-list) that were removed when Preact replaced those tabs. Tab onclick wiring at the bottom of the function never ran. Fix: guarded all Preact-replaced elements with null checks.*
