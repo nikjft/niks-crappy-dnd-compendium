@@ -1,103 +1,117 @@
-# Nik's Crappy D&D Compendium — Architecture Overview
+# System Architecture & Infrastructure Design
 
-> **For agents:** Read this file first, then follow links to sub-documents for the area you're working in. Do **not** begin editing until you have read the relevant sub-doc.
-
-**Critical Documentation:** When you make changes to the structure of the app which are significant, update these documents.
-
-## What This App Is
-
-A **client-only, offline-capable PWA** (Progressive Web App) for D&D 5e/5.5e. It has no backend server. All data lives in the browser's **IndexedDB**. Optional cloud sync is done via **Dropbox**.
-
-The app serves two purposes:
-1. **Compendium** — Browse spells, items, monsters, races, backgrounds, classes, feats, etc. imported from [5etools](https://github.com/5etools-mirror-3/5etools-src).
-2. **Character Sheet** — Create and manage characters with a full stat engine.
+This document describes the modern Preact + Vite architecture of **Nik's Crappy D&D Compendium**, detailing the toolchain, reactive state model, stat calculation engine, persistence flow, and the bridge between modern and legacy code.
 
 ---
 
-## File Map
+## 1. Stack & Toolchain
 
-| File | Role |
-|------|------|
-| `index.html` | Single HTML shell. All panes are pre-defined in markup; JS shows/hides them. |
-| `index.css` | All styling (~73 KB). CSS custom properties drive the dark theme. |
-| `app.js` | Monolith UI controller (~8000 lines). Contains all rendering, event wiring, navigation, settings, character sheet, and wizard logic. |
-| `db.js` | IndexedDB abstraction layer. All reads/writes go through here. Exports `clearCompendium()` (preserves characters/favorites) and `clearDatabase()` (wipes everything). |
-| `engine.js` | Headless stat calculator. Reads a character object, returns a flat `state` dict of resolved numbers. |
-| `parser-5etools.js` | Ingestion adapter. Converts raw 5etools JSON → normalized internal records. |
-| `parser.js` | Re-exports type constants (ITEM_TYPES, SPELL_SCHOOLS, etc.) from parser-5etools. |
-| `sync.js` | Dropbox OAuth PKCE + bidirectional sync cycle. |
-| `conflict.js` | Last-Write-Wins (LWW) merge strategy for sync conflicts. |
-| `storage.js` | `navigator.storage.persist()` + quota monitoring. |
-| `ui-sync.js` | Sync/storage status banners and badges rendered in the UI. |
-| `feature-modifiers.js` | Static lookup table: `"FeatureName\|Source"` → modifier array. Used by engine. |
-| `sw.js` | Service worker. Cache-first with background network update. Bump `CACHE_NAME` version to force cache invalidation. Currently `v31`. |
-| `source-data/` | Bundled SRD XML (fallback data source, not primary). |
+The application is built as a compiled, offline-first client-only Progressive Web App (PWA). There is no backend server.
+
+- **Build Tool**: **Vite** with Hot Module Replacement (HMR).
+- **Core Library**: **Preact** (`preact` + `preact/compat`) for high performance and minimal runtime footprint (~4 KB).
+- **Reactivity**: **`@preact/signals`** for fine-grained updates without complete tree re-renders.
+- **Language**: **TypeScript** for type safety of complex D&D data structures.
+- **PWA Tooling**: **`vite-plugin-pwa`** (Workbox) for content-hashed caching and automatic offline updates.
+- **Testing**: **Vitest** for unit tests.
+
+### Configuration & Deployment
+- **Base Path**: The application is configured to deploy on GitHub Pages using `base: '/niks-crappy-dnd-compendium/'` in [vite.config.ts](file:///Users/inik/Documents/git/niks-crappy-dnd-compendium/vite.config.ts).
+- **Output**: Built static assets are generated in the `dist/` directory via `npm run build`.
 
 ---
 
-## Sub-Documents
-
-Detailed breakdowns for each major subsystem:
-
-- **[importer.md](./importer.md)** — GitHub fetch pipeline, source selection modal, parser dispatch, IndexedDB write.
-- **[sync-engine.md](./sync-engine.md)** — Dropbox OAuth PKCE, sync cycle, LWW conflict resolution, storage persistence.
-- **[compendium.md](./compendium.md)** — UI layout (4-pane model), category navigation, facet filtering, detail rendering, favorites.
-- **[character-sheet.md](./character-sheet.md)** — Character data model, stat engine, character wizard, level-up flow, sheet rendering.
-
----
-
-## Runtime Data Flow
+## 2. Project Directory Layout
 
 ```
-GitHub raw JSON
-      │  (fetch in showSourceSelectionModal / importFromGithub)
-      ▼
-parser-5etools.js  ←─ normalizes to internal schema
-      │
-      ▼
-db.js saveRecords()  ←─ upsert into IndexedDB (named store per category)
-      │
-      ▼
-allRecordsCache{}  ←─ in-memory cache populated on loadCategory()
-      │
-      ▼
-app.js renderFacet1/2 → renderList → selectItem → getDetailHTML
+src/
+  main.tsx                     # Mounts Preact components to DOM anchors, hooks up global triggers
+  combat.css, stats.css...     # Tab-specific CSS stylesheets
+  components/
+    combat/                    # Combat Tab components (CombatTab, QuickActions, HPModal, RestWizard)
+    stats/                     # Stats & Skills Tab components (StatsTab, AbilityCards)
+    inventory/                 # Inventory Tab components (InventoryTab, ItemRow)
+    spells/                    # Spells Tab components (SpellsTab, SpellSlotTracker)
+    features/                  # Features Tab components (FeaturesTab, ModifierEditor)
+    shared/                    # Shared components (BreakdownPopup, TagText, MarkdownContent)
+  data/
+    types.ts                   # Unified TypeScript definitions (Character, EquipmentItem, SpellSpell...)
+  engine/
+    engine.ts                  # Headless rules calculation engine (returns breakdowns)
+    engine.test.ts             # Vitest test suite for stat calculations
+  state/
+    stores.ts                  # Signals store (currentCharacter, activeTab, persistence triggers)
+    persistence.ts             # Sync-to-IndexedDB persistence loops
+  utils/
+    parseTagMarkup.ts          # Cross-reference parser for {@spell name} style tags
+docs/
+  architecture.md              # Entrypoint documentation (this file)
+  character-sheet.md           # Character state, wizard, and level-up details
+  compendium.md                # Compendium browsing, search, and details layout
+  importer.md                  # 5etools parser and IndexedDB seeder documentation
+  sync-engine.md               # Dropbox synchronization protocols and LWW conflict resolution
 ```
 
 ---
 
-## Key Design Decisions
+## 3. Reactive State Model (Signals)
 
-1. **No framework.** Vanilla JS ES modules. No build step. Served by any static file server or `python3 -m http.server 8085`.
-2. **All state lives in IndexedDB.** `allRecordsCache` is an in-memory mirror populated at category load time, never the source of truth.
-3. **`_modified_at` ISO timestamp** on every record enables LWW sync without a server clock. Note: compendium records imported from 5etools do NOT carry `_modified_at` — only characters, favorites, and hand-built records do. This is intentional; compendium data is re-importable.
-4. **`app.js` is a monolith by design.** Do not split it without a clear plan; many functions share top-level state variables (`currentCategory`, `selectedItem`, `currentCharacter`, etc.).
-5. **Service worker caches JS/CSS.** After editing JS/CSS, bump `CACHE_NAME` in `sw.js` (currently `v31`; increment to force cache invalidation). Users may also need to hard-reload (Cmd+Shift+R) or unregister the SW via DevTools.
-6. **XPHB vs PHB data shape differs.** XPHB (2024 rules) races/backgrounds use free-form ability selection in nested `entries` rather than structured `ability[]` arrays. The parser normalizes both; XPHB ability/language fields may be empty strings when the data is inherently free-form.
-7. **Two distinct clear operations exist.** `clearCompendium()` wipes only compendium content stores (spells, items, monsters, etc.) and preserves `characters` and `favorites`. `clearDatabase()` clears **all** STORES including characters. `importAllData()` calls `clearDatabase()` by default; be careful not to use it as a re-import path without understanding this.
-8. **TCE Artificer is fully superseded by EFA (Eberron: Forge of the Artificer).** These sources are mutually exclusive — a user will never have both loaded. The source ranking system handles deduplication generically, but in practice only one will be present.
+State management is driven by `@preact/signals`. Components subscribe to specific signals and re-render *only* when the referenced signal values change.
 
----
+```typescript
+// src/state/stores.ts
+export const currentCharacter = signal<Character | null>(null);
+export const activeTab = signal<string>('combat');
 
-## Development Server
-
-```bash
-cd /Users/inik/Documents/git/niks-crappy-dnd-compendium
-python3 -m http.server 8085
-# → http://localhost:8085
+// Derived state (automatically re-computed when currentCharacter changes)
+export const charState = computed(() => {
+  const char = currentCharacter.value;
+  return char ? calculateCharacterState(char) : null;
+});
 ```
 
-After edits, hard-reload (Cmd+Shift+R in Chrome) to bypass the SW cache. If stale content persists, open DevTools → Application → Service Workers → Unregister, then reload.
+To modify character state, use helper actions that update `currentCharacter.value` in-place, which automatically triggers:
+1. Re-calculation in `charState` (and UI updates in components reading it).
+2. The debounced persistence effect in `src/state/persistence.ts` that saves the updated character to IndexedDB and schedules cloud synchronization.
 
 ---
 
-## Known Issues / Active Bugs
+## 4. Stat Calculation Engine & Breakdowns
 
-See [todo.md](../todo.md) for the full backlog. **Do not fix backlog items unless explicitly instructed.**
+The calculation engine ([src/engine/engine.ts](file:///Users/inik/Documents/git/niks-crappy-dnd-compendium/src/engine/engine.ts)) computes derived statistics (AC, HP, Initiative, Saves, Skills, Passive scores, Attack Bonuses) from a raw `Character` record.
 
-Active known issues:
-- Categories in equipment list are abbreviated (e.g. "T" instead of "Tools", "AT", "MNT", etc.).
-- Source display in compendium details should support full book names instead of just abbreviations (e.g., "Tasha's Cauldron of Everything" instead of just "TCE").
-- Artificer magic items list options: Artificer item replicate plans should be browsable options with descriptions or links rather than just tables.
-- Cross-reference hyperlinks in 5eTools entries are not clickable.
-- Adding items to list shows incorrect categories in the picker sidebar.
+Instead of discarding calculation steps, it returns a structured `Breakdown` for every statistic:
+
+```typescript
+export interface BreakdownPart {
+  label: string;
+  value: number;
+  op: 'add' | 'set' | 'min' | 'max';
+}
+
+export interface Breakdown {
+  total: number;
+  base: { label: string; value: number };
+  parts: BreakdownPart[];
+}
+```
+
+This structural breakdown is rendered by the generic `<BreakdownPopup>` component when a player taps any derived stat in the UI.
+
+---
+
+## 5. Modern-Legacy Integration Bridge
+
+Because parts of the compendium and settings sidebar still rely on the legacy `app.js` monolithic event loop, a bridge object is exposed on the global `window` object:
+
+```typescript
+// Exposed to legacy code from src/main.tsx
+(window as any).__dndStore = {
+  currentCharacter,
+  patchCharacter,
+};
+```
+
+This bridge allows the legacy roster view, creation wizard, and settings panels to set the active character, while Preact tabs can listen to character changes reactively. 
+
+Additionally, helper functions like `window.__legacyOpenPicker` are utilized to let Preact components trigger the legacy compendium search and item/spell selection overlays.

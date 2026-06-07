@@ -3,6 +3,7 @@ import preact from '@preact/preset-vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  base: '/niks-crappy-dnd-compendium/',
   plugins: [
     preact(),
     VitePWA({
