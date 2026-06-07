@@ -256,15 +256,15 @@ Active conditions to clear:
 ┌──────────────────────────────────────────────────────────────────┐
 │                       ABILITY SCORES                             │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐                           │
-│  │   +3    │ │   +4    │ │   +2    │                           │
+│  │   16    │ │   18    │ │   14    │                           │
 │  │  STR    │ │  DEX    │ │  CON    │                           │
-│  │  (16)   │ │  (18)   │ │  (14)   │                           │
+│  │  (+3)   │ │  (+4)   │ │  (+2)   │                           │
 │  │ Save +6 │ │ Save +4 │ │ Save +5 │                           │
 │  └─────────┘ └─────────┘ └─────────┘                           │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐                           │
-│  │   +1    │ │   +2    │ │   +0    │                           │
+│  │   12    │ │   14    │ │   8    │                           │
 │  │  INT    │ │  WIS    │ │  CHA    │                           │
-│  │  (12)   │ │  (14)   │ │  (10)   │                           │
+│  │  (+1)   │ │  (+2)   │ │  (-2)   │                           │
 │  │ Save +1 │ │ Save +2 │ │ Save +0 │                           │
 │  └─────────┘ └─────────┘ └─────────┘                           │
 │──────────────────────────────────────────────────────────────────│
@@ -441,8 +441,8 @@ Features with `optional: true` flag display with a dimmed/outlined style and an 
 │    ⓔ  Studded Leather +1       AC 13 + DEX        3 lbs        │
 │    ⓔ  Shield                   AC +2               6 lbs        │
 │    ⓔ  Longsword +1             1d8+1 S, Versatile  3 lbs        │
-│    ⓐ  Cloak of Protection      +1 AC, +1 Saves     1 lb  🔮    │
-│    ⓐ  Ring of Protection       +1 AC, +1 Saves     —     🔮    │
+│    ⓐ  Cloak of Protection      +1 AC, +1 Saves     1 lb  a    │
+│    ⓐ  Ring of Protection       +1 AC, +1 Saves     —     a    │
 │  ▼ Carried (Selected)                                            │
 │    ○  Hand Crossbow             1d6 P               3 lbs       │
 │    ○  Crossbow Bolts (20)       Ammunition          1.5 lbs     │
@@ -468,7 +468,7 @@ Items exist in three tiers (existing model, maintained):
 | **Neither** (stored) | "Stored" | ❌ No | ❌ No (in container) |
 
 - `ⓔ` = Equipped, `ⓐ` = Attuned (equipped + requires attunement), `○` = not active.
-- `🔮` badge = requires attunement.
+- `a` badge = requires attunement.
 
 ### 6.3 Item Row Behaviors
 
