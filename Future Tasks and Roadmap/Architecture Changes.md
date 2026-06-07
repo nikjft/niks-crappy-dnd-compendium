@@ -326,3 +326,29 @@ until parity is reached.
 - [ ] Supernatural boon for Goliath doesn't appear in character creator. Should be able to select as an ability. *Deferred — requires changes to the legacy creation wizard; out of scope until Phase 10 cutover.*
 - [x] Make all entities available for pinning - beasts, items, spells, in addition to things on the Combat tab already. *Fixed: QuickActionsSection picker now includes Spells (from character.spells flat array, fixing prior bug), Features, and Counters. Feature and Counter cards added.*
 - [x] CRITICAL: Cannot navigate between tabs in character sheet. *Root cause: setupCharacterSheetEvents() in app.js threw TypeError on null elements (cs-btn-inspiration, cs-btn-short-rest, cs-btn-long-rest, cs-hp-temp-btn, cs-btn-add-item-list, cs-btn-add-spell-list) that were removed when Preact replaced those tabs. Tab onclick wiring at the bottom of the function never ran. Fix: guarded all Preact-replaced elements with null checks.*
+- [x] Items regressed. Instead of multiple items lists with toggles for carried/equipped, there are now multiple lists. Rever to prior behavior, common to all lists. *Fixed (2026-06): InventoryTab rebuilt with per-named-list sections. Each item row has separate equip (🛡️) and carry (🎒) toggle buttons. Items stay in their named list; buttons independently set `active`/`selected`.*
+- [x] Spells - add back edit to spell list to change which attribute is used for spell casting. *Fixed (2026-06): `ListHeader` in SpellsTab now shows the ability badge as a clickable button; clicking reveals an inline `<select>` dropdown (STR/DEX/CON/INT/WIS/CHA); selecting saves via `patchCharacter({ spellLists: [...] })`.*
+- [x] Items - cannot add from compendium. Revert to prior approach with add button on each individual equipment list. *Fixed (2026-06): `handleOpenPicker` was calling `window.openPicker` (undefined) instead of `window.__legacyOpenPicker`. Fixed; each list section also has its own `+ Add` button calling `__legacyOpenPicker('items', listId)`.*
+- [ ] Bestiary - cannot add pets/mounts/etc from bestiary. Click add, does nothing. *Needs investigation — bestiary is still legacy DOM; `openPicker('monsters', listId)` should work but user reports it does nothing. Likely requires running the app to test.*
+- [x] Adding custom item does not let me set properties for weapons or armor, no modifiers for magical effects. Should be able to add multiple modifiers to items, feats, abilities. *Fixed (2026-06): Custom item creator now has weapon section (damage dice, damage type, comma-separated properties), armor/shield section (AC value), and a dynamic modifier list (target stat, type add/set, value). Modifiers use the `Modifier` type from `types.ts`.*
+- [x] Custom feats won't let me add modifiers. Should let me add multiple modifiers to anything custom. *Fixed (2026-06): `CustomFeatureModal` now has a `Modifiers (when active)` section with + Add Modifier button. Each modifier row: stat select, type select (add/set/min/max), value input, remove button.*
+- [x] Display semi-formatted markdown tables as tables, example from Augury spell. *Fixed (2026-06): Created `MarkdownContent` Preact component that calls `window.__parseMarkdown` (newly exposed from app.js). `SpellRow` and `FeaturesTab` now use `MarkdownContent` instead of `TagText` — spell texts are joined with `\n` and fully parsed (tables, bold, italic, links, lists, headers).*
+
+```
+
+Omen | For Results That Will Be...
+
+--- | ---
+
+Weal | Good
+
+Woe | Bad
+
+Weal and woe | Good and bad
+
+Indifference | Neither good nor bad
+
+
+```
+
+- [ ] Cannot edit elements from compendium. All feats, spells, items, abilities, species and class features should be editable, including modifier adding/editing. *Deferred — requires significant modal work for each entity type. Custom items/features now have full modifier support via the custom creators.*

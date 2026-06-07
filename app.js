@@ -8562,6 +8562,8 @@ if (typeof window !== 'undefined') {
   window.__legacyOpenPicker = (category, targetListId) => {
     openPicker(category, targetListId);
   };
+  // Expose markdown renderer so Preact components can render rich descriptions
+  window.__parseMarkdown = (text) => parseMarkdown(text);
   window.__legacyAddSpellList = () => {
     if (!currentCharacter) return;
     const name = window.prompt('Spell list name:', 'Custom Spells');

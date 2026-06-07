@@ -191,6 +191,23 @@
   background: var(--accent-muted);
   color: var(--accent-color);
   font-family: var(--font-header);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.spell-ab-badge:hover {
+  background: var(--accent-color);
+  color: #000;
+}
+
+.spell-ab-select {
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--accent-color);
+  font-family: var(--font-header);
 }
 
 .spell-stat-btn {

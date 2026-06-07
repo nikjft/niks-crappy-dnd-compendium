@@ -92,7 +92,7 @@ describe('InventoryTab Component', () => {
     if (typeof window !== 'undefined') {
       (window as any).getDetailHTML = vi.fn().mockReturnValue('<div>Mock Item Details</div>');
       (window as any).syncLocalEntityWithCompendium = vi.fn();
-      (window as any).openPicker = vi.fn();
+      (window as any).__legacyOpenPicker = vi.fn();
     }
   });
 
@@ -126,29 +126,29 @@ describe('InventoryTab Component', () => {
     expect(screen.getByText(/Attuned:/)).toHaveTextContent('1 / 3');
   });
 
-  test('cycles item state Equipped -> Carried -> Stored -> Equipped', () => {
+  test('equip and carry buttons toggle item state independently', () => {
     render(<InventoryTab />);
     const item = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(item.active).toBe(false);
     expect(item.selected).toBe(true); // initially carried
 
-    // Tap to transition to Stored (active=false, selected=false)
-    fireEvent.click(screen.getByLabelText('Cycle state for Rope, Hempen (50ft)'));
-    const updated1 = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
-    expect(updated1.active).toBe(false);
-    expect(updated1.selected).toBe(false);
+    // Click carry btn → Carried → Stored
+    fireEvent.click(screen.getByLabelText('Toggle carry for Rope, Hempen (50ft)'));
+    const stored = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
+    expect(stored.active).toBe(false);
+    expect(stored.selected).toBe(false);
 
-    // Tap to transition to Equipped (active=true, selected=true)
-    fireEvent.click(screen.getByLabelText('Cycle state for Rope, Hempen (50ft)'));
-    const updated2 = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
-    expect(updated2.active).toBe(true);
-    expect(updated2.selected).toBe(true);
+    // Click equip btn → Stored → Equipped
+    fireEvent.click(screen.getByLabelText('Toggle equip for Rope, Hempen (50ft)'));
+    const equipped = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
+    expect(equipped.active).toBe(true);
+    expect(equipped.selected).toBe(true);
 
-    // Tap to transition to Carried (active=false, selected=true)
-    fireEvent.click(screen.getByLabelText('Cycle state for Rope, Hempen (50ft)'));
-    const updated3 = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
-    expect(updated3.active).toBe(false);
-    expect(updated3.selected).toBe(true);
+    // Click equip btn again → Equipped → Carried
+    fireEvent.click(screen.getByLabelText('Toggle equip for Rope, Hempen (50ft)'));
+    const carried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
+    expect(carried.active).toBe(false);
+    expect(carried.selected).toBe(true);
   });
 
   test('filters items using the search bar', () => {
@@ -216,10 +216,14 @@ describe('InventoryTab Component', () => {
     const weightInput = screen.getByPlaceholderText('0.0');
     fireEvent.input(weightInput, { target: { value: '5.0' } });
 
-    const selectType = screen.getByText('Item Type').nextElementSibling as HTMLSelectElement;
-    fireEvent.change(selectType, { target: { value: 'Gear' } });
+    // Type select: first select after the name/weight/qty inputs
+    const selects = document.querySelectorAll('select');
+    const typeSelect = Array.from(selects).find(
+      s => Array.from(s.options).some(o => o.value === 'Weapon')
+    ) as HTMLSelectElement;
+    if (typeSelect) fireEvent.change(typeSelect, { target: { value: 'Gear' } });
 
-    fireEvent.click(screen.getByText('Create'));
+    fireEvent.click(screen.getByText('Create Item'));
 
     expect(currentCharacter.value?.equipment?.some((e: any) => e.name === 'Iron Spikes (10)')).toBe(true);
     const addedItem = currentCharacter.value?.equipment?.find((e: any) => e.name === 'Iron Spikes (10)') as any;

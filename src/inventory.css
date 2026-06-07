@@ -641,3 +641,159 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Per-list sections (replaces tier-based layout) ─────────────────────────── */
+.item-list-section {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.item-list-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.15);
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+}
+
+.item-list-section-header:hover {
+  background: rgba(0,0,0,0.25);
+}
+
+.item-list-collapse-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.item-list-name {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.item-list-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.item-list-body {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.item-list-empty {
+  padding: 12px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── Equip / Carry toggle buttons ─────────────────────────────────────────── */
+.item-equip-btn,
+.item-carry-btn {
+  background: none;
+  border: 1px solid transparent;
+  padding: 2px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.3;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.item-equip-btn:hover,
+.item-carry-btn:hover {
+  opacity: 0.7;
+  border-color: var(--border-color);
+}
+
+.item-equip-btn.equipped {
+  opacity: 1;
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.12);
+}
+
+.item-carry-btn.carried {
+  opacity: 1;
+  border-color: var(--accent-color);
+  background: var(--accent-muted);
+}
+
+/* ── State chips ─────────────────────────────────────────────────────────── */
+.item-state-chip {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.item-state-chip.equipped {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.item-state-chip.carried {
+  background: var(--accent-muted);
+  color: var(--accent-color);
+}
+
+/* ── Inline edit form ─────────────────────────────────────────────────────── */
+.item-edit-form {
+  padding: 10px;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-edit-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.item-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-edit-field label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.item-edit-field.flex1 { flex: 1; min-width: 80px; }
+.item-edit-field.flex2 { flex: 2; min-width: 150px; }
+
+/* ── Markdown content (spell/feature descriptions) ───────────────────────── */
+.markdown-content {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.markdown-content p { margin: 0 0 6px; }
+.markdown-content ul, .markdown-content ol { margin: 4px 0 6px 16px; padding: 0; }
+.markdown-content li { margin-bottom: 2px; }
+.markdown-content h3 { font-size: 13px; margin: 8px 0 4px; color: var(--text-primary); }
+.markdown-content table.markdown-table { border-collapse: collapse; margin: 6px 0; font-size: 11px; width: 100%; }
+.markdown-content table.markdown-table th,
+.markdown-content table.markdown-table td { border: 1px solid var(--border-color); padding: 3px 8px; }
+.markdown-content table.markdown-table th { background: rgba(0,0,0,0.2); font-weight: 600; }
+.markdown-content blockquote { border-left: 3px solid var(--accent-color); margin: 4px 0; padding: 4px 10px; opacity: 0.8; }
+.markdown-content a { color: var(--accent-color); text-decoration: none; }
+.markdown-content a:hover { text-decoration: underline; }

@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks';
-import { TagText } from '../shared/TagText.js';
+import { MarkdownContent } from '../shared/MarkdownContent.js';
 import type { CharacterSpell } from '../../data/types.js';
 
 interface Props {
@@ -72,9 +72,7 @@ export function SpellRow({ spell, onToggleActive, onTogglePrepared, onDelete }: 
             {spell.components && <span><b>Components:</b> {spell.components}</span>}
             {spell.duration && <span><b>Duration:</b> {spell.duration}</span>}
           </div>
-          {(spell.texts ?? []).map((t, i) => (
-            <p key={i} class="spell-detail-text"><TagText text={t} /></p>
-          ))}
+          <MarkdownContent texts={spell.texts ?? []} class="spell-detail-text" />
         </div>
       )}
     </div>

@@ -513,3 +513,37 @@
   font-size: 11px;
   font-style: italic;
 }
+
+/* ── Custom Feature Modal — Modifier section ─────────────────────────────── */
+.feat-mods-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(0,0,0,0.15);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-top: 4px;
+}
+
+.feat-mods-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.feat-mods-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.feat-mod-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.feat-mod-select { flex: 2; font-size: 11px; margin: 0 !important; }
+.feat-mod-type   { flex: 1; font-size: 11px; margin: 0 !important; }
+.feat-mod-value  { flex: 1; font-size: 11px; margin: 0 !important; min-width: 60px; }
