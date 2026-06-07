@@ -94,6 +94,37 @@ export interface DeathSaves {
   failures: number;
 }
 
+/** A spell as it lives on a character (extends compendium fields with character state) */
+export interface CharacterSpell {
+  name: string;
+  source?: string;
+  level: number;
+  school?: string;
+  time?: string;
+  range?: string;
+  components?: string;
+  duration?: string;
+  texts?: string[];
+  ritual?: boolean;
+  isConcentration?: boolean;
+  /** Spell is "active" — concentration in effect, buff running */
+  active?: boolean;
+  /** Spell is "prepared" (selected) */
+  selected?: boolean;
+  listId?: string;
+  compendiumId?: string;
+  rolls?: string[];
+  modifiers?: unknown[];
+  [key: string]: unknown;
+}
+
+/** A named spell list on a character (one per class/subclass that grants spellcasting) */
+export interface SpellList {
+  id: string;
+  name: string;
+  spellcastingAbility?: string;
+}
+
 /** Minimal shape every character object must satisfy. Optional fields default via migrateCharacter(). */
 export interface Character {
   id?: string;
@@ -116,8 +147,8 @@ export interface Character {
 
   // Lists
   equipment?: EquipmentItem[];
-  spells?: unknown[];
-  spellLists?: unknown[];
+  spells?: CharacterSpell[];
+  spellLists?: SpellList[];
   features?: unknown[];
   options?: unknown[];
   modifiers?: unknown[];
@@ -154,9 +185,25 @@ export interface Character {
   allies?: string;
   sessionNotes?: string;
 
+  // Spell slots: { [level: 1..9]: { current, max } }
+  spellSlots?: Record<number, { current: number; max: number }>;
+  // Pact Magic slots (Warlock only, separate from standard slots)
+  pactSlots?: { current: number; max: number; level: number };
+
   // Sync
   _modified_at?: string;
-  classes?: unknown[];
+  classes?: CharacterClass[];
+  notes?: Record<string, unknown>;
+}
+
+export interface CharacterClass {
+  name: string;
+  level: number;
+  subclass?: string | null;
+  hd?: number;
+  spellAbility?: string | null;
+  spellListId?: string | null;
+  featureListId?: string | null;
 }
 
 // ─── Compendium record (base shape) ──────────────────────────────────────────

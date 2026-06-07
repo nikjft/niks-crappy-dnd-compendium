@@ -8239,46 +8239,24 @@ function renderCharacterSheetUI() {
   }
 
   // ── Tab 5: Spells ────────────────────────────────────────────────────────────
+  // Slot data is kept current so Preact SpellsTab can read character.spellSlots
   const calculatedSlots = calculateCharacterSlots(currentCharacter);
-  const slotsGrid = document.getElementById('cs-spell-slots-grid');
-  slotsGrid.innerHTML = '';
-  for (let l = 1; l <= 9; l++) {
-    const maxVal = calculatedSlots[l] || 0;
-    if (maxVal === 0) continue; // Hide if max slots is 0
-
-    if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
-    if (!currentCharacter.spellSlots[l]) currentCharacter.spellSlots[l] = { current: 0, max: 0 };
-    currentCharacter.spellSlots[l].max = maxVal;
-    currentCharacter.spellSlots[l].current = Math.min(currentCharacter.spellSlots[l].current, maxVal);
-
-    const slot = currentCharacter.spellSlots[l];
-    const card = document.createElement('div');
-    card.className = 'cs-spell-slot-card';
-    card.innerHTML = `
-      <span class="cs-spell-slot-label">Lvl ${l}</span>
-      <div class="cs-spell-slot-controls">
-        <input type="number" class="cs-spell-slot-input" id="cs-slot-curr-${l}" min="0" max="${maxVal}" value="${slot.current}" style="width:34px">
-        <span style="color:var(--text-muted);font-weight:bold">/</span>
-        <span style="font-weight:bold;font-size:14px;min-width:20px;text-align:center">${maxVal}</span>
-      </div>
-    `;
-    card.querySelector(`#cs-slot-curr-${l}`).onchange = (e) => { 
-      slot.current = Math.max(0, Math.min(maxVal, parseInt(e.target.value) || 0)); 
-      saveCurrentCharacterAndRefresh(); 
-    };
-    slotsGrid.appendChild(card);
+  if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
+  for (let _l = 1; _l <= 9; _l++) {
+    const _maxVal = calculatedSlots[_l] || 0;
+    if (_maxVal === 0) { delete currentCharacter.spellSlots[_l]; continue; }
+    if (!currentCharacter.spellSlots[_l]) currentCharacter.spellSlots[_l] = { current: 0, max: 0 };
+    currentCharacter.spellSlots[_l].max = _maxVal;
+    currentCharacter.spellSlots[_l].current = Math.min(currentCharacter.spellSlots[_l].current, _maxVal);
   }
-
+  // Sync updated slots to Preact signal (Preact renders the slot tracker)
+  if (window.__dndStore?.currentCharacter?.value) {
+    window.__dndStore.currentCharacter.value = Object.assign({}, currentCharacter);
+  }
+  // Legacy slot grid removed — SpellsTab Preact component renders slot tracker
+  // Legacy spell lists removed — SpellsTab Preact component renders them
   const spellsContainer = document.getElementById('cs-spells-lists-container');
-  spellsContainer.innerHTML = '';
-  if (!currentCharacter.spellLists || currentCharacter.spellLists.length === 0) {
-    spellsContainer.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">No spellcasting features.</div>';
-  } else {
-    currentCharacter.spellLists.forEach(listDef => {
-      const items = getItemsForList(currentCharacter.spells, listDef.id);
-      renderListSection(spellsContainer, listDef, items, 'spell', state);
-    });
-  }
+  if (spellsContainer) spellsContainer.innerHTML = '';
 
   // ── Tab 6: Bestiary (Compendium Monster Picker) ───────────────────────────────
   const bestiaryContainer = document.getElementById('cs-bestiary-lists-container');
@@ -8538,6 +8516,7 @@ if (typeof window !== 'undefined') {
   window.closeCharacterSheet   = closeCharacterSheet;
   window.refreshCharactersList = refreshCharactersList;
   window.calculateCharacterState = calculateCharacterState;
+  window.calculateCharacterSlots = calculateCharacterSlots;
   window.getDetailHTML         = getDetailHTML;
   window.syncLocalEntityWithCompendium = syncLocalEntityWithCompendium;
 
@@ -8558,6 +8537,20 @@ if (typeof window !== 'undefined') {
     document.getElementById('cs-mod-value-input').value = '';
     modal.style.display = 'flex';
   };
+  // Expose picker and spell-list functions for Preact components
+  window.__legacyOpenPicker = (category, targetListId) => {
+    openPicker(category, targetListId);
+  };
+  window.__legacyAddSpellList = () => {
+    if (!currentCharacter) return;
+    const name = window.prompt('Spell list name:', 'Custom Spells');
+    if (!name) return;
+    const list = { id: generateId(), name, spellcastingAbility: currentCharacter.spellcastingAbility || 'wis' };
+    if (!currentCharacter.spellLists) currentCharacter.spellLists = [];
+    currentCharacter.spellLists.push(list);
+    saveCurrentCharacterAndRefresh();
+  };
+
   window.__legacyRestoreSpellSlots = () => {
     if (!currentCharacter) return;
     const calculatedSlots = calculateCharacterSlots(currentCharacter);
