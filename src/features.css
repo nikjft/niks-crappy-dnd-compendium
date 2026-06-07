@@ -297,3 +297,219 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+
+/* ── Level History section ────────────────────────────────────────────────── */
+.lvl-history-section {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.lvl-history-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.lvl-history-toggle:hover {
+  background: var(--panel-bg-hover);
+}
+
+.lvl-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.lvl-entry {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+
+.lvl-entry:last-child {
+  border-bottom: none;
+}
+
+.lvl-entry-latest {
+  background: color-mix(in srgb, var(--accent-color) 6%, transparent);
+}
+
+.lvl-entry-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lvl-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 0;
+  width: 14px;
+}
+
+.lvl-label {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+.lvl-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.lvl-stat-delta {
+  display: flex;
+  gap: 4px;
+}
+
+.lvl-stat-chip {
+  background: var(--panel-bg-hover);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+
+.lvl-subclass-chip {
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent);
+  color: var(--accent-color);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+.lvl-date {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.lvl-respec-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.lvl-respec-btn:hover {
+  background: var(--error-color);
+  color: #fff;
+  border-color: var(--error-color);
+}
+
+.lvl-feature-list {
+  margin: 6px 0 2px 18px;
+  padding: 0;
+  list-style: disc;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.lvl-feature-item {
+  margin-bottom: 2px;
+}
+
+/* ── Starting Equipment section ───────────────────────────────────────────── */
+.start-equip-section {
+  font-size: 13px;
+}
+
+.start-equip-classes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 8px;
+}
+
+.start-equip-class {
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  margin: 0 4px;
+}
+
+.start-equip-class-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.start-equip-class-header:hover {
+  background: var(--panel-bg-hover);
+}
+
+.start-equip-class-name {
+  font-weight: 500;
+}
+
+.start-equip-body {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary, var(--panel-bg));
+}
+
+.start-equip-note {
+  margin: 0 0 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.start-equip-list {
+  margin: 0 0 8px 16px;
+  padding: 0;
+  list-style: disc;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+.start-equip-item {
+  margin-bottom: 2px;
+}
+
+.start-equip-gold {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.start-equip-footer-note {
+  padding: 4px 14px 10px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}

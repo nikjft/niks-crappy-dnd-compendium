@@ -1,6 +1,8 @@
 import { useState } from 'preact/hooks';
 import { currentCharacter, patchCharacter } from '../../state/stores.js';
 import { CustomFeatureModal } from './CustomFeatureModal.js';
+import { LevelHistorySection } from './LevelHistorySection.js';
+import { StartingEquipmentSection } from './StartingEquipmentSection.js';
 import type { FeatureList, CharacterFeature } from '../../data/types.js';
 
 // ─── Feature Row ──────────────────────────────────────────────────────────────
@@ -297,6 +299,12 @@ export function FeaturesTab() {
           ))}
         </div>
       )}
+
+      {/* Starting Equipment */}
+      <StartingEquipmentSection character={char} />
+
+      {/* Level History & Respec */}
+      <LevelHistorySection character={char} />
 
       {/* Bottom controls */}
       <div class="feat-bottom-controls">
