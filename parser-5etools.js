@@ -891,6 +891,7 @@ export function normalize5etoolsClass(classObj, rawSubclasses = [], rawClassFeat
     traits: [],
     autolevels: autolevels,
     slotsTable: autolevels.map(al => ({ level: al.level, slots: al.slots })).filter(al => al.slots),
+    classTableGroups: classObj.classTableGroups || [],
     source: classObj.source || source
   };
 
@@ -923,12 +924,17 @@ export function normalize5etoolsClass(classObj, rawSubclasses = [], rawClassFeat
         });
       }
     }
+    // Extract subclassTableGroups matching this subclass name and source
+    const subTableGroups = (classObj.subclassTableGroups || []).filter(g => 
+      g.subclasses && g.subclasses.some(sc => sc.name.toLowerCase() === subName.toLowerCase() && (sc.source || 'PHB').toUpperCase() === (sub.source || 'PHB').toUpperCase())
+    );
 
     return {
       name: subName,
       parentClass: className,
       spellAbility: sub.spellcastingAbility || '',
       autolevels: subAutolevels,
+      subclassTableGroups: subTableGroups,
       source: sub.source || source
     };
   });

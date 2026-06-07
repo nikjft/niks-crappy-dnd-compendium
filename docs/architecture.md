@@ -2,6 +2,8 @@
 
 > **For agents:** Read this file first, then follow links to sub-documents for the area you're working in. Do **not** begin editing until you have read the relevant sub-doc.
 
+**Critical Documentation:** When you make changes to the structure of the app which are significant, update these documents.
+
 ## What This App Is
 
 A **client-only, offline-capable PWA** (Progressive Web App) for D&D 5e/5.5e. It has no backend server. All data lives in the browser's **IndexedDB**. Optional cloud sync is done via **Dropbox**.

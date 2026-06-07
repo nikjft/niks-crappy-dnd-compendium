@@ -154,6 +154,48 @@ function getFullSourceName(sourceAbv) {
   }
   return sourceAbv;
 }
+
+function applyImportOverrides(category, records, activeSources) {
+  const overrides = [
+    {
+      condition: (cat, sources) => cat === 'options' && sources.includes('EFTA'),
+      apply: (recs) => {
+        return recs.filter(r => {
+          const isInfusion = r.classes && r.classes.includes('Artificer Infusion');
+          if (isInfusion && r.source !== 'EFTA') {
+            return false;
+          }
+          return true;
+        });
+      }
+    }
+  ];
+
+  let result = [...records];
+  overrides.forEach(rule => {
+    if (rule.condition(category, activeSources)) {
+      result = rule.apply(result);
+    }
+  });
+  return result;
+}
+
+function formatTableCellValue(val) {
+  if (val === null || val === undefined) return '—';
+  if (typeof val === 'string' || typeof val === 'number') {
+    return parseInlineMarkdown(parse5etoolsText(val.toString(), true));
+  }
+  if (typeof val === 'object') {
+    if (val.type === 'bonus') {
+      return (val.value >= 0 ? '+' : '') + val.value;
+    }
+    if (val.type === 'dice') {
+      return (val.toRoll ? val.toRoll.map(r => r.number + 'd' + r.faces).join('+') : '') || (val.number ? val.number + 'd' + val.faces : '');
+    }
+    return val.value !== undefined ? parseInlineMarkdown(parse5etoolsText(val.value.toString(), true)) : JSON.stringify(val);
+  }
+  return '';
+}
 let importSourceType = 'github'; // 'github' or 'local'
 let githubRepoUrl = 'https://github.com/5etools-mirror-3/5etools-src';
 let githubBaseUrl = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/';
@@ -1300,14 +1342,38 @@ async function execute5eToolsImport(sources) {
     // Feats
     showOverlay('Importing 5eTools...', 'Loading feats data...');
     const featsJson = await readJsonFile('data/feats.json');
+    let allParsedFeats = [];
     if (featsJson && featsJson.feat) {
       const filtered = featsJson.feat.filter(f => sources.includes(f.source));
-      const parsed = filtered.map(f => parse5etoolsFeat(f, f.source));
-      const deduped = deduplicateByRank(parsed);
-      if (deduped.length > 0) {
-        await saveRecords('feats', deduped);
-        importStats.feats += deduped.length;
-      }
+      allParsedFeats = filtered.map(f => parse5etoolsFeat(f, f.source));
+    }
+
+    // Process optional features that are Fighting Styles and load them as Feats
+    const optJsonForFeats = await readJsonFile('data/optionalfeatures.json');
+    if (optJsonForFeats && optJsonForFeats.optionalfeature) {
+      const hasXPHB = sources.includes('XPHB');
+      optJsonForFeats.optionalfeature.forEach(o => {
+        if (!sources.includes(o.source)) return;
+        if (o.featureType && o.featureType.some(ft => ft === 'FS:F' || ft === 'FS:B' || ft === 'FS:P' || ft === 'FS:R')) {
+          // Add override: if XPHB is loaded, do not import TCE Ranger and Paladin specific fighting styles
+          if (hasXPHB && o.source.toUpperCase() === 'TCE') {
+            const isRangerOrPaladin = o.featureType.some(ft => ft === 'FS:R' || ft === 'FS:P');
+            const isFighter = o.featureType.some(ft => ft === 'FS:F');
+            if (isRangerOrPaladin && !isFighter) {
+              return; // Skip Paladin/Ranger specific TCE styles
+            }
+          }
+          const featRecord = parse5etoolsFeat(o, o.source);
+          featRecord.category = 'Fighting Style';
+          allParsedFeats.push(featRecord);
+        }
+      });
+    }
+
+    const dedupedFeats = deduplicateByRank(allParsedFeats);
+    if (dedupedFeats.length > 0) {
+      await saveRecords('feats', dedupedFeats);
+      importStats.feats += dedupedFeats.length;
     }
 
     // Backgrounds
@@ -1340,7 +1406,14 @@ async function execute5eToolsImport(sources) {
     showOverlay('Importing 5eTools...', 'Loading optional features data...');
     const optJson = await readJsonFile('data/optionalfeatures.json');
     if (optJson && optJson.optionalfeature) {
-      const filtered = optJson.optionalfeature.filter(o => sources.includes(o.source));
+      const filtered = optJson.optionalfeature.filter(o => {
+        if (!sources.includes(o.source)) return false;
+        // Skip Fighting Styles as they are imported under Feats
+        if (o.featureType && o.featureType.some(ft => ft === 'FS:F' || ft === 'FS:B' || ft === 'FS:P' || ft === 'FS:R')) {
+          return false;
+        }
+        return true;
+      });
       const parsed = filtered.map(o => parse5etoolsOption(o, o.source));
       
       // Generate sub-options for "Replicate Magic Item"
@@ -1372,7 +1445,8 @@ async function execute5eToolsImport(sources) {
       });
       parsed.push(...replicateOptions);
 
-      const deduped = deduplicateByRank(parsed);
+      const finalRecords = applyImportOverrides('options', parsed, sources);
+      const deduped = deduplicateByRank(finalRecords);
       if (deduped.length > 0) {
         await saveRecords('options', deduped);
         importStats.options += deduped.length;
@@ -1478,6 +1552,56 @@ async function execute5eToolsImport(sources) {
     }
     if (subclassFeaturesToSave.length > 0) {
       await saveRecords('subclassFeatures', subclassFeaturesToSave);
+    }
+
+    // Extract Artificer Replicate Magic Item options from class features
+    const extractedArtificerOptions = [];
+    selectedClassFeatures.forEach(f => {
+      if (f.className && f.className.toLowerCase() === 'artificer' && f.entries) {
+        const checkEntries = (entries) => {
+          if (!entries) return;
+          if (Array.isArray(entries)) {
+            entries.forEach(e => checkEntries(e));
+          } else if (typeof entries === 'object') {
+            if (entries.type === 'table') {
+              const caption = entries.caption || '';
+              if (caption.toLowerCase().includes('replicable items') || caption.toLowerCase().includes('magic item plans') || (f.name && f.name.toLowerCase().includes('replicate magic item'))) {
+                const match = caption.match(/(\d+)(?:st|nd|rd|th)-level/i);
+                const level = match ? parseInt(match[1]) : 0;
+                if (entries.rows) {
+                  entries.rows.forEach(row => {
+                    if (row && row[0]) {
+                      const rawCell = typeof row[0] === 'string' ? row[0] : (row[0].value || '');
+                      const cleanName = parse5etoolsText(rawCell.toString(), true);
+                      if (cleanName && cleanName.toLowerCase() !== 'item' && cleanName.trim().length > 0) {
+                        extractedArtificerOptions.push({
+                          name: `Replicate Magic Item: ${cleanName}`,
+                          level: level,
+                          texts: [`Using this infusion, you replicate a ${cleanName}.`],
+                          modifiers: [],
+                          classes: ['Artificer Infusion'],
+                          source: f.source
+                        });
+                      }
+                    }
+                  });
+                }
+              }
+            }
+            if (entries.entries) {
+              checkEntries(entries.entries);
+            }
+          }
+        };
+        checkEntries(f.entries);
+      }
+    });
+
+    if (extractedArtificerOptions.length > 0) {
+      const existingOptions = await getAllRecords('options') || [];
+      const combined = [...existingOptions, ...extractedArtificerOptions];
+      const deduped = deduplicateByRank(combined);
+      await saveRecords('options', deduped);
     }
 
     // ─── 6. Refresh and Finish ───
@@ -2278,15 +2402,14 @@ function applyFilters() {
   let itemsToRender = [];
   if (currentCategory === 'classes') {
     filteredRecords.forEach(cls => {
-      if (selectedFacet2 === 'All' || selectedFacet2 === 'Generic Features') {
-        itemsToRender.push({
-          name: `${cls.name} Overview`,
-          isOverview: true,
-          level: 0,
-          classData: cls,
-          categoryType: 'class-overview'
-        });
-      }
+      // Always include Class Overview in the list
+      itemsToRender.push({
+        name: `${cls.name} Overview`,
+        isOverview: true,
+        level: 0,
+        classData: cls,
+        categoryType: 'class-overview'
+      });
       if (cls.features) {
         cls.features.forEach(feat => {
           if (selectedFacet2 !== 'All') {
@@ -2811,6 +2934,9 @@ function parseMarkdown(text) {
 
 // Get HTML for detailed view of an entry
 function getDetailHTML(item, category = currentCategory) {
+  if (item.isOverview || item.categoryType === 'class-overview' || category === 'class-overview') {
+    category = 'class-overview';
+  }
   let html = '';
 
   const formatText = (texts) => {
@@ -3016,7 +3142,15 @@ function getDetailHTML(item, category = currentCategory) {
   } else if (category === 'classes' || category === 'class' || category === 'class-overview' || category === 'class-feature') {
     if (item.isOverview || category === 'class-overview') {
       const cls = item.classData || item;
-      let tableRows = '';
+      
+      const getProfBonus = (level) => {
+        if (level <= 4) return '+2';
+        if (level <= 8) return '+3';
+        if (level <= 12) return '+4';
+        if (level <= 16) return '+5';
+        return '+6';
+      };
+
       const levelFeatures = {};
       if (cls.features) {
         cls.features.forEach(f => {
@@ -3034,18 +3168,75 @@ function getDetailHTML(item, category = currentCategory) {
         });
       }
 
+      // Identify custom columns from classTableGroups (excluding spell slots groups)
+      const customCols = [];
+      const customGroups = (cls.classTableGroups || []).filter(g => !g.title?.includes('Spell Slots') && !g.rowsSpellProgression);
+      customGroups.forEach(g => {
+        if (g.colLabels && g.rows) {
+          g.colLabels.forEach((label, idx) => {
+            const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
+            const colRows = g.rows.map(row => row[idx]);
+            customCols.push({ label: cleanLabel, rows: colRows });
+          });
+        }
+      });
+
+      // Split spell slots into individual columns if caster
+      let maxSpellLvl = 0;
+      const spellSlotsByLevel = [];
+      for (let lvl = 1; lvl <= 20; lvl++) {
+        const slotsRow = cls.slotsTable ? cls.slotsTable.find(st => st.level === lvl) : null;
+        const slots = slotsRow && slotsRow.slots ? slotsRow.slots.split(',').map(Number) : [];
+        spellSlotsByLevel.push(slots);
+        if (slots.length > maxSpellLvl) {
+          maxSpellLvl = slots.length;
+        }
+      }
+
+      const spellLabels = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+
+      // Build Headers
+      let headerHtml = `
+        <tr>
+          <th style="width: 50px">Level</th>
+          <th style="width: 50px">PB</th>
+          <th>Class Features</th>
+      `;
+      customCols.forEach(col => {
+        headerHtml += `<th>${col.label}</th>`;
+      });
+      if (maxSpellLvl > 0) {
+        for (let i = 0; i < maxSpellLvl; i++) {
+          headerHtml += `<th style="width: 45px">${spellLabels[i]}</th>`;
+        }
+      }
+      headerHtml += `</tr>`;
+
+      // Build Rows
+      let tableRows = '';
       for (let lvl = 1; lvl <= 20; lvl++) {
         const feats = levelFeatures[lvl] || [];
-        const slotsRow = cls.slotsTable ? cls.slotsTable.find(st => st.level === lvl) : null;
-        const slotsText = slotsRow ? slotsRow.slots : '—';
+        const pb = getProfBonus(lvl);
         
-        tableRows += `
+        let rowHtml = `
           <tr>
             <td>${lvl}</td>
-            <td><strong>${feats.join(', ') || '—'}</strong></td>
-            <td>${slotsText}</td>
-          </tr>
+            <td><strong>${pb}</strong></td>
+            <td><strong>${feats.map(fName => parseInlineMarkdown(fName)).join(', ') || '—'}</strong></td>
         `;
+        customCols.forEach(col => {
+          const val = col.rows[lvl - 1];
+          rowHtml += `<td>${formatTableCellValue(val)}</td>`;
+        });
+        if (maxSpellLvl > 0) {
+          const slots = spellSlotsByLevel[lvl - 1];
+          for (let i = 0; i < maxSpellLvl; i++) {
+            const val = slots[i] || 0;
+            rowHtml += `<td>${val > 0 ? val : '—'}</td>`;
+          }
+        }
+        rowHtml += `</tr>`;
+        tableRows += rowHtml;
       }
 
       html = `
@@ -3078,11 +3269,7 @@ function getDetailHTML(item, category = currentCategory) {
             <h2 style="margin-top: 30px; margin-bottom: 12px; font-size: 20px; color: var(--accent-color)">Class Progression Table</h2>
             <table class="class-features-table">
               <thead>
-                <tr>
-                  <th style="width: 60px">Level</th>
-                  <th>Features</th>
-                  <th style="width: 140px">Spell Slots</th>
-                </tr>
+                ${headerHtml}
               </thead>
               <tbody>
                 ${tableRows}
@@ -3140,6 +3327,7 @@ function getDetailHTML(item, category = currentCategory) {
         <header class="detail-header">
           <div class="detail-subtitle">${item.classes ? item.classes.join(', ') : 'Option'}</div>
           <h1>${item.name}</h1>
+          ${item.level ? `<div style="font-weight: 500; color: var(--accent-color)">Prerequisite: Level ${item.level}</div>` : ''}
         </header>
         <div class="detail-body">
           ${formatText(item.texts)}
@@ -6090,9 +6278,179 @@ let pickerActive = false;
 let pickerCategory = '';         // 'feats' | 'items' | 'spells' | 'monsters'
 let pickerTargetListId = null;   // listId to add into (null = default/first list)
 
+const MULTICLASS_SLOTS = [
+  [2], // 1
+  [3], // 2
+  [4, 2], // 3
+  [4, 3], // 4
+  [4, 3, 2], // 5
+  [4, 3, 3], // 6
+  [4, 3, 3, 1], // 7
+  [4, 3, 3, 2], // 8
+  [4, 3, 3, 3, 1], // 9
+  [4, 3, 3, 3, 2], // 10
+  [4, 3, 3, 3, 2, 1], // 11
+  [4, 3, 3, 3, 2, 1], // 12
+  [4, 3, 3, 3, 2, 1, 1], // 13
+  [4, 3, 3, 3, 2, 1, 1], // 14
+  [4, 3, 3, 3, 2, 1, 1, 1], // 15
+  [4, 3, 3, 3, 2, 1, 1, 1], // 16
+  [4, 3, 3, 3, 2, 1, 1, 1, 1], // 17
+  [4, 3, 3, 3, 3, 1, 1, 1, 1], // 18
+  [4, 3, 3, 3, 3, 2, 1, 1, 1], // 19
+  [4, 3, 3, 3, 3, 2, 2, 1, 1]  // 20
+];
+
+const WARLOCK_PACT_SLOTS = {
+  1: { count: 1, level: 1 },
+  2: { count: 2, level: 1 },
+  3: { count: 2, level: 2 },
+  4: { count: 2, level: 2 },
+  5: { count: 2, level: 3 },
+  6: { count: 2, level: 3 },
+  7: { count: 2, level: 4 },
+  8: { count: 2, level: 4 },
+  9: { count: 2, level: 5 },
+  10: { count: 2, level: 5 },
+  11: { count: 3, level: 5 },
+  12: { count: 3, level: 5 },
+  13: { count: 3, level: 5 },
+  14: { count: 3, level: 5 },
+  15: { count: 3, level: 5 },
+  16: { count: 3, level: 5 },
+  17: { count: 4, level: 5 },
+  18: { count: 4, level: 5 },
+  19: { count: 4, level: 5 },
+  20: { count: 4, level: 5 }
+};
+
+function calculateCharacterSlots(char) {
+  const slots = {};
+  for (let l = 1; l <= 9; l++) {
+    slots[l] = 0;
+  }
+
+  if (!char.classes || char.classes.length === 0) {
+    return slots;
+  }
+
+  const activeWarlock = char.classes.find(cc => cc.name.toLowerCase() === 'warlock');
+
+  if (char.classes.length === 1) {
+    const cc = char.classes[0];
+    const clsRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === cc.name.toLowerCase());
+    if (clsRecord) {
+      if (cc.name.toLowerCase() === 'warlock') {
+        const pact = WARLOCK_PACT_SLOTS[cc.level];
+        if (pact) {
+          slots[pact.level] = pact.count;
+        }
+        return slots;
+      }
+
+      if (clsRecord.slotsTable) {
+        const slotsRow = clsRecord.slotsTable.find(st => st.level === cc.level);
+        if (slotsRow && slotsRow.slots) {
+          const classSlots = slotsRow.slots.split(',').map(Number);
+          for (let i = 0; i < classSlots.length; i++) {
+            slots[i + 1] = classSlots[i];
+          }
+          return slots;
+        }
+      }
+    }
+  }
+
+  // Sum effective caster levels
+  let fullCasterLevels = 0;
+  let halfCasterLevels = 0;
+  let thirdCasterLevels = 0;
+
+  char.classes.forEach(cc => {
+    const nameLower = cc.name.toLowerCase();
+    if (nameLower === 'warlock') {
+      return;
+    }
+
+    const clsRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === nameLower);
+    if (!clsRecord) return;
+
+    const isFull = ['bard', 'cleric', 'druid', 'sorcerer', 'wizard'].includes(nameLower);
+    const isHalf = ['artificer', 'paladin', 'ranger'].includes(nameLower);
+    
+    let isThird = false;
+    if (cc.subclass) {
+      const subNameLower = cc.subclass.toLowerCase();
+      if (subNameLower === 'eldritch knight' || subNameLower === 'arcane trickster') {
+        isThird = true;
+      }
+    }
+
+    if (isFull) {
+      fullCasterLevels += cc.level;
+    } else if (isHalf) {
+      halfCasterLevels += cc.level;
+    } else if (isThird) {
+      thirdCasterLevels += cc.level;
+    } else {
+      if (clsRecord.spellAbility) {
+        fullCasterLevels += cc.level;
+      }
+    }
+  });
+
+  // Calculate standard effective caster level
+  let effectiveLevel = fullCasterLevels;
+  
+  char.classes.forEach(cc => {
+    const nameLower = cc.name.toLowerCase();
+    if (['artificer', 'paladin', 'ranger'].includes(nameLower)) {
+      effectiveLevel += Math.ceil(cc.level / 2);
+    }
+  });
+
+  char.classes.forEach(cc => {
+    if (cc.subclass) {
+      const subNameLower = cc.subclass.toLowerCase();
+      if (subNameLower === 'eldritch knight' || subNameLower === 'arcane trickster') {
+        effectiveLevel += Math.floor(cc.level / 3);
+      }
+    }
+  });
+
+  if (effectiveLevel > 20) effectiveLevel = 20;
+
+  if (effectiveLevel > 0) {
+    const standardSlots = MULTICLASS_SLOTS[effectiveLevel - 1];
+    if (standardSlots) {
+      for (let i = 0; i < standardSlots.length; i++) {
+        slots[i + 1] = standardSlots[i];
+      }
+    }
+  }
+
+  // Separately determine Warlock Pact Magic slots
+  if (activeWarlock) {
+    const pact = WARLOCK_PACT_SLOTS[activeWarlock.level];
+    if (pact) {
+      slots[pact.level] = (slots[pact.level] || 0) + pact.count;
+    }
+  }
+
+  return slots;
+}
+
 // ─── List Helpers ─────────────────────────────────────────────────────────────
 function ensureCharacterLists(char) {
-  if (!char.featureLists)  char.featureLists  = [{ id: generateId(), name: 'Features & Traits' }];
+  if (!char.featureLists) {
+    char.featureLists = [{ id: generateId(), name: 'Feats' }];
+  } else {
+    char.featureLists.forEach(list => {
+      if (list.name === 'Features & Traits' || list.name === 'Features and Traits') {
+        list.name = 'Feats';
+      }
+    });
+  }
   if (!char.itemLists)     char.itemLists     = [{ id: generateId(), name: 'Inventory' }];
   if (!char.spellLists)    char.spellLists    = [];
   if (!char.bestiaryLists) char.bestiaryLists = [{ id: generateId(), name: 'Companions & Summons' }];
@@ -6259,6 +6617,18 @@ function renderListRow(item, type, opts = {}) {
   const isCarried  = !!item.selected;
   const row = document.createElement('div');
   row.className = 'cs-list-row cs-list-row-interactive';
+
+  if (item.isDynamic) {
+    row.innerHTML = `
+      <div class="cs-list-row-info" style="cursor: default;">
+        <div class="cs-list-row-name">${item.name}</div>
+        <div class="cs-list-row-sub">${item.texts[0]}</div>
+      </div>
+      <div class="cs-list-row-actions"></div>
+    `;
+    row.querySelector('.cs-list-row-info').onclick = null;
+    return row;
+  }
 
   let sub = '';
   if (type === 'item') sub = `${item.weight || 0} lbs · ${item.type || 'Gear'}`;
@@ -6784,11 +7154,14 @@ function performLongRest() {
   (currentCharacter.counters || []).forEach(c => {
     if (c.reset_long || c.reset === 'L' || c.reset === 'S') c.value = c.max;
   });
-  if (currentCharacter.spellSlots) {
-    for (const lvl of Object.keys(currentCharacter.spellSlots)) {
-      currentCharacter.spellSlots[lvl].current = currentCharacter.spellSlots[lvl].max;
-    }
+  
+  const calculatedSlots = calculateCharacterSlots(currentCharacter);
+  if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
+  for (let l = 1; l <= 9; l++) {
+    const maxVal = calculatedSlots[l] || 0;
+    currentCharacter.spellSlots[l] = { current: maxVal, max: maxVal };
   }
+
   saveCurrentCharacterAndRefresh();
   const btn = document.getElementById('cs-btn-long-rest');
   if (btn) { btn.textContent = 'Rested!'; setTimeout(() => { btn.textContent = 'Long Rest'; }, 1500); }
@@ -6803,15 +7176,7 @@ function renderCharacterSheetUI() {
   // Show/Hide Spells Tab Button dynamically
   const spellsTabBtn = document.querySelector('.cs-tab-btn[data-tab="spells"]');
   if (spellsTabBtn) {
-    if (!currentCharacter.spellLists || currentCharacter.spellLists.length === 0) {
-      spellsTabBtn.style.display = 'none';
-      if (spellsTabBtn.classList.contains('active')) {
-        const combatTabBtn = document.querySelector('.cs-tab-btn[data-tab="combat"]');
-        if (combatTabBtn) combatTabBtn.click();
-      }
-    } else {
-      spellsTabBtn.style.display = '';
-    }
+    spellsTabBtn.style.display = '';
   }
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -6945,6 +7310,113 @@ function renderCharacterSheetUI() {
   });
   if (!mods.length) modifiersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No custom modifiers.</div>';
 
+  // Dynamic counters synchronization and rendering
+  if (!currentCharacter.counters) currentCharacter.counters = [];
+
+  const dynamicCountersFound = new Set();
+  const informativeStats = []; // { name, value }
+
+  if (allRecordsCache['classes'] && allRecordsCache['classes'].length > 0) {
+    currentCharacter.classes.forEach(cc => {
+      const clsRecord = allRecordsCache['classes'].find(c => c.name.toLowerCase() === cc.name.toLowerCase());
+      if (clsRecord && clsRecord.classTableGroups) {
+        const customGroups = clsRecord.classTableGroups.filter(g => !g.title?.includes('Spell Slots') && !g.rowsSpellProgression);
+        customGroups.forEach(g => {
+          if (g.colLabels && g.rows) {
+            const lvlIdx = cc.level - 1;
+            if (g.rows[lvlIdx]) {
+              g.colLabels.forEach((label, idx) => {
+                const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
+                const rawVal = g.rows[lvlIdx][idx];
+                const valStr = formatTableCellValue(rawVal);
+                if (valStr && valStr !== '—') {
+                  if (/^\d+$/.test(valStr)) {
+                    // It's a clean integer, synchronize to currentCharacter.counters
+                    const numVal = parseInt(valStr);
+                    dynamicCountersFound.add(cleanLabel);
+                    
+                    let existing = currentCharacter.counters.find(c => c.name === cleanLabel);
+                    if (existing) {
+                      existing.max = numVal;
+                      existing.value = Math.min(existing.value, numVal);
+                      existing.isDynamic = true;
+                    } else {
+                      currentCharacter.counters.push({
+                        id: 'dynamic-' + cleanLabel.toLowerCase().replace(/\s+/g, '-'),
+                        name: cleanLabel,
+                        max: numVal,
+                        value: numVal,
+                        reset_long: true,
+                        isDynamic: true
+                      });
+                    }
+                  } else {
+                    informativeStats.push({ name: cleanLabel, value: valStr });
+                  }
+                }
+              });
+            }
+          }
+        });
+      }
+
+      // Do the same for subclass
+      if (cc.subclass && allRecordsCache['subclasses']) {
+        const subRecord = allRecordsCache['subclasses'].find(s => 
+          s.name.toLowerCase() === cc.subclass.toLowerCase() && 
+          s.parentClass.toLowerCase() === cc.name.toLowerCase()
+        );
+        if (subRecord && subRecord.subclassTableGroups) {
+          const customSubGroups = subRecord.subclassTableGroups.filter(g => !g.title?.includes('Spell Slots') && !g.rowsSpellProgression);
+          customSubGroups.forEach(g => {
+            if (g.colLabels && g.rows) {
+              const lvlIdx = cc.level - 1;
+              if (g.rows[lvlIdx]) {
+                g.colLabels.forEach((label, idx) => {
+                  const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
+                  const rawVal = g.rows[lvlIdx][idx];
+                  const valStr = formatTableCellValue(rawVal);
+                  if (valStr && valStr !== '—') {
+                    if (/^\d+$/.test(valStr)) {
+                      const numVal = parseInt(valStr);
+                      dynamicCountersFound.add(cleanLabel);
+                      
+                      let existing = currentCharacter.counters.find(c => c.name === cleanLabel);
+                      if (existing) {
+                        existing.max = numVal;
+                        existing.value = Math.min(existing.value, numVal);
+                        existing.isDynamic = true;
+                      } else {
+                        currentCharacter.counters.push({
+                          id: 'dynamic-' + cleanLabel.toLowerCase().replace(/\s+/g, '-'),
+                          name: cleanLabel,
+                          max: numVal,
+                          value: numVal,
+                          reset_long: true,
+                          isDynamic: true
+                        });
+                      }
+                    } else {
+                      informativeStats.push({ name: cleanLabel, value: valStr });
+                    }
+                  }
+                });
+              }
+            }
+          });
+        }
+      }
+    });
+  }
+
+  // Remove any dynamic counters that are no longer active
+  currentCharacter.counters = currentCharacter.counters.filter(c => {
+    if (c.isDynamic) {
+      return dynamicCountersFound.has(c.name);
+    }
+    return true;
+  });
+
   // Usage Counters
   const countersList = document.getElementById('cs-counters-list');
   countersList.innerHTML = '';
@@ -6964,15 +7436,33 @@ function renderCharacterSheetUI() {
         <span style="color:var(--text-muted);font-size:12px">/ ${cnt.max}</span>
       </div>
       <div class="cs-list-row-actions" style="margin-left:6px">
-        <button class="cs-list-row-btn danger btn-del-cnt" title="Delete">${SVG_TRASH}</button>
+        ${cnt.isDynamic ? '' : `<button class="cs-list-row-btn danger btn-del-cnt" title="Delete">${SVG_TRASH}</button>`}
       </div>
     `;
     row.querySelector('.btn-dec').onclick = () => { cnt.value = Math.max(0, cnt.value - 1); saveCurrentCharacterAndRefresh(); };
     row.querySelector('.btn-inc').onclick = () => { cnt.value = Math.min(cnt.max, cnt.value + 1); saveCurrentCharacterAndRefresh(); };
-    row.querySelector('.btn-del-cnt').onclick = () => { cnts.splice(idx, 1); saveCurrentCharacterAndRefresh(); };
+    if (!cnt.isDynamic) {
+      row.querySelector('.btn-del-cnt').onclick = () => { cnts.splice(idx, 1); saveCurrentCharacterAndRefresh(); };
+    }
     countersList.appendChild(row);
   });
-  if (!cnts.length) countersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No counters.</div>';
+
+  informativeStats.forEach(stat => {
+    const row = document.createElement('div');
+    row.className = 'cs-list-row';
+    row.innerHTML = `
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${stat.name}</div>
+        <div class="cs-list-row-sub">Class Progression Stat</div>
+      </div>
+      <div style="font-weight:bold;margin-right:12px">${stat.value}</div>
+    `;
+    countersList.appendChild(row);
+  });
+
+  if (!cnts.length && !informativeStats.length) {
+    countersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No counters.</div>';
+  }
 
   // ── Tab 2: Stats & Skills ────────────────────────────────────────────────────
   attributes.forEach(attr => {
@@ -7044,8 +7534,60 @@ function renderCharacterSheetUI() {
 
   const featuresContainer = document.getElementById('cs-features-lists-container');
   featuresContainer.innerHTML = '';
+
+  if (!allRecordsCache['classes'] || allRecordsCache['classes'].length === 0) {
+    getAllRecords('classes').then(clsList => {
+      allRecordsCache['classes'] = clsList;
+    }).catch(err => console.error("Error loading classes for features list", err));
+  }
+
   currentCharacter.featureLists.forEach(listDef => {
-    const items = getItemsForList(currentCharacter.features, listDef.id);
+    let items = getItemsForList(currentCharacter.features, listDef.id);
+    
+    // Inject level-based progression features if it's a Class feature list
+    if (listDef.name.startsWith('Class: ')) {
+      const clsName = listDef.name.substring(7).trim();
+      const charClass = currentCharacter.classes?.find(c => c.name.toLowerCase() === clsName.toLowerCase());
+      if (charClass) {
+        const matchingClass = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === clsName.toLowerCase());
+        if (matchingClass) {
+          // Prepend class overview row
+          items.unshift({
+            id: `overview-${clsName}`,
+            name: `${clsName} Overview`,
+            texts: [`Click to view the complete progression table, proficiencies, and details of the ${clsName} class.`],
+            isOverview: true,
+            classData: matchingClass,
+            categoryType: 'class-overview'
+          });
+
+          if (matchingClass.classTableGroups) {
+            const customGroups = matchingClass.classTableGroups.filter(g => !g.title?.includes('Spell Slots') && !g.rowsSpellProgression);
+            customGroups.forEach(g => {
+              if (g.colLabels && g.rows) {
+                const lvlIdx = charClass.level - 1;
+                if (g.rows[lvlIdx]) {
+                  g.colLabels.forEach((label, idx) => {
+                    const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
+                    const val = formatTableCellValue(g.rows[lvlIdx][idx]);
+                    if (val && val !== '—') {
+                      // Create a read-only dynamic item
+                      items.push({
+                        id: `dynamic-${clsName}-${cleanLabel}`,
+                        name: `${cleanLabel}: ${val}`,
+                        texts: [`This value is determined by your Level ${charClass.level} ${charClass.name} class progression.`],
+                        isDynamic: true
+                      });
+                    }
+                  });
+                }
+              }
+            });
+          }
+        }
+      }
+    }
+
     renderListSection(featuresContainer, listDef, items, 'feature', state);
   });
 
@@ -7078,24 +7620,33 @@ function renderCharacterSheetUI() {
   });
 
   // ── Tab 5: Spells ────────────────────────────────────────────────────────────
+  const calculatedSlots = calculateCharacterSlots(currentCharacter);
   const slotsGrid = document.getElementById('cs-spell-slots-grid');
   slotsGrid.innerHTML = '';
   for (let l = 1; l <= 9; l++) {
+    const maxVal = calculatedSlots[l] || 0;
+    if (maxVal === 0) continue; // Hide if max slots is 0
+
     if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
     if (!currentCharacter.spellSlots[l]) currentCharacter.spellSlots[l] = { current: 0, max: 0 };
+    currentCharacter.spellSlots[l].max = maxVal;
+    currentCharacter.spellSlots[l].current = Math.min(currentCharacter.spellSlots[l].current, maxVal);
+
     const slot = currentCharacter.spellSlots[l];
     const card = document.createElement('div');
     card.className = 'cs-spell-slot-card';
     card.innerHTML = `
       <span class="cs-spell-slot-label">Lvl ${l}</span>
       <div class="cs-spell-slot-controls">
-        <input type="number" class="cs-spell-slot-input" id="cs-slot-curr-${l}" min="0" value="${slot.current}" style="width:34px">
+        <input type="number" class="cs-spell-slot-input" id="cs-slot-curr-${l}" min="0" max="${maxVal}" value="${slot.current}" style="width:34px">
         <span style="color:var(--text-muted);font-weight:bold">/</span>
-        <input type="number" class="cs-spell-slot-input" id="cs-slot-max-${l}" min="0" value="${slot.max}" style="width:34px">
+        <span style="font-weight:bold;font-size:14px;min-width:20px;text-align:center">${maxVal}</span>
       </div>
     `;
-    card.querySelector(`#cs-slot-curr-${l}`).onchange = (e) => { slot.current = Math.max(0, parseInt(e.target.value)||0); saveCurrentCharacterAndRefresh(); };
-    card.querySelector(`#cs-slot-max-${l}`).onchange  = (e) => { slot.max     = Math.max(0, parseInt(e.target.value)||0); saveCurrentCharacterAndRefresh(); };
+    card.querySelector(`#cs-slot-curr-${l}`).onchange = (e) => { 
+      slot.current = Math.max(0, Math.min(maxVal, parseInt(e.target.value) || 0)); 
+      saveCurrentCharacterAndRefresh(); 
+    };
     slotsGrid.appendChild(card);
   }
 

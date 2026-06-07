@@ -519,6 +519,15 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.7;
 }
 
+.detail-body a {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
+.detail-body a:hover {
+  color: var(--accent-hover);
+}
+
 .detail-body p {
   margin-bottom: 18px;
   color: #e1e1e6;
