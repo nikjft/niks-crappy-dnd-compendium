@@ -1,18 +1,14 @@
+import { useState } from 'preact/hooks';
 import { patchCharacter } from '../../state/stores.js';
+import { ModifierModal, type ActiveModifier } from '../shared/ModifierModal.js';
 import type { Character } from '../../data/types.js';
-
-interface ActiveModifier {
-  id?: string;
-  name: string;
-  active?: boolean;
-  modifiers?: Array<{ target: string; type: string; value: number | string }>;
-}
 
 interface Props {
   character: Character;
 }
 
 export function ModifiersSection({ character }: Props) {
+  const [showModal, setShowModal] = useState(false);
   const mods = ((character.modifiers ?? []) as ActiveModifier[]);
 
   function toggle(mod: ActiveModifier) {
@@ -26,11 +22,16 @@ export function ModifiersSection({ character }: Props) {
     patchCharacter({ modifiers: mods.filter(m => m !== mod && m.id !== mod.id) } as Partial<Character>);
   }
 
+  function handleAdd(mod: ActiveModifier) {
+    patchCharacter({ modifiers: [...mods, mod] } as Partial<Character>);
+    setShowModal(false);
+  }
+
   return (
     <div class="cs-combat-card">
       <div class="cs-card-header">
         <h3>Active Modifiers</h3>
-        <button class="cs-btn-small" onClick={() => (window as any).__legacyOpenModifierModal?.()}>+ Add</button>
+        <button class="cs-btn-small" onClick={() => setShowModal(true)}>+ Add</button>
       </div>
       {mods.length === 0 ? (
         <p class="empty-hint">No modifiers yet.</p>
@@ -57,6 +58,10 @@ export function ModifiersSection({ character }: Props) {
             </div>
           ))}
         </div>
+      )}
+
+      {showModal && (
+        <ModifierModal onSave={handleAdd} onClose={() => setShowModal(false)} />
       )}
     </div>
   );

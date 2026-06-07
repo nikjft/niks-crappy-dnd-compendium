@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { currentCharacter, patchCharacter } from '../../state/stores.js';
+import { CustomFeatureModal } from './CustomFeatureModal.js';
 import type { FeatureList, CharacterFeature } from '../../data/types.js';
 
 // ─── Feature Row ──────────────────────────────────────────────────────────────
@@ -7,10 +8,11 @@ import type { FeatureList, CharacterFeature } from '../../data/types.js';
 interface FeatureRowProps {
   feature: CharacterFeature;
   onToggleActive: (f: CharacterFeature) => void;
+  onEdit: (f: CharacterFeature) => void;
   onDelete: (f: CharacterFeature) => void;
 }
 
-function FeatureRow({ feature, onToggleActive, onDelete }: FeatureRowProps) {
+function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   if (feature.isDynamic) {
@@ -69,6 +71,16 @@ function FeatureRow({ feature, onToggleActive, onDelete }: FeatureRowProps) {
           >
             ⚡
           </button>
+          {/* Edit (only for custom features without compendiumId) */}
+          {!feature.compendiumId && (
+            <button
+              class="feat-action-btn"
+              title="Edit"
+              onClick={() => onEdit(feature)}
+            >
+              ✏️
+            </button>
+          )}
           {/* Delete */}
           <button
             class="feat-action-btn danger"
@@ -102,7 +114,9 @@ interface FeatureListSectionProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onToggleActive: (f: CharacterFeature) => void;
+  onEdit: (f: CharacterFeature) => void;
   onDelete: (f: CharacterFeature) => void;
+  onAddCustom: (listId: string) => void;
 }
 
 function FeatureListSection({
@@ -111,7 +125,9 @@ function FeatureListSection({
   collapsed,
   onToggleCollapse,
   onToggleActive,
+  onEdit,
   onDelete,
+  onAddCustom,
 }: FeatureListSectionProps) {
   const sorted = [...features].sort((a, b) => {
     const rank = (i: CharacterFeature) => i.active ? 0 : (i.selected ? 1 : 2);
@@ -134,6 +150,13 @@ function FeatureListSection({
           >
             + Add
           </button>
+          <button
+            class="cs-btn-small feat-add-btn"
+            title="Create custom feature"
+            onClick={() => onAddCustom(listDef.id)}
+          >
+            + Custom
+          </button>
         </div>
       </div>
 
@@ -147,6 +170,7 @@ function FeatureListSection({
                 key={f.id ?? `${f.name}-${i}`}
                 feature={f}
                 onToggleActive={onToggleActive}
+                onEdit={onEdit}
                 onDelete={onDelete}
               />
             ))
@@ -161,6 +185,9 @@ function FeatureListSection({
 
 export function FeaturesTab() {
   const character = currentCharacter.value;
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customModalListId, setCustomModalListId] = useState<string | undefined>();
+  const [editingFeature, setEditingFeature] = useState<CharacterFeature | undefined>();
 
   if (!character) {
     return <div class="combat-placeholder">Open a character sheet to get started.</div>;
@@ -200,6 +227,32 @@ export function FeaturesTab() {
     patchCharacter({ features: updated });
   }
 
+  function handleEdit(feature: CharacterFeature) {
+    setEditingFeature(feature);
+    setCustomModalListId(feature.listId);
+    setShowCustomModal(true);
+  }
+
+  function handleAddCustom(listId: string) {
+    setEditingFeature(undefined);
+    setCustomModalListId(listId);
+    setShowCustomModal(true);
+  }
+
+  function handleSaveCustomFeature(feature: CharacterFeature) {
+    let updated: CharacterFeature[];
+    if (editingFeature) {
+      updated = features.map(f =>
+        (f.id && f.id === editingFeature.id) ? feature : f
+      );
+    } else {
+      updated = [...features, feature];
+    }
+    patchCharacter({ features: updated });
+    setShowCustomModal(false);
+    setEditingFeature(undefined);
+  }
+
   return (
     <div class="features-tab-root">
       {/* Build summary bar */}
@@ -237,7 +290,9 @@ export function FeaturesTab() {
               collapsed={!!collapsedLists[listDef.id]}
               onToggleCollapse={() => toggleCollapse(listDef.id)}
               onToggleActive={handleToggleActive}
+              onEdit={handleEdit}
               onDelete={handleDelete}
+              onAddCustom={handleAddCustom}
             />
           ))}
         </div>
@@ -251,7 +306,30 @@ export function FeaturesTab() {
         >
           + Feature List
         </button>
+        <button
+          class="cs-btn-small"
+          onClick={() => {
+            setEditingFeature(undefined);
+            setCustomModalListId(featureLists[0]?.id);
+            setShowCustomModal(true);
+          }}
+        >
+          + Custom Feature
+        </button>
       </div>
+
+      {showCustomModal && (
+        <CustomFeatureModal
+          featureLists={featureLists}
+          defaultListId={customModalListId}
+          editFeature={editingFeature}
+          onSave={handleSaveCustomFeature}
+          onClose={() => {
+            setShowCustomModal(false);
+            setEditingFeature(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }
