@@ -190,6 +190,8 @@ interface Breakdown {
 `data-ref-type` / `data-ref-name`. A delegated handler opens the referenced entity in the Quick Lookup panel.
 (Game-Reference spec §5.) The detail HTML itself is the existing `getDetailHTML` output, reused verbatim inline.
 
+*Completed in Phase 8: `src/utils/parseTagMarkup.ts` + `src/components/shared/TagText.tsx`. Applied to feature and spell description paragraphs. Quick Lookup panel (`QuickLookupPanel.tsx`) triggered by Ctrl/⌘+K or 🔍 header button; cross-store search via `__legacySearchCompendium` bridge.*
+
 ---
 
 ## 5. Data-model additions (spec §14.1) — typed
@@ -282,7 +284,7 @@ until parity is reached.
 | **DONE: 5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters, custom spell creation, pact slot tracker, concentration interlocking with conditions bar. | 1 |
 | **DONE: 6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
 | **DONE: 7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |
-| **8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
+| **DONE: 8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
 | **9 — Backlog** | Address any tracked backlogged or deferred items which are not already fixed. | 
 | **10 — Cutover** | Migrate compendium browser; delete `app.js`/`sw.js`; remove legacy flag. | all |
 | **11 - Technical Documentation** | Update Architecture.md and related documents to match revised architecture to support future changes. |
