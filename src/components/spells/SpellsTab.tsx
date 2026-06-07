@@ -37,15 +37,19 @@ function makeSpellAtkBreakdown(abilityMod: number, profBonus: number, abilityNam
 
 // ─── List section header ──────────────────────────────────────────────────────
 
+const ABILITY_OPTIONS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+
 interface ListHeaderProps {
   listDef: SpellList;
   profBonus: number;
   flatState: Record<string, number>;
+  onChangeAbility: (listId: string, ability: string) => void;
 }
 
-function ListHeader({ listDef, profBonus, flatState }: ListHeaderProps) {
+function ListHeader({ listDef, profBonus, flatState, onChangeAbility }: ListHeaderProps) {
   const [dcBd, setDcBd] = useState(false);
   const [atkBd, setAtkBd] = useState(false);
+  const [editingAbility, setEditingAbility] = useState(false);
 
   const ab = (listDef.spellcastingAbility ?? 'wis').toLowerCase();
   const abilityMod = flatState[`${ab}.mod`] ?? 0;
@@ -59,7 +63,32 @@ function ListHeader({ listDef, profBonus, flatState }: ListHeaderProps) {
     <div class="spell-list-header">
       <span class="spell-list-name">{listDef.name}</span>
       <div class="spell-list-stats">
-        <span class="spell-ab-badge">{ab.toUpperCase()}</span>
+        {editingAbility ? (
+          <span style="display:flex;align-items:center;gap:4px;">
+            <select
+              class="spell-ab-select"
+              value={ab}
+              onChange={e => {
+                onChangeAbility(listDef.id, (e.target as HTMLSelectElement).value);
+                setEditingAbility(false);
+              }}
+              onBlur={() => setEditingAbility(false)}
+              autoFocus
+            >
+              {ABILITY_OPTIONS.map(a => (
+                <option key={a} value={a}>{a.toUpperCase()}</option>
+              ))}
+            </select>
+          </span>
+        ) : (
+          <button
+            class="spell-ab-badge"
+            title="Click to change spellcasting ability"
+            onClick={() => setEditingAbility(true)}
+          >
+            {ab.toUpperCase()} ✎
+          </button>
+        )}
         <button class="spell-stat-btn" onClick={() => setDcBd(true)}>
           DC {dcBreakdown.total}
         </button>
@@ -153,6 +182,13 @@ export function SpellsTab() {
     setShowCustomModal(false);
   }
 
+  function handleChangeListAbility(listId: string, ability: string) {
+    const updated = spellLists.map(l =>
+      l.id === listId ? { ...l, spellcastingAbility: ability } : l
+    );
+    patchCharacter({ spellLists: updated });
+  }
+
   // ── Filtering ─────────────────────────────────────────────────────────────
 
   const q = query.toLowerCase();
@@ -220,7 +256,7 @@ export function SpellsTab() {
 
           return (
             <div key={listDef.id} class="spell-list-section">
-              <ListHeader listDef={listDef} profBonus={profBonus} flatState={flatState} />
+              <ListHeader listDef={listDef} profBonus={profBonus} flatState={flatState} onChangeAbility={handleChangeListAbility} />
 
               {/* Group by level */}
               {([0,1,2,3,4,5,6,7,8,9] as const).map(level => {

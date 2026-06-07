@@ -3,7 +3,7 @@ import { currentCharacter, patchCharacter } from '../../state/stores.js';
 import { CustomFeatureModal } from './CustomFeatureModal.js';
 import { LevelHistorySection } from './LevelHistorySection.js';
 import { StartingEquipmentSection } from './StartingEquipmentSection.js';
-import { TagText } from '../shared/TagText.js';
+import { MarkdownContent } from '../shared/MarkdownContent.js';
 import type { FeatureList, CharacterFeature } from '../../data/types.js';
 
 // ─── Feature Row ──────────────────────────────────────────────────────────────
@@ -100,11 +100,7 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
       {expanded && (
         <div class="feat-detail">
           {texts.length > 0
-            ? texts.map((t, i) => (
-                <p key={i} class="feat-detail-text">
-                  <TagText text={t} />
-                </p>
-              ))
+            ? <MarkdownContent texts={texts} class="feat-detail-text" />
             : <p class="feat-detail-text" style={{ color: 'var(--text-muted)' }}>No description.</p>
           }
         </div>
