@@ -4550,6 +4550,15 @@ function createNewCharacterTemplate(name, charClass, subclass, level, species, b
       enemies: '',
       sessionNotes: ''
     },
+    // Phase 1 additions
+    conditions: [],
+    pinnedActions: [],
+    attunementMax: 3,
+    toolProficiencies: [],
+    weightTrackingEnabled: false,
+    collapsedLists: {},
+    levelHistory: [],
+
     _deleted: false,
     _modified_at: new Date().toISOString()
   };
@@ -4660,7 +4669,7 @@ function renderCharactersRoster(chars) {
 }
 
 function openCharacterSheet(char) {
-  currentCharacter = char;
+  currentCharacter = migrateCharacter(char);
   document.getElementById('character-sheet-view').style.display = 'flex';
   
   const tabs = document.querySelectorAll('.cs-tab-btn');
@@ -6961,6 +6970,22 @@ function ensureCharacterLists(char) {
 
 function getItemsForList(arr, listId) {
   return (arr || []).filter(i => i.listId === listId);
+}
+
+/**
+ * Ensure a loaded character has all Phase 1 fields, backfilling defaults
+ * for characters created before Phase 1 was deployed.
+ * Safe to call multiple times — only fills missing keys.
+ */
+function migrateCharacter(char) {
+  if (!char.conditions)            char.conditions            = [];
+  if (!char.pinnedActions)         char.pinnedActions         = [];
+  if (char.attunementMax == null)  char.attunementMax         = 3;
+  if (!char.toolProficiencies)     char.toolProficiencies     = [];
+  if (char.weightTrackingEnabled == null) char.weightTrackingEnabled = false;
+  if (!char.collapsedLists)        char.collapsedLists        = {};
+  if (!char.levelHistory)          char.levelHistory          = [];
+  return char;
 }
 
 /** Sort: active first → carried (selected) second → other; then alphabetical within each group */
