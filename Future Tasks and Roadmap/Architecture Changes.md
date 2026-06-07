@@ -204,7 +204,7 @@ To be added to `data/types.ts` and the `Character` interface:
 | `toolProficiencies` | `{ name: string; attr: string; profLevel: number }[]` | Tool prof tracking *(Completed in Phase 1)* |
 | `weightTrackingEnabled` | `boolean` (default true) | Carry-weight toggle *(Completed in Phase 4)* |
 | `collapsedLists` | `Record<string, boolean>` | Persist list collapse state |
-| `levelHistory` | `{ level: number; class: string; choices: object }[]` | Level-down / respec audit |
+| `levelHistory` | `LevelHistoryEntry[]` (full delta) | Level-down / respec audit *(Completed in Phase 7)* |
 
 Class records gain a parsed `startingEquipment` (spec §14.3). All additions are backward-compatible (optional,
 defaulted on load) so existing saved characters keep working.
@@ -281,7 +281,7 @@ until parity is reached.
 | **DONE: 4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
 | **DONE: 5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters, custom spell creation, pact slot tracker, concentration interlocking with conditions bar. | 1 |
 | **DONE: 6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
-| **7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |
+| **DONE: 7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |
 | **8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
 | **9 — Backlog** | Address any tracked backlogged or deferred items which are not already fixed. | 
 | **10 — Cutover** | Migrate compendium browser; delete `app.js`/`sw.js`; remove legacy flag. | all |
