@@ -85,18 +85,7 @@ function ItemRow({
         </span>
       );
     }
-    if (isCarried) {
-      return (
-        <span class="state-icon carried-dot" title="Carried">
-          ●
-        </span>
-      );
-    }
-    return (
-      <span class="state-icon uncarried-circle" title="Not Carried">
-        ○
-      </span>
-    );
+    return null;
   }
 
   return (
@@ -105,17 +94,6 @@ function ItemRow({
         class="item-table-row"
         onClick={() => { expandedRowId.value = isExpanded ? null : (item.id ?? null); }}
       >
-        {/* Toggle State Icon Button */}
-        <div class="col-state-icon" onClick={e => e.stopPropagation()}>
-          <button
-            class={`item-cycle-btn ${isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
-            onClick={() => onCycleState(item)}
-            aria-label={`Cycle status for ${item.name}`}
-          >
-            {renderStateIcon()}
-          </button>
-        </div>
-
         <div class="col-item-details">
           <div class="item-name-line">
             <span style="font-weight: 500;">{item.name}</span>
@@ -135,6 +113,15 @@ function ItemRow({
               {((parseFloat(String(item.weight)) || 0) * (item.quantity ?? 1)).toFixed(1)} lbs
             </span>
           )}
+          <div class="col-state-icon" onClick={e => e.stopPropagation()}>
+            <button
+              class={`item-cycle-btn ${isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
+              onClick={() => onCycleState(item)}
+              aria-label={`Cycle status for ${item.name}`}
+            >
+              {renderStateIcon()}
+            </button>
+          </div>
         </div>
       </div>
 
