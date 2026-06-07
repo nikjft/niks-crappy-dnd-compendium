@@ -279,7 +279,7 @@ until parity is reached.
 | **DONE: 2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
 | **DONE: 3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
 | **DONE: 4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
-| **5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters. | 1 |
+| **DONE: 5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters, custom spell creation, pact slot tracker, concentration interlocking with conditions bar. | 1 |
 | **6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
 | **7 — Creation & Leveling** (spec Phase 6) | Starting-equipment step, level-up review, level-down/respec, level history. | 3,4,5,6 |
 | **8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
