@@ -97,7 +97,8 @@
           <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
           <span>Settings</span>
         </button>
-        <input type="file" id="file-input" accept=".xml,.json" style="display: none;">
+        <input type="file" id="file-input" accept=".json" style="display: none;">
+        <input type="file" id="5etools-dir-input" webkitdirectory directory multiple style="display: none;">
         <div class="db-status" id="db-status">Offline Compendium</div>
       </div>
     </nav>
@@ -840,6 +841,29 @@
         <button id="cs-levelup-btn-apply" class="settings-action-btn" style="width:auto;padding:8px 28px;margin:0;border-radius:6px;">Apply Level Up</button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- 5eTools Source Selection Modal -->
+  <div id="5etools-source-modal" class="overlay" style="display: none; justify-content: center; align-items: center; z-index: 1300;">
+    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 550px; width: 90vw; max-height: 80vh; display: flex; flex-direction: column; padding: 20px; overflow: hidden; border-radius: 12px; background-color: var(--bg-color);">
+      <h2 style="color: var(--text-primary); margin-top: 0; margin-bottom: 8px; font-family: var(--font-header);">Select Books & Sources to Import</h2>
+      <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 16px;">We found the following publications in your 5eTools data folder. Choose which ones you want to import:</p>
+      
+      <div id="5etools-source-list" style="flex: 1; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; background-color: var(--panel-bg);">
+        <!-- Grouped checkboxes will render here -->
+      </div>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; gap: 12px;">
+        <div style="display: flex; gap: 8px;">
+          <button id="5etools-source-btn-select-all" class="cs-btn-small" style="font-size: 12px; padding: 6px 12px;">Select All</button>
+          <button id="5etools-source-btn-deselect-all" class="cs-btn-small secondary-btn" style="font-size: 12px; padding: 6px 12px; border: 1px solid var(--border-color); background-color: var(--panel-bg-hover); color: var(--text-secondary);">Deselect All</button>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button id="5etools-source-btn-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color); width: auto; padding: 8px 16px; margin: 0; border-radius: 6px;">Cancel</button>
+          <button id="5etools-source-btn-import" class="settings-action-btn" style="width: auto; padding: 8px 24px; margin: 0; border-radius: 6px;">Import Selection</button>
+        </div>
+      </div>
     </div>
   </div>
 

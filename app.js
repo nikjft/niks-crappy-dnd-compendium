@@ -1,9 +1,23 @@
-import { openDB, saveRecords, saveRecord, getAllRecords, clearDatabase, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting } from './db.js';
-import { parseCompendiumXML, ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
+import { openDB, saveRecords, saveRecord, getAllRecords, clearDatabase, clearCompendium, exportAllData, importAllData, STORES, getAppSetting, saveAppSetting } from './db.js';
+import { ITEM_TYPES, SPELL_SCHOOLS, MONSTER_SIZES, DAMAGE_TYPES } from './parser.js';
 import { initStorage, storageHealth, getStorageQuota, onQuotaWarning, onPersistenceResult } from './storage.js';
 import { initSync, syncNow, scheduleDebouncedSync, syncState, onSyncStatusChange, startDropboxOAuth, unlinkDropbox, isDropboxLinked, refreshAccessToken } from './sync.js';
 import { handleSyncStateChange, showConflictModal, renderSyncStatusBadge, renderStorageBadge } from './ui-sync.js';
 import { calculateCharacterState } from './engine.js';
+import { 
+  parse5etoolsText, 
+  render5etoolsEntries, 
+  parse5etoolsSpell, 
+  parse5etoolsItem, 
+  parse5etoolsMonster, 
+  parse5etoolsFeat, 
+  parse5etoolsBackground, 
+  parse5etoolsRace, 
+  parse5etoolsOption, 
+  normalize5etoolsClass, 
+  suffixDuplicateNames,
+  getSourceRank
+} from './parser-5etools.js';
 
 // Application State
 let currentCategory = 'races';
@@ -15,6 +29,39 @@ let selectedFacet2 = 'All';
 let searchChits = []; // e.g. [{ field: 'school', value: 'conjuration' }]
 let selectedItem = null;
 let currentCharacter = null; // Currently open character
+
+// 5eTools Import Directory State
+let importFilesMap = {}; // Maps relative path (lowercase) to File object
+let foundBooks = [];
+let foundAdventures = [];
+let importSourceType = 'github'; // 'github' or 'local'
+let githubRepoUrl = 'https://github.com/5etools-mirror-3/5etools-src';
+let githubBaseUrl = 'https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/';
+
+// Helper to convert Github Repo URL to raw content base URL
+function updateGithubBaseUrl() {
+  let url = githubRepoUrl.trim().replace(/\/$/, '');
+  const ghRegex = /github\.com\/([^\/]+)\/([^\/]+)(?:\/tree\/([^\/]+))?/;
+  const match = url.match(ghRegex);
+  if (match) {
+    const user = match[1];
+    const repo = match[2];
+    const branch = match[3] || 'main';
+    githubBaseUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/`;
+  } else {
+    if (url.includes('raw.githubusercontent.com')) {
+      githubBaseUrl = url.endsWith('/') ? url : url + '/';
+    } else {
+      const simpleRegex = /^([^\/]+)\/([^\/]+)$/;
+      const simpleMatch = url.match(simpleRegex);
+      if (simpleMatch) {
+        githubBaseUrl = `https://raw.githubusercontent.com/${simpleMatch[1]}/${simpleMatch[2]}/main/`;
+      } else {
+        githubBaseUrl = url.endsWith('/') ? url : url + '/';
+      }
+    }
+  }
+}
 
 // Mobile View State
 let currentMobilePane = 'facet-1'; // 'facet-1', 'facet-2', 'list', 'detail'
@@ -28,6 +75,7 @@ let lastHistoryState = null;
 const menuItems = document.querySelectorAll('.menu-item');
 const btnSettings = document.getElementById('btn-settings');
 const fileInput = document.getElementById('file-input');
+const dirInput = document.getElementById('5etools-dir-input');
 const dbStatus = document.getElementById('db-status');
 const loadingOverlay = document.getElementById('loading-overlay');
 const overlayTitle = document.getElementById('overlay-title');
@@ -148,6 +196,13 @@ function resolveFavoriteItem(fav) {
 window.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
 
+  // Load GitHub repository URL setting
+  const savedRepoUrl = await getAppSetting('github_repo_url');
+  if (savedRepoUrl) {
+    githubRepoUrl = savedRepoUrl;
+    updateGithubBaseUrl();
+  }
+
   // 1. Initialize storage persistence + quota monitoring
   await initStorage();
   onQuotaWarning((pct) => {
@@ -221,6 +276,7 @@ function setupEventListeners() {
         if (cat === 'characters') {
           pickerActive = false;
           pickerTargetListId = null;
+          updateSidebarVisibility();
           const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
           if (sidebarBackBtn) sidebarBackBtn.style.display = 'none';
           const footer = document.getElementById('pane-detail-footer');
@@ -234,9 +290,10 @@ function setupEventListeners() {
     });
   });
 
-  // XML Import
+  // Imports
   btnSettings.addEventListener('click', showSettingsPanel);
   fileInput.addEventListener('change', handleImportFile);
+  dirInput.addEventListener('change', handle5eToolsDirectorySelect);
 
   // Search input change
   searchInput.addEventListener('input', () => {
@@ -452,51 +509,18 @@ async function loadAllRecordsCache() {
   }
 }
 
-// Check if IndexedDB is empty and seed it from System_Reference_Document_5.5e.xml
+// Check if IndexedDB is empty
 async function checkAndSeedDatabase() {
   try {
-    if (localStorage.getItem('bypassAutoSeed') === 'true') {
-      updateDBStatus('Compendium (Empty)');
-      return;
-    }
     const spells = await getAllRecords('spells');
-    const subclasses = await getAllRecords('subclasses');
-    if (spells.length === 0 || subclasses.length === 0) {
-      showOverlay('Seeding Database...', 'Updating database structure and seeding the D&D System Reference Document. This takes a moment...');
-      
-      // Clear existing compendium stores to clean out nested structure
-      const COMPENDIUM_STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options'];
-      const db = await openDB();
-      await new Promise((resolve, reject) => {
-        const transaction = db.transaction(COMPENDIUM_STORES, 'readwrite');
-        COMPENDIUM_STORES.forEach(storeName => {
-          transaction.objectStore(storeName).clear();
-        });
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (e) => reject(e.target.error);
-      });
-
-      const response = await fetch('./source-data/System_Reference_Document_5.5e.xml');
-      if (!response.ok) {
-        throw new Error('Failed to fetch SRD XML file.');
-      }
-      const xmlText = await response.text();
-      const parsed = parseCompendiumXML(xmlText);
-      
-      for (const store of STORES) {
-        if (parsed[store] && parsed[store].length > 0) {
-          await saveRecords(store, parsed[store]);
-        }
-      }
-      hideOverlay();
-      updateDBStatus('SRD Seeded Successfully');
+    if (spells.length === 0) {
+      updateDBStatus('Compendium (Empty)');
     } else {
       updateDBStatus('Compendium Ready');
     }
   } catch (error) {
-    console.error('Error seeding database:', error);
-    hideOverlay();
-    alert('Failed to initialize database: ' + error.message);
+    console.error('Error checking database status:', error);
+    updateDBStatus('Compendium (Error)');
   }
 }
 
@@ -506,48 +530,31 @@ async function handleImportFile(e) {
   if (!file) return;
 
   const isJson = file.name.toLowerCase().endsWith('.json');
-  const isXml = file.name.toLowerCase().endsWith('.xml');
 
-  if (!isJson && !isXml) {
-    alert('Please select a .xml or .json file.');
+  if (!isJson) {
+    alert('Please select a .json backup file.');
     fileInput.value = '';
     return;
   }
 
-  showOverlay(`Importing ${isJson ? 'JSON backup' : 'XML'}...`, `Parsing and upserting records from ${file.name}...`);
+  showOverlay('Importing JSON backup...', `Parsing and upserting records from ${file.name}...`);
 
   const reader = new FileReader();
   reader.onload = async (event) => {
     try {
-      if (isJson) {
-        // JSON backup import
-        const data = JSON.parse(event.target.result);
-        if (!data || typeof data !== 'object') throw new Error('Invalid JSON backup file.');
-        let importedCount = 0;
-        for (const store of STORES) {
-          if (data[store] && Array.isArray(data[store])) {
-            importedCount += data[store].length;
-          }
+      // JSON backup import
+      const data = JSON.parse(event.target.result);
+      if (!data || typeof data !== 'object') throw new Error('Invalid JSON backup file.');
+      let importedCount = 0;
+      for (const store of STORES) {
+        if (data[store] && Array.isArray(data[store])) {
+          importedCount += data[store].length;
         }
-        await importAllData(data, { merge: true });
-        hideOverlay();
-        alert(`Successfully imported ${importedCount} records from JSON backup!`);
-        updateDBStatus(`Imported ${file.name}`);
-      } else {
-        // XML import
-        const xmlText = event.target.result;
-        const parsed = parseCompendiumXML(xmlText);
-        let importedCount = 0;
-        for (const store of STORES) {
-          if (parsed[store] && parsed[store].length > 0) {
-            await saveRecords(store, parsed[store]);
-            importedCount += parsed[store].length;
-          }
-        }
-        hideOverlay();
-        alert(`Successfully imported ${importedCount} records!`);
-        updateDBStatus(`Imported ${file.name}`);
       }
+      await importAllData(data, { merge: true });
+      hideOverlay();
+      alert(`Successfully imported ${importedCount} records from JSON backup!`);
+      updateDBStatus(`Imported ${file.name}`);
 
       await loadAllRecordsCache();
       if (currentCategory === 'settings') {
@@ -562,13 +569,709 @@ async function handleImportFile(e) {
     } catch (error) {
       console.error('Error importing file:', error);
       hideOverlay();
-      alert(`Error importing ${isJson ? 'JSON' : 'XML'}: ` + error.message);
+      alert('Error importing JSON: ' + error.message);
     }
   };
 
   reader.readAsText(file);
   fileInput.value = ''; // Reset input
 
+}
+
+// Recursively traverse directory handle using modern File System Access API
+async function scanDirectoryHandle(dirHandle, pathAccumulator = '') {
+  const filesList = [];
+  for await (const entry of dirHandle.values()) {
+    // Performance optimization: skip hidden folders/files and node_modules
+    if (entry.name.startsWith('.') || entry.name === 'node_modules') {
+      continue;
+    }
+    if (entry.kind === 'file') {
+      const file = await entry.getFile();
+      const relativePath = pathAccumulator ? `${pathAccumulator}/${entry.name}` : entry.name;
+      // Define webkitRelativePath dynamically so it behaves exactly like input file lists
+      Object.defineProperty(file, 'webkitRelativePath', {
+        value: relativePath,
+        writable: true,
+        configurable: true
+      });
+      filesList.push(file);
+    } else if (entry.kind === 'directory') {
+      const subDirPath = pathAccumulator ? `${pathAccumulator}/${entry.name}` : entry.name;
+      const subFiles = await scanDirectoryHandle(entry, subDirPath);
+      filesList.push(...subFiles);
+    }
+  }
+  return filesList;
+}
+
+// Process selection from modern File System Access API
+async function handleDirectoryHandleSelect(dirHandle) {
+  importSourceType = 'local';
+  showOverlay('Scanning 5eTools...', 'Traversing folder structure...');
+  try {
+    const files = await scanDirectoryHandle(dirHandle, dirHandle.name);
+    await handle5eToolsFilesList(files);
+  } catch (err) {
+    console.error(err);
+    hideOverlay();
+    alert('Failed to scan directory: ' + err.message);
+  }
+}
+
+// Common logic to process files list from either directory picker or input element
+async function handle5eToolsFilesList(files) {
+  if (files.length === 0) {
+    throw new Error("No files found in the selected folder.");
+  }
+
+  // Find books.json to determine the relative prefix path dynamically
+  const booksFileEntry = files.find(f => f.name.toLowerCase() === 'books.json');
+  if (!booksFileEntry) {
+    throw new Error("Could not find 'books.json' in the selected folder. Please make sure you selected the 5eTools folder (either the repository root or the 'data' folder).");
+  }
+
+  const booksPath = booksFileEntry.webkitRelativePath.toLowerCase();
+  // Determine prefix to strip: everything before 'books.json' (e.g. "5etools-src/data/" or "data/" or "")
+  const prefix = booksPath.substring(0, booksPath.length - 'books.json'.length);
+
+  importFilesMap = {};
+  files.forEach(f => {
+    const relativePath = f.webkitRelativePath.toLowerCase();
+    if (relativePath.startsWith(prefix)) {
+      const subPath = relativePath.substring(prefix.length);
+      // Map it under 'data/' internally so the rest of the application references it consistently
+      importFilesMap[`data/${subPath}`] = f;
+    }
+  });
+
+  // 1. Read books.json
+  const booksFile = importFilesMap['data/books.json'];
+  if (!booksFile) {
+    throw new Error("Could not find 'data/books.json' in selected folder. Make sure you selected the 5eTools data folder.");
+  }
+  const booksText = await booksFile.text();
+  const booksJson = JSON.parse(booksText);
+  foundBooks = booksJson.book || [];
+
+  // 2. Read adventures.json (if present)
+  const adventuresFile = importFilesMap['data/adventures.json'];
+  if (adventuresFile) {
+    const advText = await adventuresFile.text();
+    const advJson = JSON.parse(advText);
+    foundAdventures = advJson.adventure || [];
+  } else {
+    foundAdventures = [];
+  }
+
+  hideOverlay();
+  showSourceSelectionModal();
+}
+
+// Connect to 5eTools GitHub and fetch index files
+async function handle5eToolsGitHubImport() {
+  importSourceType = 'github';
+  showOverlay('Connecting to GitHub...', 'Fetching 5eTools index files...');
+  try {
+    // 1. Fetch books.json
+    const booksRes = await fetch(`${githubBaseUrl}data/books.json`);
+    if (!booksRes.ok) throw new Error(`Failed to fetch books.json (HTTP ${booksRes.status})`);
+    const booksJson = await booksRes.json();
+    foundBooks = booksJson.book || [];
+
+    // 2. Fetch adventures.json
+    try {
+      const advRes = await fetch(`${githubBaseUrl}data/adventures.json`);
+      if (advRes.ok) {
+        const advJson = await advRes.json();
+        foundAdventures = advJson.adventure || [];
+      } else {
+        foundAdventures = [];
+      }
+    } catch (e) {
+      console.warn('Failed to fetch adventures.json', e);
+      foundAdventures = [];
+    }
+
+    hideOverlay();
+    showSourceSelectionModal();
+  } catch (err) {
+    console.error(err);
+    hideOverlay();
+    alert('Failed to connect to 5eTools GitHub repository:\n' + err.message + '\n\nPlease check your internet connection or use a local folder instead.');
+  }
+}
+
+// Handle 5eTools Directory Selection via input element (Legacy/Fallback)
+async function handle5eToolsDirectorySelect(e) {
+  importSourceType = 'local';
+  const files = Array.from(e.target.files);
+  if (files.length === 0) return;
+
+  showOverlay('Scanning 5eTools...', 'Indexing books and data files...');
+  try {
+    await handle5eToolsFilesList(files);
+  } catch (err) {
+    console.error(err);
+    hideOverlay();
+    alert('Failed to scan 5eTools directory: ' + err.message + '\n\nTip: If you selected the repository root, try selecting the "data" subfolder instead. This avoids security blocks on hidden folders (like .git).');
+  } finally {
+    dirInput.value = ''; // Reset input
+  }
+}
+
+// Show Source Selection Checklist Modal
+function showSourceSelectionModal() {
+  const modal = document.getElementById('5etools-source-modal');
+  const listContainer = document.getElementById('5etools-source-list');
+  if (!modal || !listContainer) return;
+
+  // Group books by type
+  const groups = {
+    'core': { name: 'Core Rulebooks', items: [] },
+    'supplement': { name: 'Supplements & Rules Expansions', items: [] },
+    'setting': { name: 'Campaign Settings', items: [] },
+    'adventure': { name: 'Adventures', items: [] },
+    'other': { name: 'Other Publications', items: [] }
+  };
+
+  // Group books
+  foundBooks.forEach(b => {
+    const grp = b.group || 'other';
+    const groupKey = ['core', 'supplement', 'setting', 'setting-alt'].includes(grp) 
+      ? (grp === 'setting-alt' ? 'setting' : grp) 
+      : 'other';
+    groups[groupKey].items.push({ id: b.source || b.id, name: b.name, type: 'book' });
+  });
+
+  // Group adventures
+  foundAdventures.forEach(a => {
+    groups['adventure'].items.push({ id: a.source || a.id, name: a.name, type: 'adventure' });
+  });
+
+  // Retrieve saved selection
+  let lastSelection = [];
+  try {
+    const saved = localStorage.getItem('lastImportSources');
+    if (saved) lastSelection = JSON.parse(saved);
+  } catch (err) {
+    console.error('Failed to parse lastImportSources', err);
+  }
+
+  // Render HTML
+  let html = '';
+  for (const [key, grp] of Object.entries(groups)) {
+    if (grp.items.length === 0) continue;
+    
+    // Sort items alphabetically
+    grp.items.sort((a, b) => a.name.localeCompare(b.name));
+
+    html += `
+      <div class="source-group-section" style="margin-bottom: 20px;">
+        <h3 style="font-size: 14px; font-weight: bold; color: var(--accent-color); border-bottom: 1px solid var(--border-color); padding-bottom: 4px; margin-bottom: 8px; font-family: var(--font-header);">${grp.name}</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px;">
+          ${grp.items.map(item => {
+            const isChecked = lastSelection.length === 0 || lastSelection.includes(item.id);
+            return `
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-primary); cursor: pointer;">
+                <input type="checkbox" class="source-checkbox" data-id="${item.id}" data-type="${item.type}" ${isChecked ? 'checked' : ''} style="width: 16px; height: 16px; margin: 0;">
+                <span>${item.name}</span>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  listContainer.innerHTML = html;
+  modal.style.display = 'flex';
+
+  // Modal event wiring
+  const btnSelectAll = document.getElementById('5etools-source-btn-select-all');
+  const btnDeselectAll = document.getElementById('5etools-source-btn-deselect-all');
+  const btnCancel = document.getElementById('5etools-source-btn-cancel');
+  const btnImport = document.getElementById('5etools-source-btn-import');
+
+  btnSelectAll.onclick = () => {
+    listContainer.querySelectorAll('.source-checkbox').forEach(cb => cb.checked = true);
+  };
+  btnDeselectAll.onclick = () => {
+    listContainer.querySelectorAll('.source-checkbox').forEach(cb => cb.checked = false);
+  };
+  btnCancel.onclick = () => {
+    modal.style.display = 'none';
+  };
+  btnImport.onclick = async () => {
+    const checkedBoxes = Array.from(listContainer.querySelectorAll('.source-checkbox:checked'));
+    const selectedSources = checkedBoxes.map(cb => cb.getAttribute('data-id'));
+    
+    // Save last selection set
+    localStorage.setItem('lastImportSources', JSON.stringify(selectedSources));
+
+    modal.style.display = 'none';
+    
+    if (selectedSources.length === 0) {
+      alert('No sources selected. Import aborted.');
+      return;
+    }
+
+    await execute5eToolsImport(selectedSources);
+  };
+}
+
+// Main Import Execution Flow
+async function execute5eToolsImport(sources) {
+  showOverlay('Importing 5eTools...', 'Loading data files and processing records...');
+
+  try {
+    const importStats = {
+      spells: 0,
+      items: 0,
+      monsters: 0,
+      classes: 0,
+      subclasses: 0,
+      feats: 0,
+      backgrounds: 0,
+      races: 0,
+      options: 0
+    };
+
+    // Keep arrays for classes/features compilation
+    let allRawSubclasses = [];
+    let allRawClassFeatures = [];
+    let allRawSubclassFeatures = [];
+    let allRawClasses = [];
+
+    // Helper: Read a JSON file
+    const readJsonFile = async (path) => {
+      if (importSourceType === 'github') {
+        const url = `${githubBaseUrl}${path}`;
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          return await res.json();
+        } catch (err) {
+          console.warn(`Failed to fetch file: ${path}`, err);
+          return null;
+        }
+      } else {
+        const file = importFilesMap[path.toLowerCase()];
+        if (!file) return null;
+        try {
+          const text = await file.text();
+          return JSON.parse(text);
+        } catch (err) {
+          console.warn(`Failed to parse file: ${path}`, err);
+          return null;
+        }
+      }
+    };
+
+    // Helper: Find all matching source files in directory based on file list
+    const findPathsInDir = (dirPrefix, suffix) => {
+      return Object.keys(importFilesMap).filter(p => 
+        p.startsWith(dirPrefix.toLowerCase()) && p.endsWith(suffix.toLowerCase())
+      );
+    };
+
+    // Fetch Index Maps for selective loading in GitHub mode
+    let spellsIndex = {};
+    let bestiaryIndex = {};
+    let classIndex = {};
+
+    if (importSourceType === 'github') {
+      showOverlay('Importing 5eTools...', 'Loading indexes from GitHub...');
+      const sIdx = await readJsonFile('data/spells/index.json');
+      if (sIdx) spellsIndex = sIdx;
+      const bIdx = await readJsonFile('data/bestiary/index.json');
+      if (bIdx) bestiaryIndex = bIdx;
+      const cIdx = await readJsonFile('data/class/index.json');
+      if (cIdx) classIndex = cIdx;
+    }
+
+    const matchItemForVariant = (baseItem, variant) => {
+      if (variant.requires && Array.isArray(variant.requires)) {
+        let matchedAny = false;
+        for (const req of variant.requires) {
+          let reqMatch = true;
+          for (const key in req) {
+            if (key === 'type') {
+              if (baseItem.rawType !== req.type) {
+                reqMatch = false;
+              }
+            } else {
+              if (!baseItem[key]) {
+                reqMatch = false;
+              }
+            }
+          }
+          if (reqMatch) {
+            matchedAny = true;
+            break;
+          }
+        }
+        if (!matchedAny) return false;
+      }
+      
+      if (variant.excludes) {
+        for (const key in variant.excludes) {
+          if (baseItem[key]) {
+            return false;
+          }
+          if (baseItem.name && baseItem.name.toLowerCase() === key.toLowerCase()) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+
+    const deduplicateByRank = (records) => {
+      const highest = {};
+      for (const rec of records) {
+        const name = rec.name;
+        const currentRank = getSourceRank(rec.source);
+        if (!highest[name]) {
+          highest[name] = rec;
+        } else {
+          const existingRank = getSourceRank(highest[name].source);
+          if (currentRank > existingRank) {
+            highest[name] = rec;
+          }
+        }
+      }
+      return Object.values(highest);
+    };
+
+    // ─── 1. Spells Ingestion ───
+    let allParsedSpells = [];
+    for (const source of sources) {
+      let spellPath;
+      let hasSpellFile = false;
+
+      if (importSourceType === 'github') {
+        const fileMapped = spellsIndex[source.toUpperCase()];
+        if (fileMapped) {
+          spellPath = `data/spells/${fileMapped}`;
+          hasSpellFile = true;
+        }
+      } else {
+        spellPath = `data/spells/spells-${source}.json`.toLowerCase();
+        if (importFilesMap[spellPath]) {
+          hasSpellFile = true;
+        }
+      }
+
+      if (hasSpellFile) {
+        showOverlay('Importing 5eTools...', `Fetching spells for ${source}...`);
+        const json = await readJsonFile(spellPath);
+        if (json && json.spell) {
+          const parsedSpells = json.spell.map(s => parse5etoolsSpell(s, source, lookup, sources));
+          allParsedSpells.push(...parsedSpells);
+        }
+      }
+    }
+    const dedupedSpells = deduplicateByRank(allParsedSpells);
+    if (dedupedSpells.length > 0) {
+      await saveRecords('spells', dedupedSpells);
+      importStats.spells += dedupedSpells.length;
+    }
+
+    // ─── 2. Items Ingestion ───
+    showOverlay('Importing 5eTools...', 'Loading items data...');
+    let allParsedItems = [];
+
+    // Ingest base items (non-magical equipment)
+    const baseItemsJson = await readJsonFile('data/items-base.json');
+    if (baseItemsJson && baseItemsJson.baseitem) {
+      const filteredBase = baseItemsJson.baseitem.filter(i => sources.includes(i.source));
+      const parsedBase = filteredBase.map(i => parse5etoolsItem(i, i.source));
+      allParsedItems.push(...parsedBase);
+    }
+
+    // Ingest standard items
+    const itemsJson = await readJsonFile('data/items.json');
+    if (itemsJson && itemsJson.item) {
+      const filteredReg = itemsJson.item.filter(i => sources.includes(i.source));
+      const parsedReg = filteredReg.map(i => parse5etoolsItem(i, i.source));
+      allParsedItems.push(...parsedReg);
+    }
+
+    // Generate magic variants
+    const magicVariantsJson = await readJsonFile('data/magicvariants.json');
+    if (magicVariantsJson && magicVariantsJson.magicvariant) {
+      const generatedVariants = [];
+      for (const variant of magicVariantsJson.magicvariant) {
+        const inherits = variant.inherits || {};
+        const variantSource = inherits.source || variant.source;
+        if (!variantSource || !sources.includes(variantSource)) {
+          continue;
+        }
+
+        // Match against all parsed base items
+        for (const baseItem of allParsedItems) {
+          // Magic variants should only be created from base/non-magical items
+          if (baseItem.magic) continue;
+          
+          if (matchItemForVariant(baseItem, variant)) {
+            const namePrefix = inherits.namePrefix || '';
+            const nameSuffix = inherits.nameSuffix || '';
+            const newName = `${namePrefix}${baseItem.name}${nameSuffix}`;
+            
+            const bonusAc = inherits.bonusAc ? parseInt(inherits.bonusAc) : 0;
+            const newAc = baseItem.ac !== null ? baseItem.ac + bonusAc : null;
+
+            // Interpolate description entries
+            const rawEntries = inherits.entries || variant.entries || [];
+            const bonusWeapon = inherits.bonusWeapon || '';
+            const bonusWeaponAttack = inherits.bonusWeaponAttack || '';
+            const parsedEntries = rawEntries.map(entry => {
+              if (typeof entry === 'string') {
+                return entry
+                  .replace(/\{=bonusWeapon\}/g, bonusWeapon)
+                  .replace(/\{=bonusAc\}/g, inherits.bonusAc || '')
+                  .replace(/\{=bonusWeaponAttack\}/g, bonusWeaponAttack);
+              }
+              return entry;
+            });
+
+            const variantTexts = render5etoolsEntries(parsedEntries);
+            const combinedTexts = [...variantTexts, ...baseItem.texts];
+
+            const rarity = inherits.rarity || baseItem.detail || 'Rare';
+
+            // Construct new variant item
+            const newVariant = {
+              ...baseItem,
+              name: newName,
+              detail: rarity,
+              magic: true,
+              ac: newAc,
+              texts: combinedTexts,
+              source: variantSource,
+              rawType: baseItem.rawType,
+              armor: baseItem.armor,
+              weapon: baseItem.weapon,
+              shield: baseItem.shield,
+              ammo: baseItem.ammo
+            };
+            generatedVariants.push(newVariant);
+          }
+        }
+      }
+      allParsedItems.push(...generatedVariants);
+    }
+
+    const dedupedItems = deduplicateByRank(allParsedItems);
+    if (dedupedItems.length > 0) {
+      await saveRecords('items', dedupedItems);
+      importStats.items += dedupedItems.length;
+    }
+
+    // ─── 3. Bestiary Ingestion ───
+    let monsterPaths = [];
+    if (importSourceType === 'github') {
+      sources.forEach(source => {
+        const fileMapped = bestiaryIndex[source.toUpperCase()];
+        if (fileMapped) {
+          monsterPaths.push(`data/bestiary/${fileMapped}`);
+        }
+      });
+    } else {
+      monsterPaths = findPathsInDir('data/bestiary/', '.json');
+    }
+
+    let allParsedMonsters = [];
+    for (const path of monsterPaths) {
+      showOverlay('Importing 5eTools...', `Loading bestiary file: ${path.split('/').pop()}...`);
+      const json = await readJsonFile(path);
+      if (json && json.monster) {
+        const filtered = json.monster.filter(m => sources.includes(m.source));
+        if (filtered.length > 0) {
+          const parsedMonsters = filtered.map(m => parse5etoolsMonster(m, m.source));
+          allParsedMonsters.push(...parsedMonsters);
+        }
+      }
+    }
+    const dedupedMonsters = deduplicateByRank(allParsedMonsters);
+    if (dedupedMonsters.length > 0) {
+      await saveRecords('monsters', dedupedMonsters);
+      importStats.monsters += dedupedMonsters.length;
+    }
+
+    // ─── 4. Feats, Backgrounds, Races, Options ───
+    // Feats
+    showOverlay('Importing 5eTools...', 'Loading feats data...');
+    const featsJson = await readJsonFile('data/feats.json');
+    if (featsJson && featsJson.feat) {
+      const filtered = featsJson.feat.filter(f => sources.includes(f.source));
+      const parsed = filtered.map(f => parse5etoolsFeat(f, f.source));
+      const deduped = deduplicateByRank(parsed);
+      if (deduped.length > 0) {
+        await saveRecords('feats', deduped);
+        importStats.feats += deduped.length;
+      }
+    }
+
+    // Backgrounds
+    showOverlay('Importing 5eTools...', 'Loading backgrounds data...');
+    const bgJson = await readJsonFile('data/backgrounds.json');
+    if (bgJson && bgJson.background) {
+      const filtered = bgJson.background.filter(b => sources.includes(b.source));
+      const parsed = filtered.map(b => parse5etoolsBackground(b, b.source));
+      const deduped = deduplicateByRank(parsed);
+      if (deduped.length > 0) {
+        await saveRecords('backgrounds', deduped);
+        importStats.backgrounds += deduped.length;
+      }
+    }
+
+    // Races
+    showOverlay('Importing 5eTools...', 'Loading races data...');
+    const raceJson = await readJsonFile('data/races.json');
+    if (raceJson && raceJson.race) {
+      const filtered = raceJson.race.filter(r => sources.includes(r.source));
+      const parsed = filtered.map(r => parse5etoolsRace(r, r.source));
+      const deduped = deduplicateByRank(parsed);
+      if (deduped.length > 0) {
+        await saveRecords('races', deduped);
+        importStats.races += deduped.length;
+      }
+    }
+
+    // Options
+    showOverlay('Importing 5eTools...', 'Loading optional features data...');
+    const optJson = await readJsonFile('data/optionalfeatures.json');
+    if (optJson && optJson.optionalfeature) {
+      const filtered = optJson.optionalfeature.filter(o => sources.includes(o.source));
+      const parsed = filtered.map(o => parse5etoolsOption(o, o.source));
+      const deduped = deduplicateByRank(parsed);
+      if (deduped.length > 0) {
+        await saveRecords('options', deduped);
+        importStats.options += deduped.length;
+      }
+    }
+
+    // ─── 5. Classes & Subclasses compilation ───
+    let classPaths = [];
+    if (importSourceType === 'github') {
+      classPaths = Object.values(classIndex).map(filename => `data/class/${filename}`);
+    } else {
+      classPaths = findPathsInDir('data/class/', '.json');
+    }
+
+    for (const path of classPaths) {
+      if (path.includes('fluff-class')) continue;
+      showOverlay('Importing 5eTools...', `Loading class file: ${path.split('/').pop()}...`);
+      const json = await readJsonFile(path);
+      if (json) {
+        if (json.class) allRawClasses.push(...json.class);
+        if (json.subclass) allRawSubclasses.push(...json.subclass);
+        if (json.classFeature) allRawClassFeatures.push(...json.classFeature);
+        if (json.subclassFeature) allRawSubclassFeatures.push(...json.subclassFeature);
+      }
+    }
+
+    // Deduplicate class/subclasses/features by source rank
+    const classHighest = {};
+    allRawClasses.forEach(c => {
+      if (sources.includes(c.source)) {
+        const rank = getSourceRank(c.source);
+        if (!classHighest[c.name] || rank > classHighest[c.name].rank) {
+          classHighest[c.name] = { rank, value: c };
+        }
+      }
+    });
+    const selectedClasses = Object.values(classHighest).map(x => x.value);
+
+    const subclassHighest = {};
+    allRawSubclasses.forEach(sub => {
+      if (sources.includes(sub.source)) {
+        const key = `${sub.className.toLowerCase()}|${sub.name.toLowerCase()}`;
+        const rank = getSourceRank(sub.source);
+        if (!subclassHighest[key] || rank > subclassHighest[key].rank) {
+          subclassHighest[key] = { rank, value: sub };
+        }
+      }
+    });
+    const selectedSubclasses = Object.values(subclassHighest).map(x => x.value);
+
+    const selectedClassFeatures = allRawClassFeatures.filter(f => {
+      const keptClass = classHighest[f.className];
+      return keptClass && keptClass.value.source === f.source;
+    });
+
+    const keptSubMap = new Map();
+    selectedSubclasses.forEach(sub => {
+      const k1 = `${sub.className.toLowerCase()}|${sub.name.toLowerCase()}`;
+      const k2 = `${sub.className.toLowerCase()}|${sub.shortName.toLowerCase()}`;
+      keptSubMap.set(k1, sub);
+      keptSubMap.set(k2, sub);
+    });
+
+    const selectedSubclassFeatures = allRawSubclassFeatures.filter(f => {
+      const subKey = `${f.className.toLowerCase()}|${f.subclassShortName.toLowerCase()}`;
+      const keptSub = keptSubMap.get(subKey);
+      return keptSub && keptSub.source === f.source;
+    });
+
+    // Normalization loop
+    const normalizedClasses = [];
+    const normalizedSubclasses = [];
+    const classFeaturesToSave = [];
+    const subclassFeaturesToSave = [];
+
+    selectedClasses.forEach(c => {
+      const normalized = normalize5etoolsClass(c, selectedSubclasses, selectedClassFeatures, selectedSubclassFeatures, c.source);
+      normalizedClasses.push(normalized.classRecord);
+      normalizedSubclasses.push(...normalized.subclassRecords);
+      classFeaturesToSave.push(...normalized.features);
+      subclassFeaturesToSave.push(...normalized.subclassFeatures);
+    });
+
+    // Save to DB
+    if (normalizedClasses.length > 0) {
+      await saveRecords('classes', normalizedClasses);
+      importStats.classes += normalizedClasses.length;
+    }
+    if (normalizedSubclasses.length > 0) {
+      await saveRecords('subclasses', normalizedSubclasses);
+      importStats.subclasses += normalizedSubclasses.length;
+    }
+    if (classFeaturesToSave.length > 0) {
+      await saveRecords('classFeatures', classFeaturesToSave);
+    }
+    if (subclassFeaturesToSave.length > 0) {
+      await saveRecords('subclassFeatures', subclassFeaturesToSave);
+    }
+
+    // ─── 6. Refresh and Finish ───
+    await loadAllRecordsCache();
+    
+    hideOverlay();
+    
+    const summaryMsg = Object.entries(importStats)
+      .filter(([_, v]) => v > 0)
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ');
+
+    alert(`Import Complete!\n\nImported: ${summaryMsg || '0 records'}`);
+    updateDBStatus(`Seeded from 5eTools`);
+    
+    if (currentCategory === 'settings') {
+      renderSettingsPage();
+    } else {
+      await loadCategory(currentCategory);
+    }
+
+    scheduleDebouncedSync();
+
+  } catch (err) {
+    console.error(err);
+    hideOverlay();
+    alert('Import failed: ' + err.message);
+  }
 }
 
 // Loader state overlay
@@ -1501,14 +2204,61 @@ function selectItem(item) {
 function resetDetailsPane() {
   selectedItem = null;
   updateFavoriteButtonUI();
-  detailPaneContent.innerHTML = `
-    <div class="detail-view-container">
-      <div style="text-align: center; margin-top: 80px; color: var(--text-muted)">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 16px"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-        <p>Select an entry from the list to view its details.</p>
+  
+  const isDbEmpty = !allRecordsCache['spells'] || allRecordsCache['spells'].length === 0;
+  if (isDbEmpty) {
+    detailPaneContent.innerHTML = `
+      <div class="detail-view-container">
+        <div style="text-align: center; margin-top: 80px; color: var(--text-muted); max-width: 450px; margin-left: auto; margin-right: auto; padding: 20px;">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 16px; color: var(--accent-color);"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          <h2 style="font-family: var(--font-header); color: var(--text-primary); margin-bottom: 8px;">Compendium is Empty</h2>
+          <p style="margin-bottom: 24px; font-size: 14px; line-height: 1.5;">Welcome to the offline D&D compendium. To get started, load 5eTools sources directly from GitHub, or select a local data folder.</p>
+          <div style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+            <button class="settings-action-btn" id="welcome-import-github-btn" style="width: auto; padding: 10px 24px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.07 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+              Load from GitHub (Recommended)
+            </button>
+            <button class="settings-action-btn secondary-btn" id="welcome-import-local-btn" style="width: auto; padding: 10px 24px; border-radius: 6px; display: flex; align-items: center; gap: 8px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+              Select Local Folder
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-  `;
+    `;
+    const welcomeGithubBtn = document.getElementById('welcome-import-github-btn');
+    if (welcomeGithubBtn) {
+      welcomeGithubBtn.addEventListener('click', handle5eToolsGitHubImport);
+    }
+    const welcomeLocalBtn = document.getElementById('welcome-import-local-btn');
+    if (welcomeLocalBtn) {
+      welcomeLocalBtn.addEventListener('click', async () => {
+        importSourceType = 'local';
+        if (window.showDirectoryPicker) {
+          try {
+            const dirHandle = await window.showDirectoryPicker();
+            await handleDirectoryHandleSelect(dirHandle);
+          } catch (err) {
+            if (err.name !== 'AbortError') {
+              console.error(err);
+              alert('Failed to open directory: ' + err.message);
+            }
+          }
+        } else {
+          dirInput.click();
+        }
+      });
+    }
+  } else {
+    detailPaneContent.innerHTML = `
+      <div class="detail-view-container">
+        <div style="text-align: center; margin-top: 80px; color: var(--text-muted)">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 16px"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          <p>Select an entry from the list to view its details.</p>
+        </div>
+      </div>
+    `;
+  }
   updateDetailFooterUI();
 }
 
@@ -2007,6 +2757,15 @@ function getDetailHTML(item, category = currentCategory) {
           if (!levelFeatures[f.level]) levelFeatures[f.level] = [];
           levelFeatures[f.level].push(f.name);
         });
+      } else if (cls.autolevels) {
+        cls.autolevels.forEach(al => {
+          if (!levelFeatures[al.level]) levelFeatures[al.level] = [];
+          if (al.features) {
+            al.features.forEach(f => {
+              levelFeatures[al.level].push(f.name);
+            });
+          }
+        });
       }
 
       for (let lvl = 1; lvl <= 20; lvl++) {
@@ -2127,27 +2886,34 @@ function getDetailHTML(item, category = currentCategory) {
       </div>
     `;
   } else if (category === 'backgrounds' || category === 'background') {
+    // Build a summary of what the background grants
+    const grantRows = [];
+    if (item.ability) grantRows.push({ label: 'Ability Score Increases', value: item.ability });
+    if (item.proficiency) grantRows.push({ label: 'Skill Proficiencies', value: item.proficiency });
+    if (item.tools) grantRows.push({ label: 'Tool Proficiencies', value: item.tools });
+    if (item.languages) grantRows.push({ label: 'Languages', value: item.languages });
+    if (item.feats) grantRows.push({ label: 'Feat', value: item.feats });
+
+    const grantBoxHtml = grantRows.length > 0 ? `
+      <div style="background: linear-gradient(135deg, var(--panel-bg), rgba(var(--accent-rgb, 139,92,246),0.08)); border: 1px solid var(--accent-color); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+        <div style="font-family: var(--font-header); font-size: 13px; font-weight: 700; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">🎒 Background Grants</div>
+        ${grantRows.map(row => `
+          <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); min-width: 140px; padding-top: 1px;">${row.label}:</span>
+            <span style="font-size: 13px; color: var(--text-primary); font-weight: 500;">${row.value}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
     html = `
       <div class="detail-view-container">
         <header class="detail-header">
           <div class="detail-subtitle">Background</div>
           <h1>${item.name}</h1>
         </header>
-        <div class="detail-meta-box">
-          <div class="meta-entry">
-            <span class="meta-label">Skill Proficiencies</span>
-            <span class="meta-value">${item.proficiency || '—'}</span>
-          </div>
-          <div class="meta-entry">
-            <span class="meta-label">Tools</span>
-            <span class="meta-value">${item.tools || '—'}</span>
-          </div>
-          <div class="meta-entry">
-            <span class="meta-label">Languages</span>
-            <span class="meta-value">${item.languages || '—'}</span>
-          </div>
-        </div>
         <div class="detail-body">
+          ${grantBoxHtml}
           ${formatText(item.texts)}
           ${item.traits && item.traits.length > 0 ? `
             <h2 style="margin-top: 30px; margin-bottom: 12px; font-size: 20px; color: var(--accent-color)">Background Features</h2>
@@ -2158,10 +2924,34 @@ function getDetailHTML(item, category = currentCategory) {
               </div>
             `).join('')}
           ` : ''}
+          ${item.source ? `
+            <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+              Source: ${parseInlineMarkdown(item.source)}
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
-  } else if (category === 'races' || category === 'race') {
+ } else if (category === 'races' || category === 'race') {
+    // Build a summary of what the species grants
+    const raceGrants = [];
+    if (item.ability) raceGrants.push({ label: 'Ability Score Increases', value: item.ability });
+    if (item.languages) raceGrants.push({ label: 'Languages', value: item.languages });
+    if (item.proficiency) raceGrants.push({ label: 'Skill Proficiencies', value: item.proficiency });
+    const speedDisplay = item.speedStr || `Walk ${item.speed || 30} ft.`;
+
+    const raceGrantBoxHtml = raceGrants.length > 0 ? `
+      <div style="background: linear-gradient(135deg, var(--panel-bg), rgba(var(--accent-rgb, 139,92,246),0.08)); border: 1px solid var(--accent-color); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+        <div style="font-family: var(--font-header); font-size: 13px; font-weight: 700; color: var(--accent-color); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">🧬 Species Grants</div>
+        ${raceGrants.map(row => `
+          <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start;">
+            <span style="font-size: 12px; font-weight: 700; color: var(--text-muted); min-width: 140px; padding-top: 1px;">${row.label}:</span>
+            <span style="font-size: 13px; color: var(--text-primary); font-weight: 500;">${row.value}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
     html = `
       <div class="detail-view-container">
         <header class="detail-header">
@@ -2175,18 +2965,20 @@ function getDetailHTML(item, category = currentCategory) {
           </div>
           <div class="meta-entry">
             <span class="meta-label">Speed</span>
-            <span class="meta-value">${item.speed || 30} ft.</span>
+            <span class="meta-value">${speedDisplay}</span>
           </div>
+          ${item.ability ? `
           <div class="meta-entry">
-            <span class="meta-label">Ability Score Increases</span>
-            <span class="meta-value">${item.ability || 'Choose and increase stats'}</span>
-          </div>
+            <span class="meta-label">Ability Increases</span>
+            <span class="meta-value">${item.ability}</span>
+          </div>` : ''}
           <div class="meta-entry">
-            <span class="meta-label">Primary Languages</span>
+            <span class="meta-label">Languages</span>
             <span class="meta-value">${item.languages || 'Common'}</span>
           </div>
         </div>
         <div class="detail-body">
+          ${raceGrantBoxHtml}
           ${item.proficiency ? `<p style="margin-bottom: 16px;"><strong>Skill/Tool Proficiencies:</strong> ${item.proficiency}</p>` : ''}
           ${item.traits && item.traits.length > 0 ? `
             <h2 style="margin-top: 30px; margin-bottom: 12px; font-size: 20px; color: var(--accent-color)">Traits</h2>
@@ -2196,6 +2988,11 @@ function getDetailHTML(item, category = currentCategory) {
                 <div style="margin-top: 4px;">${parseMarkdown((t.texts || []).join('\n'))}</div>
               </div>
             `).join('')}
+          ` : ''}
+          ${item.source ? `
+            <div style="margin-top: 20px; color: var(--text-muted); font-size: 13px;">
+              Source: ${parseInlineMarkdown(item.source)}
+            </div>
           ` : ''}
         </div>
       </div>
@@ -2217,6 +3014,7 @@ function showSettingsPanel() {
   if (pickerActive) {
     pickerActive = false;
     pickerTargetListId = null;
+    updateSidebarVisibility();
     const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
     if (sidebarBackBtn) sidebarBackBtn.style.display = 'none';
     const footer = document.getElementById('pane-detail-footer');
@@ -2312,30 +3110,46 @@ function renderSettingsPage() {
           <h2 style="font-size: 18px; color: var(--accent-color); margin-bottom: 16px; font-family: var(--font-header)">Database Management</h2>
 
           <div class="settings-option">
-            <h3>Import XML Content</h3>
-            <p>Import a D&amp;D compendium XML file. New records will be added, and existing records with the same name will be updated.</p>
-            <button class="settings-action-btn" id="settings-btn-import">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-              Choose XML File &amp; Import
+            <h3>Import 5eTools Content</h3>
+            <p>Load 5eTools content sources directly from GitHub or import from your local data folder.</p>
+            <div style="margin-top: 12px; margin-bottom: 16px; max-width: 500px;">
+              <label for="settings-github-repo" style="display: block; font-size: 13px; font-weight: bold; margin-bottom: 6px; color: var(--text-primary);">GitHub Repository URL</label>
+              <input type="text" class="settings-input" id="settings-github-repo" value="${githubRepoUrl}" style="margin: 0;" placeholder="https://github.com/5etools-mirror-3/5etools-src" autocomplete="off" spellcheck="false">
+            </div>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px;">
+              <button class="settings-action-btn" id="settings-btn-import-github">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M12 2A10 10 0 0 0 2 12c0 4.42 2.87 8.17 6.84 9.5.5.08.66-.23.66-.5v-1.69c-2.77.6-3.36-1.34-3.36-1.34-.46-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.07 2.91.83.1-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.92 0-1.11.38-2 1.03-2.71-.1-.25-.45-1.29.1-2.64 0 0 .84-.27 2.75 1.02.79-.22 1.65-.33 2.5-.33.85 0 1.71.11 2.5.33 1.91-1.29 2.75-1.02 2.75-1.02.55 1.35.2 2.39.1 2.64.65.71 1.03 1.6 1.03 2.71 0 3.82-2.34 4.66-4.57 4.91.36.31.69.92.69 1.85V21c0 .27.16.59.67.5C19.14 20.16 22 16.42 22 12A10 10 0 0 0 12 2z"/></svg>
+                Load from GitHub (Recommended)
+              </button>
+              <button class="settings-action-btn secondary-btn" id="settings-btn-import-local">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                Select Local Folder
+              </button>
+            </div>
+          </div>
+
+          <div class="settings-option" style="margin-top: 24px;">
+            <h3>Restore Backup File</h3>
+            <p>Restore your database from a previously exported <code>.json</code> backup file.</p>
+            <button class="settings-action-btn" id="settings-btn-import-backup">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+              Import Backup File (.json)
             </button>
           </div>
 
           <div class="settings-option" style="margin-top: 24px;">
-            <h3>Reset Database</h3>
-            <p>Wipe all custom imports and revert your local database back to the default System Reference Document (SRD 5.5e) data.</p>
-            <button class="settings-action-btn danger-btn" id="settings-btn-reset-db">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-              Reset Database to Default
-            </button>
-          </div>
-
-          <div class="settings-option" style="margin-top: 24px;">
-            <h3>Clear Database</h3>
-            <p>Wipe all content from the database. This leaves the database completely empty, allowing you to import your own custom XML compendium files.</p>
-            <button class="settings-action-btn danger-btn" id="settings-btn-clear-db">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>
-              Clear All Content
-            </button>
+            <h3>Clear Database & Compendium</h3>
+            <p>Wipe compendium data or clear all local data including your characters and favorites.</p>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px;">
+              <button class="settings-action-btn" id="settings-btn-clear-compendium">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>
+                Clear Compendium Only
+              </button>
+              <button class="settings-action-btn danger-btn" id="settings-btn-clear-db">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>
+                Clear Entire Database
+              </button>
+            </div>
           </div>
         </section>
 
@@ -2349,15 +3163,6 @@ function renderSettingsPage() {
             <button class="settings-action-btn" id="settings-btn-export-json">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5z"/></svg>
               Download JSON Backup
-            </button>
-          </div>
-
-          <div class="settings-option" style="margin-top: 24px;">
-            <h3>Import from Backup File</h3>
-            <p>Restore your database from a previously exported <code>.json</code> backup file, or import an XML compendium file.</p>
-            <button class="settings-action-btn" id="settings-btn-import-backup">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-              Import from File (.xml or .json)
             </button>
           </div>
         </section>
@@ -2393,9 +3198,37 @@ function renderSettingsPage() {
 
   // ── Attach event handlers ──
 
-  document.getElementById('settings-btn-import').addEventListener('click', () => fileInput.click());
+  document.getElementById('settings-btn-import-github').addEventListener('click', handle5eToolsGitHubImport);
+  const repoInput = document.getElementById('settings-github-repo');
+  if (repoInput) {
+    repoInput.addEventListener('change', async () => {
+      const url = repoInput.value.trim();
+      if (url) {
+        githubRepoUrl = url;
+        updateGithubBaseUrl();
+        await saveAppSetting('github_repo_url', url);
+        console.log('[app] Saved custom GitHub repository URL:', url);
+      }
+    });
+  }
+  document.getElementById('settings-btn-import-local').addEventListener('click', async () => {
+    importSourceType = 'local';
+    if (window.showDirectoryPicker) {
+      try {
+        const dirHandle = await window.showDirectoryPicker();
+        await handleDirectoryHandleSelect(dirHandle);
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error(err);
+          alert('Failed to open directory: ' + err.message);
+        }
+      }
+    } else {
+      dirInput.click();
+    }
+  });
   document.getElementById('settings-btn-import-backup').addEventListener('click', () => fileInput.click());
-  document.getElementById('settings-btn-reset-db').addEventListener('click', resetDatabaseToDefault);
+  document.getElementById('settings-btn-clear-compendium').addEventListener('click', clearCompendiumAction);
   document.getElementById('settings-btn-clear-db').addEventListener('click', clearDatabaseAction);
   document.getElementById('settings-btn-reset-cache').addEventListener('click', resetServiceWorkerCache);
 
@@ -2491,23 +3324,10 @@ async function _setupDropboxLinkUI() {
   });
 }
 
-async function resetDatabaseToDefault() {
-  if (confirm('Are you sure you want to reset the database? This will delete all custom imported items and restore the default System Reference Document.')) {
-    showOverlay('Resetting Database...', 'Wiping local database stores...');
-    localStorage.removeItem('bypassAutoSeed');
-    await clearDatabase();
-    showOverlay('Seeding Database...', 'Re-fetching and loading the default D&D System Reference Document...');
-    // Re-seed the database
-    await checkAndSeedDatabase();
-    await loadAllRecordsCache();
-    await loadCategory('spells'); // Go back to spells after resetting
-    hideOverlay();
-    alert('Database reset successful!');
-  }
-}
+// resetDatabaseToDefault removed because auto XML seeding is deprecated.
 
 async function clearDatabaseAction() {
-  if (confirm('Are you sure you want to clear the entire database? All content will be deleted, and the database will be left empty.')) {
+  if (confirm('Warning: This will clear ALL database content including all characters and favorites. Have you downloaded and saved a backup file first? If not, please click Cancel and download your JSON backup.')) {
     showOverlay('Clearing Database...', 'Wiping all local database stores...');
     localStorage.setItem('bypassAutoSeed', 'true');
     await clearDatabase();
@@ -2515,6 +3335,17 @@ async function clearDatabaseAction() {
     await loadCategory('spells'); // Go back to spells after clearing
     hideOverlay();
     alert('Database successfully cleared!');
+  }
+}
+
+async function clearCompendiumAction() {
+  if (confirm('Are you sure you want to clear the compendium? This will remove all spells, items, monsters, etc., but will preserve your characters and favorites.')) {
+    showOverlay('Clearing Compendium...', 'Wiping all compendium database stores...');
+    await clearCompendium();
+    await loadAllRecordsCache();
+    await loadCategory('spells');
+    hideOverlay();
+    alert('Compendium successfully cleared!');
   }
 }
 
@@ -3019,6 +3850,7 @@ function showCharacterCreatorModal(char = null) {
     document.getElementById('cs-modal-class').value = char.class || '';
     document.getElementById('cs-modal-subclass').value = char.subclass || '';
     document.getElementById('cs-modal-level').value = char.level;
+    document.getElementById('cs-modal-level').disabled = true;
     document.getElementById('cs-modal-species').value = char.species || '';
     document.getElementById('cs-modal-background').value = char.background || '';
     document.getElementById('cs-modal-spellcasting').value = char.spellcastingAbility || 'wis';
@@ -3035,6 +3867,7 @@ function showCharacterCreatorModal(char = null) {
     document.getElementById('cs-modal-class').value = '';
     document.getElementById('cs-modal-subclass').value = '';
     document.getElementById('cs-modal-level').value = 1;
+    document.getElementById('cs-modal-level').disabled = false;
     document.getElementById('cs-modal-species').value = '';
     document.getElementById('cs-modal-background').value = '';
     document.getElementById('cs-modal-spellcasting').value = 'wis';
@@ -3222,6 +4055,7 @@ function renderWizardStep(stepNum) {
 
   // Render step body
   const body = document.getElementById('cs-wizard-body');
+  body.className = 'cs-wizard-body';
   body.innerHTML = '';
 
   if (stepNum === 1) renderWizardStep1(body);
@@ -3486,12 +4320,30 @@ function renderWizardStep2(body) {
       </div>
     `;
 
+    // Build grants summary for wizard
+    const wizardRaceGrants = [];
+    if (selectedRace.ability) wizardRaceGrants.push({ label: 'Ability Increases', value: selectedRace.ability });
+    if (selectedRace.languages) wizardRaceGrants.push({ label: 'Languages', value: selectedRace.languages });
+    if (selectedRace.proficiency) wizardRaceGrants.push({ label: 'Skill Proficiencies', value: selectedRace.proficiency });
+    const wizardRaceGrantBox = wizardRaceGrants.length > 0 ? `
+      <div style="background:linear-gradient(135deg,var(--panel-bg),rgba(139,92,246,0.08));border:1px solid var(--accent-color);border-radius:10px;padding:14px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent-color);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">🧬 Species Grants</div>
+        ${wizardRaceGrants.map(g => `
+          <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+            <span style="font-size:11px;font-weight:700;color:var(--text-muted);min-width:120px;padding-top:1px;">${g.label}:</span>
+            <span style="font-size:12px;color:var(--text-primary);font-weight:500;">${g.value}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
     detail.innerHTML = `
       <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
         <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedRace.name}</h3>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Size: ${selectedRace.size || 'Medium'} · Base Speed: ${selectedRace.speed} ft</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Size: ${selectedRace.size || 'Medium'} · Speed: ${selectedRace.speedStr || (selectedRace.speed + ' ft.')}</div>
       </div>
       
+      ${wizardRaceGrantBox}
       ${descriptionHtml}
       ${traitsHtml}
       ${skillsHtml}
@@ -3555,31 +4407,16 @@ function renderWizardStep3(body) {
       div.className = 'cs-wizard-list-item' + (selectedBg === b ? ' active' : '');
       div.innerHTML = `
         <div class="cs-wizard-list-item-name">${b.name}</div>
-        <div class="cs-wizard-list-item-sub">Skills: ${b.proficiency || 'None'}</div>
+        <div class="cs-wizard-list-item-sub">${b.proficiency ? 'Skills: ' + b.proficiency : ''}${b.tools ? (b.proficiency ? ' · ' : '') + b.tools : ''}</div>
       `;
       div.onclick = () => {
         selectedBg = b;
         wizardState.background = b;
         
-        // Reset and pre-fill background Stats ASI to +1 on all stats (as per user comment)
+        // Reset ASI to all 0s — user customizes freely using the +/- buttons below
         wizardState.backgroundStats = { str: 0, dex: 0, con: 0, int: 0, wis: 0, cha: 0 };
-        if (b.modifiers) {
-          b.modifiers.forEach(m => {
-            if (m.target && m.target.endsWith('.score') && m.type === 'add') {
-              const attr = m.target.split('.')[0];
-              wizardState.backgroundStats[attr] = 1; // Default to +1 as requested
-            }
-          });
-        }
-        // Fallback: If no modifiers exist, prefill standard +1 on 3 attributes (e.g. str, dex, con)
-        const activeAsis = Object.values(wizardState.backgroundStats).reduce((a,b)=>a+b, 0);
-        if (activeAsis === 0) {
-          wizardState.backgroundStats.str = 1;
-          wizardState.backgroundStats.dex = 1;
-          wizardState.backgroundStats.con = 1;
-        }
 
-        wizardState.backgroundSkills = b.proficiency ? b.proficiency.split(',').map(s => s.trim().toLowerCase()) : [];
+        wizardState.backgroundSkills = b.proficiency ? b.proficiency.split(',').map(s => s.trim()) : [];
         wizardState.backgroundLanguages = b.languages ? b.languages.split(',').map(s => s.trim()) : [];
         
         renderList(searchInput.value);
@@ -3683,16 +4520,37 @@ function renderWizardStep3(body) {
       </div>
     `;
 
+    // Build grants summary for wizard
+    const wizardBgGrants = [];
+    if (selectedBg.ability) wizardBgGrants.push({ label: 'Ability Increases', value: selectedBg.ability });
+    if (selectedBg.proficiency) wizardBgGrants.push({ label: 'Skill Proficiencies', value: selectedBg.proficiency });
+    if (selectedBg.tools) wizardBgGrants.push({ label: 'Tool Proficiency', value: selectedBg.tools });
+    if (selectedBg.languages) wizardBgGrants.push({ label: 'Languages', value: selectedBg.languages });
+    if (selectedBg.feats) wizardBgGrants.push({ label: 'Feat', value: selectedBg.feats });
+    const wizardBgGrantBox = wizardBgGrants.length > 0 ? `
+      <div style="background:linear-gradient(135deg,var(--panel-bg),rgba(139,92,246,0.08));border:1px solid var(--accent-color);border-radius:10px;padding:14px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent-color);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">🎒 Background Grants</div>
+        ${wizardBgGrants.map(g => `
+          <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+            <span style="font-size:11px;font-weight:700;color:var(--text-muted);min-width:130px;padding-top:1px;">${g.label}:</span>
+            <span style="font-size:12px;color:var(--text-primary);font-weight:500;">${g.value}</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
     detail.innerHTML = `
       <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
         <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedBg.name}</h3>
       </div>
       
+      ${wizardBgGrantBox}
       ${descriptionHtml}
       ${traitHtml}
       ${statsASIHtml}
       ${skillsHtml}
     `;
+
 
     // Wire listeners
     detail.querySelectorAll('.btn-bg-asi-dec').forEach(btn => {
@@ -3874,17 +4732,42 @@ function renderWizardStep4(body) {
       ? `<div style="font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); margin-bottom: 20px; font-style: italic;">${descText}</div>`
       : '';
 
+    // Build class grants box
+    const classGrantRows = [];
+    classGrantRows.push({ label: 'Saving Throws', value: saves.join(', ') || '—' });
+    if (selectedClass.armor) classGrantRows.push({ label: 'Armor Training', value: selectedClass.armor });
+    if (selectedClass.weapons) classGrantRows.push({ label: 'Weapon Proficiencies', value: selectedClass.weapons });
+    if (selectedClass.tools) classGrantRows.push({ label: 'Tool Proficiencies', value: selectedClass.tools });
+    if (numSkills > 0 && classApprovedSkills.length > 0) {
+      classGrantRows.push({ label: 'Skill Choices', value: `Choose ${numSkills} from: ${classApprovedSkills.join(', ')}` });
+    }
+    if (selectedClass.spellAbility) classGrantRows.push({ label: 'Spellcasting Ability', value: selectedClass.spellAbility });
+
+    const classGrantBox = `
+      <div style="background:linear-gradient(135deg,var(--panel-bg),rgba(139,92,246,0.08));border:1px solid var(--accent-color);border-radius:10px;padding:14px;margin-bottom:16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--accent-color);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">⚔️ Class Grants (Level 1)</div>
+        ${classGrantRows.map(g => `
+          <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+            <span style="font-size:11px;font-weight:700;color:var(--text-muted);min-width:130px;padding-top:1px;">${g.label}:</span>
+            <span style="font-size:12px;color:var(--text-primary);font-weight:500;">${g.value}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
     detail.innerHTML = `
       <div style="border-bottom:1px solid var(--border-color);padding-bottom:12px;margin-bottom:16px;">
         <h3 style="font-family:var(--font-header);font-size:20px;color:var(--text-primary);margin:0;">${selectedClass.name}</h3>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Saving Throws: ${saves.join(', ')} · Spellcaster Ability: ${selectedClass.spellAbility || 'None'}</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Hit Die: d${selectedClass.hd} · ${saves.length > 0 ? 'Saves: ' + saves.join(', ') : ''}</div>
       </div>
       
+      ${classGrantBox}
       ${descriptionHtml}
       ${hpPromptHtml}
       ${skillsHtml}
       ${featuresHtml}
     `;
+
 
     // Wire listeners
     const hpInput = detail.querySelector('#wizard-class-hp-input');
@@ -3976,6 +4859,9 @@ function renderWizardStep5(body) {
         <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Background Skills</span><span class="cs-wizard-review-val">${wizardState.backgroundSkills.join(', ') || 'None'}</span></div>
         <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Class Skills</span><span class="cs-wizard-review-val">${wizardState.classSkills.join(', ') || 'None'}</span></div>
         <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Languages</span><span class="cs-wizard-review-val">${[...new Set([...wizardState.speciesLanguages, ...wizardState.backgroundLanguages])].join(', ') || 'None'}</span></div>
+        ${wizardState.background && wizardState.background.tools ? `<div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Tool Proficiency</span><span class="cs-wizard-review-val">${wizardState.background.tools}</span></div>` : ''}
+        ${wizardState.background && wizardState.background.feats ? `<div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Background Feat</span><span class="cs-wizard-review-val">${wizardState.background.feats}</span></div>` : ''}
+        ${wizardState.background && wizardState.background.ability ? `<div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Background ASI</span><span class="cs-wizard-review-val">${wizardState.background.ability}</span></div>` : ''}
         <div class="cs-wizard-review-row"><span class="cs-wizard-review-key">Active Class Features</span><span class="cs-wizard-review-val">${wizardState.classFeaturesChosen.join(', ') || 'None'}</span></div>
       </div>
     </div>
@@ -4896,7 +5782,7 @@ let pickerTargetListId = null;   // listId to add into (null = default/first lis
 function ensureCharacterLists(char) {
   if (!char.featureLists)  char.featureLists  = [{ id: generateId(), name: 'Features & Traits' }];
   if (!char.itemLists)     char.itemLists     = [{ id: generateId(), name: 'Inventory' }];
-  if (!char.spellLists)    char.spellLists    = [{ id: generateId(), name: 'Spells', spellcastingAbility: char.spellcastingAbility || 'wis' }];
+  if (!char.spellLists)    char.spellLists    = [];
   if (!char.bestiaryLists) char.bestiaryLists = [{ id: generateId(), name: 'Companions & Summons' }];
   
   if (!char.classes) char.classes = [];
@@ -4910,10 +5796,110 @@ function ensureCharacterLists(char) {
       spellAbility: classRecord ? classRecord.spellAbility || null : null,
       featureListId: char.featureLists[0]?.id || generateId(),
       subclassListId: null,
-      spellListId: char.spellLists[0]?.id || null,
+      spellListId: null,
       subclassSpellListId: null
     });
   }
+
+  // Dynamically determine what spell lists the character should have
+  const expectedLists = [];
+  
+  // 1. Classes and Subclasses
+  if (char.classes) {
+    char.classes.forEach(cc => {
+      // Parent class spellcasting
+      const classRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === cc.name.toLowerCase());
+      if (classRecord && classRecord.spellAbility) {
+        expectedLists.push({
+          name: `${cc.name} Spells`,
+          spellcastingAbility: classRecord.spellAbility.toLowerCase(),
+          classEntry: cc,
+          type: 'class'
+        });
+      }
+      // Subclass spellcasting
+      if (cc.subclass) {
+        const subclassRecord = allRecordsCache['subclasses']?.find(s => 
+          s.name.toLowerCase() === cc.subclass.toLowerCase() && 
+          s.parentClass.toLowerCase() === cc.name.toLowerCase()
+        );
+        if (subclassRecord && subclassRecord.spellAbility) {
+          expectedLists.push({
+            name: `${cc.subclass} Spells`,
+            spellcastingAbility: subclassRecord.spellAbility.toLowerCase(),
+            classEntry: cc,
+            type: 'subclass'
+          });
+        }
+      }
+    });
+  }
+
+  // 2. Species/Race
+  if (char.species) {
+    const raceRecord = allRecordsCache['races']?.find(r => r.name.toLowerCase() === char.species.toLowerCase());
+    if (raceRecord && raceRecord.additionalSpells) {
+      expectedLists.push({
+        name: `${char.species} Spells`,
+        spellcastingAbility: 'cha',
+        type: 'species'
+      });
+    }
+  }
+
+  // 3. Feats
+  if (char.features) {
+    char.features.forEach(f => {
+      const featRecord = allRecordsCache['feats']?.find(feat => 
+        feat.name === f.compendiumId || feat.name === f.name
+      );
+      if (featRecord && featRecord.additionalSpells) {
+        expectedLists.push({
+          name: `${featRecord.name} Spells`,
+          spellcastingAbility: 'cha',
+          type: 'feat'
+        });
+      }
+    });
+  }
+
+  // Reconcile spellLists
+  const finalSpellLists = [];
+  expectedLists.forEach(expected => {
+    let existing = char.spellLists.find(l => l.name === expected.name);
+    if (!existing) {
+      existing = {
+        id: generateId(),
+        name: expected.name,
+        spellcastingAbility: expected.spellcastingAbility
+      };
+      char.spellLists.push(existing);
+    } else {
+      if (!existing.spellcastingAbility) {
+        existing.spellcastingAbility = expected.spellcastingAbility;
+      }
+    }
+    finalSpellLists.push(existing);
+
+    // Update class entry references
+    if (expected.type === 'class' && expected.classEntry) {
+      expected.classEntry.spellListId = existing.id;
+    } else if (expected.type === 'subclass' && expected.classEntry) {
+      expected.classEntry.subclassSpellListId = existing.id;
+    }
+  });
+
+  // Keep any other lists that have spells in them or don't match the auto-generated naming convention
+  char.spellLists.forEach(l => {
+    if (finalSpellLists.some(fl => fl.id === l.id)) return;
+    const hasSpells = char.spells && char.spells.some(s => s.listId === l.id);
+    const isCustom = !l.name.endsWith(' Spells');
+    if (hasSpells || isCustom) {
+      finalSpellLists.push(l);
+    }
+  });
+
+  char.spellLists = finalSpellLists;
 
   // Assign default listId to legacy items that lack one
   const assignListIds = (arr, lists) => {
@@ -5195,6 +6181,32 @@ function deleteListAndItems() {
   saveCurrentCharacterAndRefresh();
 }
 
+function updateSidebarVisibility() {
+  menuItems.forEach(item => {
+    const cat = item.getAttribute('data-category');
+    if (!pickerActive) {
+      item.style.display = '';
+      return;
+    }
+    if (cat === 'search' || cat === 'favorites' || cat === 'characters') {
+      item.style.display = '';
+      return;
+    }
+    
+    let allowed = [];
+    if (pickerCategory === 'items') allowed = ['items'];
+    else if (pickerCategory === 'spells') allowed = ['spells'];
+    else if (pickerCategory === 'feats' || pickerCategory === 'options') allowed = ['feats', 'options'];
+    else if (pickerCategory === 'monsters') allowed = ['monsters'];
+    
+    if (allowed.includes(cat)) {
+      item.style.display = '';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
 // ─── Picker & Add to Character Selection ──────────────────────────────────────
 async function openPicker(category, targetListId = null) {
   pickerActive = true;
@@ -5210,6 +6222,8 @@ async function openPicker(category, targetListId = null) {
   menuItems.forEach(mi => {
     mi.classList.toggle('active', mi.getAttribute('data-category') === mainCategory);
   });
+
+  updateSidebarVisibility();
 
   // Load the category in the main Compendium
   await loadCategory(mainCategory);
@@ -5229,6 +6243,8 @@ async function openPicker(category, targetListId = null) {
 function closePickerAndReturn() {
   pickerActive = false;
   pickerTargetListId = null;
+
+  updateSidebarVisibility();
 
   // Hide the back-to-sheet button
   const sidebarBackBtn = document.getElementById('sidebar-back-to-sheet');
@@ -5344,6 +6360,9 @@ function addCompendiumEntityToCharacter(record, category) {
     currentCharacter.equipment.push(clone);
   } else if (category === 'spells') {
     clone.active = false;
+    if (!currentCharacter.spellLists || currentCharacter.spellLists.length === 0) {
+      currentCharacter.spellLists = [{ id: generateId(), name: 'Spells', spellcastingAbility: currentCharacter.spellcastingAbility || 'wis' }];
+    }
     const listId = pickerTargetListId || currentCharacter.spellLists[0]?.id;
     clone.listId = listId;
     currentCharacter.spells.push(clone);
@@ -5449,6 +6468,20 @@ function renderCharacterSheetUI() {
   if (!currentCharacter) return;
   ensureCharacterLists(currentCharacter);
   const state = calculateCharacterState(currentCharacter);
+
+  // Show/Hide Spells Tab Button dynamically
+  const spellsTabBtn = document.querySelector('.cs-tab-btn[data-tab="spells"]');
+  if (spellsTabBtn) {
+    if (!currentCharacter.spellLists || currentCharacter.spellLists.length === 0) {
+      spellsTabBtn.style.display = 'none';
+      if (spellsTabBtn.classList.contains('active')) {
+        const combatTabBtn = document.querySelector('.cs-tab-btn[data-tab="combat"]');
+        if (combatTabBtn) combatTabBtn.click();
+      }
+    } else {
+      spellsTabBtn.style.display = '';
+    }
+  }
 
   // ── Header ──────────────────────────────────────────────────────────────────
   document.getElementById('cs-char-name').textContent = currentCharacter.name;
@@ -5737,10 +6770,14 @@ function renderCharacterSheetUI() {
 
   const spellsContainer = document.getElementById('cs-spells-lists-container');
   spellsContainer.innerHTML = '';
-  currentCharacter.spellLists.forEach(listDef => {
-    const items = getItemsForList(currentCharacter.spells, listDef.id);
-    renderListSection(spellsContainer, listDef, items, 'spell', state);
-  });
+  if (!currentCharacter.spellLists || currentCharacter.spellLists.length === 0) {
+    spellsContainer.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">No spellcasting features.</div>';
+  } else {
+    currentCharacter.spellLists.forEach(listDef => {
+      const items = getItemsForList(currentCharacter.spells, listDef.id);
+      renderListSection(spellsContainer, listDef, items, 'spell', state);
+    });
+  }
 
   // ── Tab 6: Bestiary (Compendium Monster Picker) ───────────────────────────────
   const bestiaryContainer = document.getElementById('cs-bestiary-lists-container');

@@ -4,9 +4,9 @@
 //   v5: adds _sync_meta, _app_settings; adds _modified_at timestamps
 
 const DB_NAME = 'dnd_compendium_db';
-const DB_VERSION = 8;
+const DB_VERSION = 9;
 
-export const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'feats', 'backgrounds', 'races', 'options', 'favorites', 'characters'];
+export const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'classFeatures', 'subclassFeatures', 'feats', 'backgrounds', 'races', 'options', 'favorites', 'characters'];
 const META_STORE = '_sync_meta';
 const SETTINGS_STORE = '_app_settings';
 
@@ -24,7 +24,8 @@ export function openDB() {
       // Create compendium stores if they don't exist
       STORES.forEach(storeName => {
         if (!db.objectStoreNames.contains(storeName)) {
-          db.createObjectStore(storeName, { keyPath: 'name' });
+          const keyPath = (storeName === 'classFeatures' || storeName === 'subclassFeatures') ? 'id' : 'name';
+          db.createObjectStore(storeName, { keyPath });
         }
       });
 
@@ -156,6 +157,19 @@ export async function clearDatabase() {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORES, 'readwrite');
     STORES.forEach(storeName => {
+      transaction.objectStore(storeName).clear();
+    });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function clearCompendium() {
+  const db = await openDB();
+  const compendiumStores = STORES.filter(s => s !== 'favorites' && s !== 'characters');
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(compendiumStores, 'readwrite');
+    compendiumStores.forEach(storeName => {
       transaction.objectStore(storeName).clear();
     });
     transaction.oncomplete = () => resolve();

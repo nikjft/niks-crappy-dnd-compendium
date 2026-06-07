@@ -1,5 +1,93 @@
 // engine.js — Headless Calculation Engine for D&D 5.5e (2024) Character Sheets
 
+import FEATURE_MODIFIERS from './feature-modifiers.js';
+
+export function getEntityModifiers(entity, type) {
+  const modifiers = [];
+  if (!entity) return modifiers;
+
+  // 1. User-defined or explicit pre-populated modifiers
+  if (entity.modifiers && Array.isArray(entity.modifiers)) {
+    modifiers.push(...entity.modifiers);
+  }
+
+  // 2. 5eTools Items / Equipment Modifiers
+  if (type === 'equipment' || type === 'item') {
+    if (entity.bonusAc) {
+      modifiers.push({
+        target: 'ac',
+        type: 'add',
+        value: parseInt(entity.bonusAc) || 0
+      });
+    }
+    if (entity.bonusSavingThrow) {
+      modifiers.push({
+        target: 'save.all',
+        type: 'add',
+        value: parseInt(entity.bonusSavingThrow) || 0
+      });
+    }
+    if (entity.bonusSpellAttack) {
+      modifiers.push({
+        target: 'spell.attack',
+        type: 'add',
+        value: parseInt(entity.bonusSpellAttack) || 0
+      });
+    }
+    if (entity.bonusSpellSaveDc) {
+      modifiers.push({
+        target: 'spell.dc',
+        type: 'add',
+        value: parseInt(entity.bonusSpellSaveDc) || 0
+      });
+    }
+    if (entity.bonusWeapon) {
+      const bonusVal = parseInt(entity.bonusWeapon) || 0;
+      modifiers.push({ target: 'melee.attack', type: 'add', value: bonusVal });
+      modifiers.push({ target: 'melee.damage', type: 'add', value: bonusVal });
+      modifiers.push({ target: 'ranged.attack', type: 'add', value: bonusVal });
+      modifiers.push({ target: 'ranged.damage', type: 'add', value: bonusVal });
+    }
+    if (entity.ability && entity.ability.static) {
+      for (const [attr, val] of Object.entries(entity.ability.static)) {
+        modifiers.push({
+          target: `${attr}.score`,
+          type: 'set',
+          value: parseInt(val) || 10
+        });
+      }
+    }
+  }
+
+  // 3. Feats, Species Traits, Class Features Lookup
+  if (type === 'feature' || type === 'features' || type === 'feats') {
+    const source = entity.source || '';
+    const className = entity.className || '';
+    
+    let lookupKey = `${entity.name}|${source}`;
+    if (className) {
+      const levelSuffix = entity.level ? `|${entity.level}` : '';
+      let match = FEATURE_MODIFIERS[`${entity.name}|${className}|${source}${levelSuffix}`];
+      if (!match) {
+        match = FEATURE_MODIFIERS[`${entity.name}|${className}|${source}`];
+      }
+      if (!match) {
+        match = FEATURE_MODIFIERS[`${entity.name}|${source}`];
+      }
+      if (match) {
+        modifiers.push(...match);
+      }
+    } else {
+      const match = FEATURE_MODIFIERS[lookupKey];
+      if (match) {
+        modifiers.push(...match);
+      }
+    }
+  }
+
+  return modifiers;
+}
+
 /**
  * Safely evaluates a string math formula against a resolved state dictionary.
  * @param {string|number} formula 
@@ -56,17 +144,17 @@ export function calculateCharacterState(character) {
   // 2. Gather all active modifiers
   const activeModifiers = [];
   const lists = [
-    character.equipment || [],
-    character.spells || [],
-    character.features || [],
-    character.options || [],
-    character.modifiers || []
+    { list: character.equipment || [], type: 'equipment' },
+    { list: character.spells || [], type: 'spells' },
+    { list: character.features || [], type: 'feature' },
+    { list: character.options || [], type: 'options' },
+    { list: character.modifiers || [], type: 'modifiers' }
   ];
 
-  for (const list of lists) {
-    for (const item of list) {
+  for (const group of lists) {
+    for (const item of group.list) {
       if (item.active === true) {
-        const mods = item.modifiers || [];
+        const mods = getEntityModifiers(item, group.type);
         for (const mod of mods) {
           activeModifiers.push(mod);
         }

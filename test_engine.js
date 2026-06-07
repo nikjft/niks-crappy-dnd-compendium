@@ -196,6 +196,42 @@ await test('Skill proficiencies (Expertise=2, JackOfAllTrades=0.5) calculate cor
   assertEqual(state['passive.perception'], 14, 'Passive perception is 10 + resolved perception (14)');
 });
 
+// --- Test 5eTools Modifiers (Dynamic & Static) ---
+await test('5eTools modifiers resolve correctly', () => {
+  const character = {
+    level: 5,
+    baseStats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+    equipment: [
+      {
+        name: 'Ring of Protection',
+        active: true,
+        bonusAc: '+1',
+        bonusSavingThrow: '+1'
+      },
+      {
+        name: 'Gauntlets of Ogre Power',
+        active: true,
+        ability: { static: { str: 19 } }
+      }
+    ],
+    features: [
+      {
+        name: 'Tough',
+        source: 'PHB',
+        active: true
+      }
+    ]
+  };
+
+  const state = calculateCharacterState(character);
+
+  assertEqual(state['ac'], 11, 'AC: 10 base + 0 dex + 1 Ring of Protection = 11');
+  assertEqual(state['str.score'], 19, 'STR score: set to 19 by Gauntlets');
+  assertEqual(state['str.mod'], 4, 'STR modifier: updated to +4');
+  assertEqual(state['save.str'], 5, 'STR save: +4 mod + 1 Ring of Protection = 5');
+  assertEqual(state['hp.max'], 20, 'HP max: 10 base + 0 con + 10 Tough = 20');
+});
+
 console.log('\n══════════════════════════════════════════════════════════');
 if (failCount === 0) {
   console.log(`✅  ALL ${passCount} ENGINE TESTS PASSED`);
