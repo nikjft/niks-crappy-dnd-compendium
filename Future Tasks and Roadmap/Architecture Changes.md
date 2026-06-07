@@ -350,5 +350,3 @@ Indifference | Neither good nor bad
 
 
 ```
-
-- [ ] Cannot edit elements from compendium. All feats, spells, items, abilities, species and class features should be editable, including modifier adding/editing. *Deferred — requires significant modal work for each entity type. Custom items/features now have full modifier support via the custom creators.*
