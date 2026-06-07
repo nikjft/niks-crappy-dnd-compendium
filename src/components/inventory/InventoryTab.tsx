@@ -16,7 +16,8 @@ const STAT_OPTIONS = [
   { key: 'con.score', label: 'CON Score' }, { key: 'int.score', label: 'INT Score' },
   { key: 'wis.score', label: 'WIS Score' }, { key: 'cha.score', label: 'CHA Score' },
   { key: 'hp.max', label: 'HP Max' }, { key: 'ac', label: 'Armor Class' },
-  { key: 'speed', label: 'Speed' },
+  { key: 'speed', label: 'Speed' }, { key: 'prof_bonus', label: 'Prof. Bonus' },
+  { key: 'initiative', label: 'Initiative' },
 ];
 
 // ─── Single item row ──────────────────────────────────────────────────────────
@@ -54,13 +55,56 @@ function ItemRow({
     return `<p>${item.texts?.join('<br>') ?? 'No description.'}</p>`;
   }
 
+  function addMod() {
+    if (!editFields) return;
+    const currentMods = editFields.modifiers ?? [];
+    setEditFields({
+      ...editFields,
+      modifiers: [...currentMods, { target: 'str.score', type: 'add', value: 0 }]
+    });
+  }
+
+  function updateMod(idx: number, field: string, val: any) {
+    if (!editFields) return;
+    const currentMods = editFields.modifiers ?? [];
+    const updatedMods = currentMods.map((m, i) => i === idx ? { ...m, [field]: val } : m);
+    setEditFields({
+      ...editFields,
+      modifiers: updatedMods
+    });
+  }
+
+  function removeMod(idx: number) {
+    if (!editFields) return;
+    const currentMods = editFields.modifiers ?? [];
+    const updatedMods = currentMods.filter((_, i) => i !== idx);
+    setEditFields({
+      ...editFields,
+      modifiers: updatedMods
+    });
+  }
+
   function handleSaveProperties() {
     if (!editFields) return;
     const isWeapon = editFields.type === 'Weapon';
     const isArmor  = editFields.type === 'Armor';
     const isShield = editFields.type === 'Shield';
+
+    // Clean up properties depending on type
+    const cleanedFields = { ...editFields };
+    if (!isWeapon) {
+      delete cleanedFields.dmg1;
+      delete cleanedFields.dmg2;
+      delete cleanedFields.dmgType;
+      delete cleanedFields.bonusWeapon;
+    }
+    if (!isArmor && !isShield) {
+      delete cleanedFields.ac;
+      delete cleanedFields.bonusAc;
+    }
+
     const updated = equipment.map(i =>
-      i.id !== item.id ? i : { ...i, ...editFields, weapon: isWeapon, armor: isArmor, shield: isShield }
+      i.id !== item.id ? i : { ...i, ...cleanedFields, weapon: isWeapon, armor: isArmor, shield: isShield }
     );
     patchCharacter({ equipment: updated });
     setIsEditing(false);
@@ -80,8 +124,8 @@ function ItemRow({
   function renderStateIcon() {
     if (isEquipped) {
       return (
-        <span class="state-icon equipped-shield" title="Equipped">
-          🛡️
+        <span class="material-icons-outlined state-icon" style="font-size: 14px; color: var(--accent-color);">
+          shield
         </span>
       );
     }
@@ -134,16 +178,32 @@ function ItemRow({
                 <button class="cs-btn-small" onClick={handleSaveProperties}>Save</button>
               ) : (
                 <button class="cs-btn-small secondary" onClick={() => {
-                  setEditFields({ name: item.name, weight: item.weight, type: item.type, requiresAttunement: item.requiresAttunement });
+                  setEditFields({
+                    name: item.name,
+                    weight: item.weight,
+                    type: item.type,
+                    requiresAttunement: item.requiresAttunement,
+                    ac: item.ac,
+                    bonusAc: item.bonusAc,
+                    dmg1: item.dmg1,
+                    dmg2: item.dmg2,
+                    dmgType: item.dmgType,
+                    bonusWeapon: item.bonusWeapon,
+                    modifiers: item.modifiers ? JSON.parse(JSON.stringify(item.modifiers)) : []
+                  });
                   setIsEditing(true);
-                }}>✏️ Edit</button>
+                }}>
+                  <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
+                </button>
               )}
               {item.compendiumId && (
-                <button class="cs-btn-small secondary" onClick={() => onSync(item)}>🔄 Sync</button>
+                <button class="cs-btn-small secondary" onClick={() => onSync(item)}>
+                  <span class="material-icons-outlined" style="font-size: 11px;">sync</span> Sync
+                </button>
               )}
               {(item.weapon || item.type === 'Consumable' || item.type === 'Gear') && (
                 <button class={`cs-btn-small secondary ${isPinned ? 'active' : ''}`} onClick={() => onTogglePin(item)}>
-                  {isPinned ? '📌 Pinned' : '📌 Pin'}
+                  <span class="material-icons-outlined" style="font-size: 11px;">push_pin</span> {isPinned ? 'Pinned' : 'Pin'}
                 </button>
               )}
             </div>
@@ -159,7 +219,9 @@ function ItemRow({
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
-              <button class="cs-btn-small danger" onClick={() => onDelete(item.id!)}>🗑️ Delete</button>
+              <button class="cs-btn-small danger" onClick={() => onDelete(item.id!)}>
+                <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
+              </button>
             </div>
           </div>
 
@@ -203,6 +265,94 @@ function ItemRow({
                     onChange={e => setEditFields({ ...editFields, requiresAttunement: (e.target as HTMLInputElement).checked })} />
                   <label for={`attune-edit-${item.id}`} style="font-size:11px; color:var(--text-secondary);">Requires Attunement</label>
                 </div>
+              </div>
+
+              {/* Weapon Specific Fields */}
+              {editFields.type === 'Weapon' && (
+                <div class="item-edit-row">
+                  <div class="item-edit-field flex1">
+                    <label>Weapon Bonus</label>
+                    <input type="text" class="hp-modal-input" value={editFields.bonusWeapon ?? ''} placeholder="e.g. +1" style="width:100%;margin:0;"
+                      onInput={e => setEditFields({ ...editFields, bonusWeapon: (e.target as HTMLInputElement).value })} />
+                  </div>
+                  <div class="item-edit-field flex1">
+                    <label>Damage 1</label>
+                    <input type="text" class="hp-modal-input" value={editFields.dmg1 ?? ''} placeholder="e.g. 1d8" style="width:100%;margin:0;"
+                      onInput={e => setEditFields({ ...editFields, dmg1: (e.target as HTMLInputElement).value })} />
+                  </div>
+                  <div class="item-edit-field flex1">
+                    <label>Damage 2</label>
+                    <input type="text" class="hp-modal-input" value={editFields.dmg2 ?? ''} placeholder="e.g. 1d10" style="width:100%;margin:0;"
+                      onInput={e => setEditFields({ ...editFields, dmg2: (e.target as HTMLInputElement).value })} />
+                  </div>
+                  <div class="item-edit-field flex1">
+                    <label>Damage Type</label>
+                    <input type="text" class="hp-modal-input" value={editFields.dmgType ?? ''} placeholder="e.g. slashing" style="width:100%;margin:0;"
+                      onInput={e => setEditFields({ ...editFields, dmgType: (e.target as HTMLInputElement).value })} />
+                  </div>
+                </div>
+              )}
+
+              {/* Armor / Shield Specific Fields */}
+              {(editFields.type === 'Armor' || editFields.type === 'Shield') && (
+                <div class="item-edit-row">
+                  <div class="item-edit-field flex1">
+                    <label>Base AC</label>
+                    <input type="number" class="hp-modal-input" value={editFields.ac ?? 0} style="width:100%;margin:0;"
+                      onInput={e => setEditFields({ ...editFields, ac: parseInt((e.target as HTMLInputElement).value) || 0 })} />
+                  </div>
+                  <div class="item-edit-field flex1">
+                    <label>AC Bonus</label>
+                    <input type="text" class="hp-modal-input" value={editFields.bonusAc ?? ''} placeholder="e.g. +2" style="width:100%;margin:0;"
+                      onInput={e => setEditFields({ ...editFields, bonusAc: (e.target as HTMLInputElement).value })} />
+                  </div>
+                </div>
+              )}
+
+              {/* Modifiers Section */}
+              <div class="feat-mods-section" style="margin-top:12px;">
+                <div class="feat-mods-header" style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="feat-mods-title" style="font-size:11px; font-weight:600; color:var(--text-secondary);">Modifiers (when equipped)</span>
+                  <button class="cs-btn-small secondary" onClick={addMod} style="font-size:10px; padding:2px 8px;">
+                    + Add Modifier
+                  </button>
+                </div>
+                {(editFields.modifiers ?? []).length === 0 && (
+                  <div style="font-size:11px; color:var(--text-muted); font-style:italic; padding:4px 0;">
+                    No modifiers. Click + Add Modifier to apply stat changes when equipped.
+                  </div>
+                )}
+                {(editFields.modifiers ?? []).map((mod: any, idx: number) => (
+                  <div key={idx} class="feat-mod-row" style="display:flex; gap:6px; margin-top:6px;">
+                    <select
+                      class="hp-modal-input"
+                      style="flex:2; margin:0;"
+                      value={mod.target}
+                      onChange={e => updateMod(idx, 'target', (e.target as HTMLSelectElement).value)}
+                    >
+                      {STAT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+                    </select>
+                    <select
+                      class="hp-modal-input"
+                      style="flex:1.5; margin:0;"
+                      value={mod.type}
+                      onChange={e => updateMod(idx, 'type', (e.target as HTMLSelectElement).value)}
+                    >
+                      <option value="add">+/- (add)</option>
+                      <option value="set">= (set to)</option>
+                      <option value="min">min</option>
+                      <option value="max">max</option>
+                    </select>
+                    <input
+                      type="number"
+                      class="hp-modal-input"
+                      style="flex:1; margin:0; text-align:center;"
+                      value={mod.value}
+                      onInput={e => updateMod(idx, 'value', parseInt((e.target as HTMLInputElement).value) || 0)}
+                    />
+                    <button class="cs-btn-small danger" style="padding:2px 6px;" onClick={() => removeMod(idx)}>✕</button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -487,7 +637,7 @@ export function InventoryTab() {
       {/* ── Capacity & Attunement Bar ── */}
       <div class="load-attune-row">
         <div class={`load-display ${isOverburdened && weightEnabled ? 'overburdened' : ''}`}>
-          ⚖️ Load:{' '}
+          <span class="material-icons-outlined" style="font-size: 14px; margin-right: 4px;">scale</span> Load:{' '}
           {weightEnabled
             ? <>{totalWeight.toFixed(1)} / {maxWeight} lbs{isOverburdened && <span class="capacity-indicator">Overburdened</span>}</>
             : 'Disabled'
@@ -496,8 +646,8 @@ export function InventoryTab() {
         <div class="attune-display">
           Attuned: {attunedCount} / {attuneMax}
         </div>
-        <button class="btn-header-action" onClick={() => setShowSettings(!showSettings)}>
-          {showSettings ? 'Close Settings' : '⚙️ Settings'}
+        <button class="btn-header-action" onClick={() => setShowSettings(!showSettings)} style="display: inline-flex; align-items: center; gap: 4px;">
+          <span class="material-icons-outlined" style="font-size: 14px;">{showSettings ? 'close' : 'settings'}</span> {showSettings ? 'Close Settings' : 'Settings'}
         </button>
       </div>
 

@@ -151,7 +151,7 @@ export function ToolsList({ character, state }: Props) {
                         onClick={e => handleRemove(idx, e)}
                         aria-label={`Delete ${tool.name}`}
                       >
-                        🗑️
+                        <span class="material-icons-outlined" style="font-size: 16px;">delete</span>
                       </button>
                     </span>
                   </div>

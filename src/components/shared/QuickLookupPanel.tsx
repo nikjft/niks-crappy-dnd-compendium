@@ -22,11 +22,11 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_ICONS: Record<string, string> = {
-  spell:   '✨',
-  item:    '🗡',
-  monster: '🐲',
-  feat:    '⭐',
-  class:   '📖',
+  spell:   'auto_awesome',
+  item:    'gavel',
+  monster: 'pets',
+  feat:    'star',
+  class:   'menu_book',
 };
 
 interface Props {
@@ -81,7 +81,7 @@ export function QuickLookupPanel({ onClose }: Props) {
     <div class="ql-overlay">
       <div class="ql-panel" ref={panelRef} role="dialog" aria-modal="true" aria-label="Quick Lookup">
         <div class="ql-search-row">
-          <span class="ql-search-icon">🔍</span>
+          <span class="material-icons-outlined ql-search-icon">search</span>
           <input
             ref={inputRef}
             class="ql-input"
@@ -102,8 +102,8 @@ export function QuickLookupPanel({ onClose }: Props) {
             {results.map((r, i) => (
               <li key={i}>
                 <button class="ql-result-item" onClick={() => openResult(r)}>
-                  <span class="ql-result-icon" aria-hidden="true">
-                    {TYPE_ICONS[r.type] ?? '📄'}
+                  <span class="material-icons-outlined ql-result-icon" aria-hidden="true" style="font-size: 16px; margin-right: 8px;">
+                    {TYPE_ICONS[r.type] ?? 'description'}
                   </span>
                   <span class="ql-result-name">{r.name}</span>
                   <span class="ql-result-type">{TYPE_LABELS[r.type] ?? r.type}</span>

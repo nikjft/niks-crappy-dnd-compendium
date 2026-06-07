@@ -34,7 +34,9 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
     return (
       <div class="feat-row feat-row-overview">
         <div class="feat-row-main" onClick={() => (window as any).__legacyOpenFeatureDetail?.(feature)}>
-          <span class="feat-overview-icon">📋</span>
+          <span class="feat-overview-icon">
+            <span class="material-icons-outlined" style="font-size: 16px; color: var(--text-muted);">assignment</span>
+          </span>
           <div class="feat-name-block">
             <span class="feat-name">{feature.name}</span>
             {feature.texts?.[0] && (
@@ -49,7 +51,7 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
               (window as any).__legacyResyncClass?.(feature);
             }}
           >
-            🔄
+            <span class="material-icons-outlined" style="font-size: 14px;">sync</span>
           </button>
         </div>
       </div>
@@ -72,18 +74,16 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
             title={feature.active ? 'Deactivate' : 'Activate'}
             onClick={() => onToggleActive(feature)}
           >
-            ⚡
+            <span class="material-icons-outlined" style="font-size: 14px;">bolt</span>
           </button>
-          {/* Edit (only for custom features without compendiumId) */}
-          {!feature.compendiumId && (
-            <button
-              class="feat-action-btn"
-              title="Edit"
-              onClick={() => onEdit(feature)}
-            >
-              ✏️
-            </button>
-          )}
+          {/* Edit */}
+          <button
+            class="feat-action-btn"
+            title="Edit"
+            onClick={() => onEdit(feature)}
+          >
+            <span class="material-icons-outlined" style="font-size: 14px;">edit</span>
+          </button>
           {/* Delete */}
           <button
             class="feat-action-btn danger"
@@ -92,7 +92,7 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
               if (window.confirm(`Remove "${feature.name}"?`)) onDelete(feature);
             }}
           >
-            🗑
+            <span class="material-icons-outlined" style="font-size: 14px;">delete</span>
           </button>
         </div>
       </div>

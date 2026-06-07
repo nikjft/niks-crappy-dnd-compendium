@@ -116,7 +116,7 @@ export function SettingsPanel({ character }: Props) {
                   title="Delete gear list"
                   aria-label={`Delete list ${list.name}`}
                 >
-                  🗑️
+                  <span class="material-icons-outlined" style="font-size: 16px;">delete</span>
                 </button>
               )}
             </div>

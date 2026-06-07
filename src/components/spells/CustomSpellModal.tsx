@@ -4,29 +4,32 @@ import type { CharacterSpell, SpellList } from '../../data/types.js';
 interface Props {
   spellLists: SpellList[];
   defaultListId?: string;
+  editSpell?: CharacterSpell;
   onSave: (spell: CharacterSpell) => void;
   onClose: () => void;
 }
 
 const SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation'];
 
-export function CustomSpellModal({ spellLists, defaultListId, onSave, onClose }: Props) {
-  const [name, setName] = useState('');
-  const [level, setLevel] = useState(0);
-  const [school, setSchool] = useState('');
-  const [time, setTime] = useState('1 action');
-  const [range, setRange] = useState('Self');
-  const [components, setComponents] = useState('V, S');
-  const [duration, setDuration] = useState('Instantaneous');
-  const [isConcentration, setIsConcentration] = useState(false);
-  const [ritual, setRitual] = useState(false);
-  const [description, setDescription] = useState('');
-  const [listId, setListId] = useState(defaultListId ?? spellLists[0]?.id ?? '');
+export function CustomSpellModal({ spellLists, defaultListId, editSpell, onSave, onClose }: Props) {
+  const isEdit = !!editSpell;
+  const [name, setName] = useState(editSpell?.name ?? '');
+  const [level, setLevel] = useState(editSpell?.level ?? 0);
+  const [school, setSchool] = useState(editSpell?.school ?? '');
+  const [time, setTime] = useState(editSpell?.time ?? '1 action');
+  const [range, setRange] = useState(editSpell?.range ?? 'Self');
+  const [components, setComponents] = useState(editSpell?.components ?? 'V, S');
+  const [duration, setDuration] = useState(editSpell?.duration ?? 'Instantaneous');
+  const [isConcentration, setIsConcentration] = useState(editSpell?.isConcentration ?? false);
+  const [ritual, setRitual] = useState(editSpell?.ritual ?? false);
+  const [description, setDescription] = useState(editSpell?.texts?.[0] ?? '');
+  const [listId, setListId] = useState(editSpell?.listId ?? defaultListId ?? spellLists[0]?.id ?? '');
   const [error, setError] = useState('');
 
   function save() {
     if (!name.trim()) { setError('Name is required.'); return; }
     const spell: CharacterSpell = {
+      ...(editSpell ?? {}),
       name: name.trim(),
       level,
       school: school.toLowerCase(),
@@ -37,19 +40,19 @@ export function CustomSpellModal({ spellLists, defaultListId, onSave, onClose }:
       isConcentration,
       ritual,
       texts: description ? [description] : [],
-      selected: false,
-      active: false,
+      selected: editSpell ? (editSpell.selected ?? false) : false,
+      active: editSpell ? (editSpell.active ?? false) : false,
       listId,
-      source: 'Custom',
+      source: editSpell ? (editSpell.source ?? 'Custom') : 'Custom',
     };
     onSave(spell);
   }
 
   return (
     <div class="bd-overlay" onClick={onClose}>
-      <div class="custom-spell-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Create custom spell">
+      <div class="custom-spell-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit spell' : 'Create custom spell'}>
         <div class="bd-header">
-          <span class="bd-title">New Spell</span>
+          <span class="bd-title">{isEdit ? 'Edit Spell' : 'New Spell'}</span>
           <button class="bd-close" onClick={onClose}>×</button>
         </div>
 
@@ -122,7 +125,7 @@ export function CustomSpellModal({ spellLists, defaultListId, onSave, onClose }:
 
         <div class="form-actions">
           <button class="cs-btn-small" onClick={onClose}>Cancel</button>
-          <button class="cs-btn-main" onClick={save}>Add Spell</button>
+          <button class="cs-btn-main" onClick={save}>{isEdit ? 'Save Changes' : 'Add Spell'}</button>
         </div>
       </div>
     </div>

@@ -85,8 +85,9 @@ function ListHeader({ listDef, profBonus, flatState, onChangeAbility }: ListHead
             class="spell-ab-badge"
             title="Click to change spellcasting ability"
             onClick={() => setEditingAbility(true)}
+            style="display: inline-flex; align-items: center;"
           >
-            {ab.toUpperCase()} ✎
+            {ab.toUpperCase()} <span class="material-icons-outlined" style="font-size: 11px; margin-left: 2px;">edit</span>
           </button>
         )}
         <button class="spell-stat-btn" onClick={() => setDcBd(true)}>
@@ -117,6 +118,7 @@ export function SpellsTab() {
   const [stateFilter, setStateFilter] = useState<'all' | 'prepared' | 'active'>('all');
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalListId, setCustomModalListId] = useState<string | undefined>();
+  const [editingSpell, setEditingSpell] = useState<CharacterSpell | undefined>();
 
   if (!character || !state) {
     return <div class="combat-placeholder">Open a character sheet to get started.</div>;
@@ -177,9 +179,22 @@ export function SpellsTab() {
     setSpells(spells.filter(s => s !== spell));
   }
 
-  function handleAddCustomSpell(newSpell: CharacterSpell) {
-    setSpells([...spells, newSpell]);
+  function handleEdit(spell: CharacterSpell) {
+    setEditingSpell(spell);
+    setCustomModalListId(spell.listId);
+    setShowCustomModal(true);
+  }
+
+  function handleSaveSpell(spell: CharacterSpell) {
+    let updated: CharacterSpell[];
+    if (editingSpell) {
+      updated = spells.map(s => s === editingSpell ? spell : s);
+    } else {
+      updated = [...spells, spell];
+    }
+    setSpells(updated);
     setShowCustomModal(false);
+    setEditingSpell(undefined);
   }
 
   function handleChangeListAbility(listId: string, ability: string) {
@@ -271,6 +286,7 @@ export function SpellsTab() {
                         spell={spell}
                         onToggleActive={handleToggleActive}
                         onTogglePrepared={handleTogglePrepared}
+                        onEdit={handleEdit}
                         onDelete={handleDelete}
                       />
                     ))}
@@ -292,6 +308,7 @@ export function SpellsTab() {
           + Spell List
         </button>
         <button class="cs-btn-small" onClick={() => {
+          setEditingSpell(undefined);
           setCustomModalListId(spellLists[0]?.id);
           setShowCustomModal(true);
         }}>
@@ -303,8 +320,12 @@ export function SpellsTab() {
         <CustomSpellModal
           spellLists={spellLists}
           defaultListId={customModalListId}
-          onSave={handleAddCustomSpell}
-          onClose={() => setShowCustomModal(false)}
+          editSpell={editingSpell}
+          onSave={handleSaveSpell}
+          onClose={() => {
+            setShowCustomModal(false);
+            setEditingSpell(undefined);
+          }}
         />
       )}
     </div>

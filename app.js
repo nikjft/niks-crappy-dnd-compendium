@@ -426,6 +426,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   } else {
     await loadCategory(currentCategory);
   }
+
+  // Parse character parameters on startup to restore open character sheet and tab state
+  if (params.has('character')) {
+    const charName = params.get('character');
+    const tabName = params.get('tab') || 'combat';
+    const rawCharacters = await getAllRecords('characters');
+    const matchedChar = rawCharacters.find(c => c.name === charName && !c._deleted);
+    if (matchedChar) {
+      openCharacterSheet(matchedChar, tabName);
+    }
+  }
 });
 
 // Event Listeners Setup
@@ -4723,7 +4734,23 @@ function renderCharactersRoster(chars) {
   itemList.appendChild(grid);
 }
 
-function openCharacterSheet(char) {
+function updateCharacterURL() {
+  const params = new URLSearchParams(window.location.search);
+  if (currentCharacter) {
+    params.set('character', currentCharacter.name);
+    const activeTabBtn = document.querySelector('.cs-tab-btn.active');
+    const activeTab = activeTabBtn ? activeTabBtn.getAttribute('data-tab') : 'combat';
+    params.set('tab', activeTab);
+  } else {
+    params.delete('character');
+    params.delete('tab');
+  }
+  const q = params.toString();
+  const url = q ? `?${q}` : window.location.pathname;
+  window.history.replaceState(window.history.state, '', url);
+}
+
+function openCharacterSheet(char, selectedTab) {
   currentCharacter = migrateCharacter(char);
   // Sync to Preact signal so combat tab renders immediately
   if (window.__dndStore?.currentCharacter) {
@@ -4731,23 +4758,31 @@ function openCharacterSheet(char) {
   }
   document.getElementById('character-sheet-view').style.display = 'flex';
   
+  let targetTab = selectedTab;
+  if (!targetTab) {
+    const params = new URLSearchParams(window.location.search);
+    targetTab = params.get('tab') || 'combat';
+  }
+  
   const tabs = document.querySelectorAll('.cs-tab-btn');
   tabs.forEach(t => {
     t.classList.remove('active');
-    if (t.getAttribute('data-tab') === 'combat') t.classList.add('active');
+    if (t.getAttribute('data-tab') === targetTab) t.classList.add('active');
   });
   document.querySelectorAll('.cs-tab-panel').forEach(p => {
     p.classList.remove('active');
-    if (p.id === 'cs-tab-combat') p.classList.add('active');
+    if (p.id === `cs-tab-${targetTab}`) p.classList.add('active');
   });
   
   renderCharacterSheetUI();
+  updateCharacterURL();
 }
 
 function closeCharacterSheet() {
   currentCharacter = null;
   document.getElementById('character-sheet-view').style.display = 'none';
   refreshCharactersList();
+  updateCharacterURL();
 }
 
 function populateCreatorDropdowns() {
@@ -8567,6 +8602,7 @@ function setupCharacterSheetEvents() {
       const target = tab.getAttribute('data-tab');
       document.querySelectorAll('.cs-tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById(`cs-tab-${target}`).classList.add('active');
+      updateCharacterURL();
     };
   });
 }

@@ -6,6 +6,7 @@ interface Props {
   spell: CharacterSpell;
   onToggleActive: (spell: CharacterSpell) => void;
   onTogglePrepared: (spell: CharacterSpell) => void;
+  onEdit: (spell: CharacterSpell) => void;
   onDelete: (spell: CharacterSpell) => void;
 }
 
@@ -14,7 +15,7 @@ const SCHOOL_ABBR: Record<string, string> = {
   evocation: 'Evo', illusion: 'Ill', necromancy: 'Nec', transmutation: 'Trs',
 };
 
-export function SpellRow({ spell, onToggleActive, onTogglePrepared, onDelete }: Props) {
+export function SpellRow({ spell, onToggleActive, onTogglePrepared, onEdit, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
   const isCantrip = spell.level === 0;
   const school = spell.school ? (SCHOOL_ABBR[spell.school.toLowerCase()] ?? spell.school.slice(0, 3)) : '';
@@ -53,14 +54,22 @@ export function SpellRow({ spell, onToggleActive, onTogglePrepared, onDelete }: 
             onClick={() => onToggleActive(spell)}
             title={spell.active ? 'Deactivate' : 'Activate (concentration/effect)'}
           >
-            ⚡
+            <span class="material-icons-outlined" style="font-size: 14px;">bolt</span>
+          </button>
+          {/* Edit spell */}
+          <button
+            class="spell-action-btn"
+            onClick={() => onEdit(spell)}
+            title="Edit spell properties"
+          >
+            <span class="material-icons-outlined" style="font-size: 14px;">edit</span>
           </button>
           <button
             class="spell-action-btn danger"
             onClick={() => onDelete(spell)}
             title="Remove from list"
           >
-            ×
+            <span class="material-icons-outlined" style="font-size: 14px;">delete</span>
           </button>
         </div>
       </div>

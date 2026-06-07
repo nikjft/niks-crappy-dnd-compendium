@@ -165,7 +165,7 @@ describe('InventoryTab Component', () => {
 
   test('toggles settings panel and updates weight tracking & attunement limit', () => {
     render(<InventoryTab />);
-    const settingsBtn = screen.getByText('⚙️ Settings');
+    const settingsBtn = screen.getByRole('button', { name: /Settings/i });
     fireEvent.click(settingsBtn);
 
     expect(screen.getByText('Inventory Settings')).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('InventoryTab Component', () => {
 
   test('adds, renames and deletes custom gear lists/containers in settings', () => {
     render(<InventoryTab />);
-    fireEvent.click(screen.getByText('⚙️ Settings'));
+    fireEvent.click(screen.getByRole('button', { name: /Settings/i }));
 
     // Try adding a new list
     const listInput = screen.getByPlaceholderText('New List Name (e.g. Bag of Holding)');
