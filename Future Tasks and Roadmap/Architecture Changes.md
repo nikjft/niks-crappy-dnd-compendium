@@ -261,7 +261,7 @@ behind it.
 1. **Scaffold.** Add Vite + TS + Preact + plugins. Wrap the *current* app as-is so it builds and runs under Vite (the monolith can be imported as a side-effecting module initially). Ship nothing new yet; prove the toolchain and PWA output. *(Completed in Phase 0)*
 2. **Foundation.** Move `engine`, `db`, `sync`, `parser`, etc. into `src/` and add types + the **breakdown engine** with tests. No UI change yet — old UI consumes `.total`. *(Completed in Phase 1)*
 3. **State layer.** Stand up `state/stores.ts` signals + persistence effect; have the legacy sheet read/write through them. This decouples state from the render loop before touching components. *(Completed in Phase 1)*
-4. **Tab-by-tab replacement.** Replace one sheet tab at a time with a Preact component mounted into the existing shell slot, newest spec behavior included. Order follows the spec's own phasing (Combat → Stats → Inventory → Spells → Features), each behind the new state layer. The compendium browser migrates last (it's stable and self-contained). *(Combat Tab completed in Phase 2)*
+4. **Tab-by-tab replacement.** Replace one sheet tab at a time with a Preact component mounted into the existing shell slot, newest spec behavior included. Order follows the spec's own phasing (Combat → Stats → Inventory → Spells → Features), each behind the new state layer. The compendium browser migrates last (it's stable and self-contained). *(Combat Tab completed in Phase 2, Stats & Skills Tab completed in Phase 3)*
 5. **Shell + panels.** Replace the app shell, conditions bar, slide-out panels (Bestiary, Profile, Quick Lookup), and wizards.
 6. **Delete `app.js`.** Once every section is migrated, remove the monolith and the hand-written `sw.js`.
 
@@ -277,7 +277,7 @@ until parity is reached.
 | **DONE: 0 — Toolchain** | Vite + TS + Preact + PWA scaffold; legacy app runs under build; tests ported to Vitest.; update github action to build under new model (keep up to date with current actions) | — |
 | **DONE: 1 — Foundation** | Typed data layer; **breakdown engine** + armor AC + finesse + tool-prof + concentration; signal state store; persistence effect; escaping handled by component rendering (no raw `innerHTML`). | 0 |
 | **DONE: 2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
-| **3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
+| **DONE: 3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
 | **4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
 | **5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters. | 1 |
 | **6 — Features + Homebrew** (spec Phase 5) | Feature lists, collapse persistence, ModifierEditor, create/edit modals, class resync diff. | 1 |
@@ -318,4 +318,4 @@ until parity is reached.
 - [x] Magic bonus (e.g. +1 Club) not applying to total combat bonus
 - [ ] Clicking on item for popup of how things are added up does not show damage, only attack. Should show both.
 - [ ] Applied conditions should have popup when clicked on show the effect of the condition.
-- 
+- [ ] LOW PRIORITY: Jack of All Trades should be applied as a bonus to all non-proficient skills based on class feature, not toggled manually in skills.

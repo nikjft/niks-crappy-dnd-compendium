@@ -133,6 +133,8 @@ export interface Character {
   weightTrackingEnabled?: boolean;
   collapsedLists?: Record<string, boolean>;
   levelHistory?: LevelHistoryEntry[];
+  languages?: string[];
+  otherProficiencies?: string[];
 
   // Profile
   background?: string;
@@ -175,6 +177,8 @@ export interface EquipmentItem extends CompendiumRecord {
   armorType?: 'LA' | 'MA' | 'HA' | 'S';
   /** Base AC value for armor (e.g. 13 for studded leather) */
   ac?: number | null;
+  /** Whether the armor imposes stealth disadvantage */
+  stealth?: boolean;
   /** Weapon properties as structured array (e.g. ['F', 'L', 'T']) */
   properties?: string[];
   /** Legacy display string (keep for UI compat) */

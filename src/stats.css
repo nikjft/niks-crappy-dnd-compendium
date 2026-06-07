@@ -1,0 +1,375 @@
+/* src/stats.css */
+
+.stats-tab-root {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.cs-attr-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.cs-attr-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  border-color: var(--primary-color);
+}
+
+.cs-attr-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.cs-attr-mod {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-color);
+  margin: 4px 0;
+}
+
+.cs-attr-score-val {
+  font-size: 12px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-weight: bold;
+  color: var(--text-muted);
+}
+
+.cs-attr-save-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  width: 100%;
+  justify-content: center;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+}
+
+.cs-attr-save-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+/* Ability Details Popup Styles */
+.ability-popup {
+  max-width: 450px;
+  width: 90%;
+  padding: 20px;
+}
+
+.ability-popup-section h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--primary-color);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+}
+
+.base-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.base-score-input {
+  width: 60px;
+  text-align: center;
+  padding: 4px 8px;
+  font-weight: bold;
+}
+
+.base-edit-btn {
+  margin-top: 8px;
+  width: 100%;
+}
+
+/* Passives Row */
+.cs-passives-row {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .cs-passives-row {
+    flex-direction: column;
+  }
+}
+
+.cs-passive-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.cs-passive-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cs-passive-val {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--text-color);
+  margin-top: 4px;
+}
+
+/* Skills and Main Layout */
+.stats-main-layout {
+  display: flex;
+  gap: 20px;
+}
+
+@media (max-width: 1000px) {
+  .stats-main-layout {
+    flex-direction: column;
+  }
+}
+
+.stats-left {
+  flex: 3;
+}
+
+.stats-right {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Skills Table */
+.skills-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+  overflow: hidden;
+}
+
+.skills-table-header {
+  display: flex;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: bold;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.skill-table-row {
+  display: flex;
+  padding: 10px 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.skill-table-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.skill-row-group.expanded .skill-table-row {
+  background: rgba(var(--primary-rgb), 0.05);
+}
+
+.col-prof {
+  width: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.col-name {
+  flex: 1;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.col-attr {
+  width: 70px;
+  display: flex;
+  align-items: center;
+}
+
+.col-val {
+  width: 60px;
+  font-weight: bold;
+  text-align: right;
+}
+
+.col-action {
+  width: 30px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.skill-attr-select {
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.skill-attr-select:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stealth-warning-indicator {
+  cursor: help;
+  font-size: 12px;
+}
+
+/* Skill / Tool Breakdown Inline Box */
+.skill-row-breakdown {
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 16px;
+  font-size: 12px;
+}
+
+.skill-row-breakdown .bd-rows {
+  margin-bottom: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.skill-row-breakdown .bd-row {
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+/* SimpleTextList and Chips */
+.text-list-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.text-list-content {
+  padding: 12px;
+}
+
+.text-list-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.text-chip {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.text-chip .chip-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+}
+
+.text-chip .chip-remove:hover {
+  color: var(--error-color);
+}
+
+.text-list-add-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.text-list-input {
+  width: 140px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* Tools List Trash Button */
+.cs-btn-trash {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  font-size: 12px;
+}
+
+.cs-btn-trash:hover {
+  opacity: 1;
+}

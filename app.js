@@ -7003,6 +7003,8 @@ function migrateCharacter(char) {
   if (char.weightTrackingEnabled == null) char.weightTrackingEnabled = false;
   if (!char.collapsedLists)        char.collapsedLists        = {};
   if (!char.levelHistory)          char.levelHistory          = [];
+  if (!char.languages)             char.languages             = [];
+  if (!char.otherProficiencies)    char.otherProficiencies    = [];
   if (!char.currency)              char.currency              = { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
   if (!char.notes)                 char.notes                 = { freeNotes: [] };
   if (!char.notes.freeNotes)       char.notes.freeNotes       = [];
@@ -8005,67 +8007,80 @@ function renderCharacterSheetUI() {
   }
 
   // ── Tab 2: Stats & Skills ────────────────────────────────────────────────────
-  attributes.forEach(attr => {
-    document.getElementById(`cs-score-${attr}`).textContent = state[`${attr}.score`];
-    document.getElementById(`cs-mod-${attr}`).textContent   = formatModifier(state[`${attr}.mod`]);
-  });
-  document.getElementById('cs-passive-perception').textContent   = state['passive.perception'];
-  document.getElementById('cs-passive-investigation').textContent = state['passive.investigation'];
-  document.getElementById('cs-passive-insight').textContent       = state['passive.insight'];
+  const scoreStrTest = document.getElementById('cs-score-str');
+  if (scoreStrTest) {
+    attributes.forEach(attr => {
+      const scoreEl = document.getElementById(`cs-score-${attr}`);
+      if (scoreEl) scoreEl.textContent = state[`${attr}.score`];
+      const modEl = document.getElementById(`cs-mod-${attr}`);
+      if (modEl) modEl.textContent   = formatModifier(state[`${attr}.mod`]);
+    });
+  }
+
+  const passivePerceptionEl = document.getElementById('cs-passive-perception');
+  if (passivePerceptionEl) passivePerceptionEl.textContent = state['passive.perception'];
+  const passiveInvestigationEl = document.getElementById('cs-passive-investigation');
+  if (passiveInvestigationEl) passiveInvestigationEl.textContent = state['passive.investigation'];
+  const passiveInsightEl = document.getElementById('cs-passive-insight');
+  if (passiveInsightEl) passiveInsightEl.textContent = state['passive.insight'];
 
   const savesList = document.getElementById('cs-saves-list');
-  savesList.innerHTML = '';
-  const attrNames = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
-  attributes.forEach(attr => {
-    const isProf = currentCharacter.savesProficiency[attr] ? 'prof' : '';
-    const row = document.createElement('div');
-    row.className = 'cs-item-prof-row';
-    row.innerHTML = `
-      <div class="cs-prof-indicator ${isProf}" title="Proficient?"></div>
-      <span class="cs-item-prof-label">${attrNames[attr]}</span>
-      <span class="cs-item-prof-val">${formatModifier(state[`save.${attr}`])}</span>
-    `;
-    row.querySelector('.cs-prof-indicator').onclick = () => {
-      currentCharacter.savesProficiency[attr] = currentCharacter.savesProficiency[attr] ? 0 : 1;
-      saveCurrentCharacterAndRefresh();
-    };
-    savesList.appendChild(row);
-  });
+  if (savesList) {
+    savesList.innerHTML = '';
+    const attrNames = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+    attributes.forEach(attr => {
+      const isProf = currentCharacter.savesProficiency[attr] ? 'prof' : '';
+      const row = document.createElement('div');
+      row.className = 'cs-item-prof-row';
+      row.innerHTML = `
+        <div class="cs-prof-indicator ${isProf}" title="Proficient?"></div>
+        <span class="cs-item-prof-label">${attrNames[attr]}</span>
+        <span class="cs-item-prof-val">${formatModifier(state[`save.${attr}`])}</span>
+      `;
+      row.querySelector('.cs-prof-indicator').onclick = () => {
+        currentCharacter.savesProficiency[attr] = currentCharacter.savesProficiency[attr] ? 0 : 1;
+        saveCurrentCharacterAndRefresh();
+      };
+      savesList.appendChild(row);
+    });
+  }
 
   const skillsList = document.getElementById('cs-skills-list');
-  skillsList.innerHTML = '';
-  const skillsProf          = currentCharacter.skillsProficiency || {};
-  const skillsAttrOverride  = currentCharacter.skillsAttributeOverride || {};
-  Object.keys(skillAttrs).forEach(skill => {
-    const defaultAttr    = skillAttrs[skill];
-    const overriddenAttr = skillsAttrOverride[skill] || defaultAttr;
-    const prof = parseFloat(skillsProf[skill]) || 0;
-    let profClass = '';
-    if (prof === 1) profClass = 'prof'; else if (prof === 2) profClass = 'double'; else if (prof === 0.5) profClass = 'half';
-    const skillName = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    const row = document.createElement('div');
-    row.className = 'cs-item-prof-row';
-    row.innerHTML = `
-      <div class="cs-prof-indicator ${profClass}" title="Cycle Proficiency"></div>
-      <span class="cs-item-prof-label" style="cursor:pointer" title="Click to change attribute">${skillName} <span style="font-size:9px;color:var(--text-muted)">(${overriddenAttr.toUpperCase()})</span></span>
-      <span class="cs-item-prof-val">${formatModifier(state[`skill.${skill}`])}</span>
-    `;
-    row.querySelector('.cs-prof-indicator').onclick = () => {
-      let nextProf = 0;
-      if (prof === 0) nextProf = 1; else if (prof === 1) nextProf = 2; else if (prof === 2) nextProf = 0;
-      currentCharacter.skillsProficiency[skill] = nextProf;
-      saveCurrentCharacterAndRefresh();
-    };
-    row.querySelector('.cs-item-prof-label').onclick = () => {
-      const nextAttr = prompt(`Override attribute for ${skillName} (currently ${overriddenAttr.toUpperCase()}). Enter str/dex/con/int/wis/cha, or blank to reset:`);
-      if (nextAttr === '') { delete currentCharacter.skillsAttributeOverride[skill]; saveCurrentCharacterAndRefresh(); }
-      else if (nextAttr && attributes.includes(nextAttr.toLowerCase().trim())) {
-        currentCharacter.skillsAttributeOverride[skill] = nextAttr.toLowerCase().trim();
+  if (skillsList) {
+    skillsList.innerHTML = '';
+    const skillsProf          = currentCharacter.skillsProficiency || {};
+    const skillsAttrOverride  = currentCharacter.skillsAttributeOverride || {};
+    Object.keys(skillAttrs).forEach(skill => {
+      const defaultAttr    = skillAttrs[skill];
+      const overriddenAttr = skillsAttrOverride[skill] || defaultAttr;
+      const prof = parseFloat(skillsProf[skill]) || 0;
+      let profClass = '';
+      if (prof === 1) profClass = 'prof'; else if (prof === 2) profClass = 'double'; else if (prof === 0.5) profClass = 'half';
+      const skillName = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      const row = document.createElement('div');
+      row.className = 'cs-item-prof-row';
+      row.innerHTML = `
+        <div class="cs-prof-indicator ${profClass}" title="Cycle Proficiency"></div>
+        <span class="cs-item-prof-label" style="cursor:pointer" title="Click to change attribute">${skillName} <span style="font-size:9px;color:var(--text-muted)">(${overriddenAttr.toUpperCase()})</span></span>
+        <span class="cs-item-prof-val">${formatModifier(state[`skill.${skill}`])}</span>
+      `;
+      row.querySelector('.cs-prof-indicator').onclick = () => {
+        let nextProf = 0;
+        if (prof === 0) nextProf = 1; else if (prof === 1) nextProf = 2; else if (prof === 2) nextProf = 0;
+        currentCharacter.skillsProficiency[skill] = nextProf;
         saveCurrentCharacterAndRefresh();
-      }
-    };
-    skillsList.appendChild(row);
-  });
+      };
+      row.querySelector('.cs-item-prof-label').onclick = () => {
+        const nextAttr = prompt(`Override attribute for ${skillName} (currently ${overriddenAttr.toUpperCase()}). Enter str/dex/con/int/wis/cha, or blank to reset:`);
+        if (nextAttr === '') { delete currentCharacter.skillsAttributeOverride[skill]; saveCurrentCharacterAndRefresh(); }
+        else if (nextAttr && attributes.includes(nextAttr.toLowerCase().trim())) {
+          currentCharacter.skillsAttributeOverride[skill] = nextAttr.toLowerCase().trim();
+          saveCurrentCharacterAndRefresh();
+        }
+      };
+      skillsList.appendChild(row);
+    });
+  }
 
   // ── Tab 3: Features ──────────────────────────────────────────────────────────
   document.getElementById('cs-summary-species').textContent    = currentCharacter.species    || '—';
