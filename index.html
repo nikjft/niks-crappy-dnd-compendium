@@ -516,7 +516,7 @@
               </div>
               <div class="cs-form-group">
                 <label for="cs-profile-height">Height</label>
-                <input type="text" id="cs-profile-height" placeholder="e.g. 6'0\"">
+                <input type="text" id="cs-profile-height" placeholder="e.g. 6&apos;0&quot;">
               </div>
               <div class="cs-form-group">
                 <label for="cs-profile-weight">Weight</label>
@@ -879,17 +879,6 @@
   </div>
 
   <script type="module" src="app.js"></script>
-  <script>
-    // Register PWA service worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then((reg) => {
-          console.log('ServiceWorker registered with scope:', reg.scope);
-        }).catch((err) => {
-          console.error('ServiceWorker registration failed:', err);
-        });
-      });
-    }
-  </script>
+  <!-- Service worker registration is handled by vite-plugin-pwa in production builds -->
 </body>
 </html>
