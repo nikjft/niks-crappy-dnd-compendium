@@ -46,7 +46,20 @@ export function RestWizard({ character, state, type, onClose }: Props) {
       updates.hp = { current: hpMax, temp: character.hp?.temp ?? 0 };
       updates.deathSaves = { successes: 0, failures: 0 };
 
-      // Restore spell slots via legacy (complex calculation lives there)
+      // Restore all spell slots to max
+      if (character.spellSlots) {
+        const restoredSlots: Record<number, { current: number; max: number }> = {};
+        for (const [lvl, slot] of Object.entries(character.spellSlots)) {
+          restoredSlots[Number(lvl)] = { current: slot.max, max: slot.max };
+        }
+        updates.spellSlots = restoredSlots;
+      }
+      // Restore Warlock Pact slots
+      if (character.pactSlots) {
+        updates.pactSlots = { ...character.pactSlots, current: character.pactSlots.max };
+      }
+
+      // Also call legacy to recalculate slot maximums from class table
       (window as any).__legacyRestoreSpellSlots?.();
     } else if (hdHealing) {
       const healed = parseInt(hdHealing) || 0;
@@ -61,6 +74,11 @@ export function RestWizard({ character, state, type, onClose }: Props) {
       selected.has(c.id) ? { ...c, value: c.max } : c
     );
     updates.counters = updatedCounters;
+
+    // Short rest: restore Warlock Pact Magic slots
+    if (type === 'short' && character.pactSlots) {
+      updates.pactSlots = { ...character.pactSlots, current: character.pactSlots.max };
+    }
 
     patchCharacter(updates);
     onClose();

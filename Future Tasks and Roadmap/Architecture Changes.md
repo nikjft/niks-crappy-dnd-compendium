@@ -321,3 +321,4 @@ until parity is reached.
 - [ ] Clicking on item for popup of how things are added up does not show damage, only attack. Should show both.
 - [ ] Applied conditions should have popup when clicked on show the effect of the condition.
 - [ ] LOW PRIORITY: Jack of All Trades should be applied as a bonus to all non-proficient skills based on class feature, not toggled manually in skills.
+- [ ] Supernatural boon for Goliath doesn't appear in character creator. Should be able to select as an ability.

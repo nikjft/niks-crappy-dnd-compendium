@@ -1,0 +1,471 @@
+/* ── Spells tab root ──────────────────────────────────────────────────────── */
+.spells-tab-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* ── Slot tracker ─────────────────────────────────────────────────────────── */
+.slots-tracker {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slots-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.slot-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 52px;
+}
+
+.slot-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.slot-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-header);
+}
+
+.slot-pips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.slot-pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  padding: 0;
+}
+
+.slot-pip.filled {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  box-shadow: 0 0 4px rgba(212, 175, 55, 0.4);
+}
+
+.slot-pip:hover {
+  border-color: var(--accent-color);
+  opacity: 0.8;
+}
+
+/* Pact slots row */
+.pact-slots-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 10px;
+}
+
+.pact-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.pact-level {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Filter bar ───────────────────────────────────────────────────────────── */
+.spell-filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.spell-search {
+  flex: 1;
+  min-width: 120px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.spell-search:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.spell-filter-select {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ── Level jump bar ───────────────────────────────────────────────────────── */
+.level-jump-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.level-jump-btn {
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font-header);
+}
+
+.level-jump-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+/* ── Spell list section ───────────────────────────────────────────────────── */
+.spell-list-section {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.spell-list-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--panel-bg-active);
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.spell-list-name {
+  flex: 1;
+  font-family: var(--font-header);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.spell-list-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spell-ab-badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--accent-muted);
+  color: var(--accent-color);
+  font-family: var(--font-header);
+}
+
+.spell-stat-btn {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-header);
+}
+
+.spell-stat-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.spell-list-add-btn {
+  white-space: nowrap;
+}
+
+/* ── Level group ──────────────────────────────────────────────────────────── */
+.spell-level-group {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.spell-level-group:last-child {
+  border-bottom: none;
+}
+
+.spell-level-header {
+  padding: 6px 14px;
+  font-size: 11px;
+  font-family: var(--font-header);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* ── Spell row ────────────────────────────────────────────────────────────── */
+.spell-row {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.spell-row:last-child {
+  border-bottom: none;
+}
+
+.spell-row.spell-active .spell-row-main {
+  background: rgba(212, 175, 55, 0.06);
+}
+
+.spell-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.spell-row-main:hover {
+  background: var(--panel-bg-hover);
+}
+
+.spell-prep-star {
+  color: var(--accent-color);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.spell-prep-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  padding: 0;
+  line-height: 1;
+}
+
+.spell-prep-btn.checked {
+  color: var(--success-color);
+}
+
+.spell-name-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.spell-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  display: block;
+}
+
+.spell-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.spell-tag {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: var(--font-header);
+}
+
+.spell-tag.school {
+  background: var(--panel-bg-active);
+  color: var(--text-secondary);
+}
+
+.spell-tag.ritual {
+  background: rgba(48, 209, 88, 0.12);
+  color: var(--success-color);
+}
+
+.spell-tag.conc {
+  background: var(--accent-muted);
+  color: var(--accent-color);
+}
+
+.spell-time {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.spell-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.spell-action-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.spell-action-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.spell-action-btn.spell-btn-active {
+  background: var(--accent-muted);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.spell-action-btn.danger:hover {
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+
+/* ── Spell detail expand ──────────────────────────────────────────────────── */
+.spell-detail {
+  padding: 10px 14px 12px 42px;
+  border-top: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+}
+
+.spell-detail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.spell-detail-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 4px 0;
+}
+
+/* ── Bottom controls ──────────────────────────────────────────────────────── */
+.spells-bottom-controls {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* ── Custom spell modal ───────────────────────────────────────────────────── */
+.custom-spell-modal {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 20px;
+  width: min(480px, 95vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.spell-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.form-input {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: var(--font-body);
+}
+
+.spell-form-checks {
+  display: flex;
+  gap: 16px;
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.form-error {
+  font-size: 12px;
+  color: var(--error-color);
+  margin: 0;
+}
