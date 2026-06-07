@@ -60,10 +60,45 @@ export interface CharacterCondition {
 
 // ─── Level history entry ──────────────────────────────────────────────────────
 
+export interface LevelHistoryCounterDelta {
+  id: string;
+  oldMax: number;
+  oldValue: number;
+}
+
+/**
+ * Records everything needed to display the history and reverse ("level down")
+ * a single level-up event.
+ */
 export interface LevelHistoryEntry {
-  level: number;
+  /** Unique ID for this history entry */
+  id: string;
+  timestamp: string;
+  /** Name of the class that was leveled (or added as multiclass) */
   className: string;
-  choices: Record<string, unknown>;
+  /** Level before this event (0 = new multiclass addition) */
+  fromLevel: number;
+  /** Level after this event */
+  toLevel: number;
+  hpGain: number;
+  /** IDs of CharacterFeatures added in this event (for revert removal) */
+  addedFeatureIds: string[];
+  /** IDs of counters created in this event */
+  addedCounterIds: string[];
+  /** Counters whose max/value were modified (for revert restoration) */
+  modifiedCounters: LevelHistoryCounterDelta[];
+  /** IDs of FeatureLists created (e.g. new multiclass list) */
+  addedFeatureListIds: string[];
+  /** IDs of SpellLists created */
+  addedSpellListIds: string[];
+  /** Stat point deltas applied (ASI) — keyed by stat name */
+  statIncreases: Record<string, number>;
+  /** True if this event added a brand-new multiclass entry */
+  isMulticlass: boolean;
+  /** Subclass name chosen at this level (if any) */
+  addedSubclassName: string | null;
+  /** Feature names displayed in history (human-readable) */
+  featureNames: string[];
 }
 
 // ─── Pinned action reference ─────────────────────────────────────────────────

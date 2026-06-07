@@ -6445,7 +6445,47 @@ function handleLevelUpApply() {
 async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chosenFeatures, hpGain, selectedSubclass, statIncreases) {
   const isMulticlass = !existingEntry;
   const className = classRecord.name;
-  
+
+  // ── Delta tracking (for level history / respec) ───────────────────────────
+  const delta = {
+    id: generateId(),
+    timestamp: new Date().toISOString(),
+    className,
+    fromLevel: isMulticlass ? 0 : (existingEntry.level),
+    toLevel: targetLevel,
+    hpGain,
+    addedFeatureIds: [],
+    addedCounterIds: [],
+    modifiedCounters: [],
+    addedFeatureListIds: [],
+    addedSpellListIds: [],
+    statIncreases: statIncreases ? { ...statIncreases } : {},
+    isMulticlass,
+    addedSubclassName: selectedSubclass ? selectedSubclass.name : null,
+    featureNames: [],
+  };
+
+  // Helper: push a feature and track its ID
+  function pushFeature(feat) {
+    char.features.push(feat);
+    delta.addedFeatureIds.push(feat.id);
+    delta.featureNames.push(feat.name);
+  }
+
+  // Helper: push a counter and track it
+  function pushCounter(counterObj) {
+    char.counters.push(counterObj);
+    delta.addedCounterIds.push(counterObj.id);
+  }
+
+  // Helper: modify a counter and record the old values for revert
+  function modifyCounter(existing, newMax) {
+    delta.modifiedCounters.push({ id: existing.id, oldMax: existing.max, oldValue: existing.value });
+    existing.max = newMax;
+    existing.value = newMax;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   // 1. Increment total level
   char.level = (char.level || 1) + 1;
   char.baseHpMax = (char.baseHpMax || 10) + hpGain;
@@ -6466,106 +6506,88 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
   let classSpellListId = existingEntry ? existingEntry.spellListId : null;
 
   if (isMulticlass) {
-    // Add new Class Feature List
-    char.featureLists.push({ id: generateId(), name: `Class: ${className}` });
-    const classListDef = char.featureLists[char.featureLists.length - 1];
-    classListId = classListDef.id;
+    const newList = { id: generateId(), name: `Class: ${className}` };
+    char.featureLists.push(newList);
+    classListId = newList.id;
+    delta.addedFeatureListIds.push(classListId);
 
-    // Check if new class has spellcasting and create spell list
     if (classRecord.spellAbility) {
-      char.spellLists.push({
+      const newSpellList = {
         id: generateId(),
         name: `${className} Spells`,
         spellcastingAbility: classRecord.spellAbility.toLowerCase()
-      });
-      classSpellListId = char.spellLists[char.spellLists.length - 1].id;
+      };
+      char.spellLists.push(newSpellList);
+      classSpellListId = newSpellList.id;
+      delta.addedSpellListIds.push(classSpellListId);
     }
   }
 
-  // 4. Add level features & counters to feature list (from base class)
+  // 4. Add level features & counters (base class)
   const baseAls = classRecord.autolevels?.filter(a => a.level === targetLevel) || [];
   baseAls.forEach(al => {
     if (al.features) {
       al.features.forEach(f => {
         if (isMulticlass) {
-          // Skip saving throw proficiency features if it is a multiclass character (as per user comment)
-          if (f.name.toLowerCase().includes('saving throw')) {
-            return;
-          }
-          char.features.push({
-            name: f.name,
-            active: true,
-            favorite: false,
-            selected: true,
-            id: generateId(),
-            listId: classListId,
-            texts: f.texts || [],
-            modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+          if (f.name.toLowerCase().includes('saving throw')) return;
+          pushFeature({
+            name: f.name, active: true, favorite: false, selected: true,
+            id: generateId(), listId: classListId,
+            texts: f.texts || [], modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
           });
         } else {
           if (chosenFeatures.includes(f.name)) {
-            char.features.push({
-              name: f.name,
-              active: true,
-              favorite: false,
-              selected: true,
-              id: generateId(),
-              listId: classListId,
-              texts: f.texts || [],
-              modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+            pushFeature({
+              name: f.name, active: true, favorite: false, selected: true,
+              id: generateId(), listId: classListId,
+              texts: f.texts || [], modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
             });
           }
         }
       });
     }
-
     if (al.counters) {
       al.counters.forEach(c => {
         const existingCounter = char.counters?.find(cc => cc.name === c.name);
+        const newMax = parseInt(c.value) || 1;
         if (!existingCounter) {
-          char.counters.push({
-            name: c.name,
-            max: parseInt(c.value) || 1,
-            value: parseInt(c.value) || 1,
-            reset_short: c.reset === 'S',
-            reset_long: c.reset === 'L' || c.reset === 'S',
-            id: generateId(),
-            classTag: className
+          pushCounter({
+            name: c.name, max: newMax, value: newMax,
+            reset_short: c.reset === 'S', reset_long: c.reset === 'L' || c.reset === 'S',
+            id: generateId(), classTag: className
           });
         } else {
-          existingCounter.max = parseInt(c.value) || existingCounter.max;
-          existingCounter.value = existingCounter.max;
+          modifyCounter(existingCounter, newMax);
         }
       });
     }
   });
 
-  // Subclass features of existing subclass (if any)
+  // 5. Handle subclass selection (declare early so step 4b can use it)
+  let subclassFeatureListId = existingEntry ? existingEntry.subclassListId : null;
+  let subclassSpellListId = existingEntry ? existingEntry.subclassSpellListId : null;
+
+  // Subclass features of existing subclass (ongoing levels)
   const currentSubclassName = existingEntry ? existingEntry.subclass : null;
   if (currentSubclassName) {
     const subclassRecord = allRecordsCache['subclasses']?.find(s => s.name.toLowerCase() === currentSubclassName.toLowerCase());
     if (subclassRecord) {
-      // Ensure subclass list ID exists
       if (!subclassFeatureListId) {
-        char.featureLists.push({ id: generateId(), name: `Subclass: ${subclassRecord.name}` });
-        subclassFeatureListId = char.featureLists[char.featureLists.length - 1].id;
+        const newSubList = { id: generateId(), name: `Subclass: ${subclassRecord.name}` };
+        char.featureLists.push(newSubList);
+        subclassFeatureListId = newSubList.id;
         existingEntry.subclassListId = subclassFeatureListId;
+        delta.addedFeatureListIds.push(subclassFeatureListId);
       }
-      
       const subAls = subclassRecord.autolevels?.filter(a => a.level === targetLevel) || [];
       subAls.forEach(al => {
         if (al.features) {
           al.features.forEach(f => {
             if (chosenFeatures.includes(f.name)) {
-              char.features.push({
-                name: f.name,
-                active: true,
-                favorite: false,
-                selected: true,
-                id: generateId(),
-                listId: subclassFeatureListId,
-                texts: f.texts || [],
-                modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+              pushFeature({
+                name: f.name, active: true, favorite: false, selected: true,
+                id: generateId(), listId: subclassFeatureListId,
+                texts: f.texts || [], modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
               });
             }
           });
@@ -6573,19 +6595,15 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
         if (al.counters) {
           al.counters.forEach(c => {
             const existingCounter = char.counters?.find(cc => cc.name === c.name);
+            const newMax = parseInt(c.value) || 1;
             if (!existingCounter) {
-              char.counters.push({
-                name: c.name,
-                max: parseInt(c.value) || 1,
-                value: parseInt(c.value) || 1,
-                reset_short: c.reset === 'S',
-                reset_long: c.reset === 'L' || c.reset === 'S',
-                id: generateId(),
-                classTag: className
+              pushCounter({
+                name: c.name, max: newMax, value: newMax,
+                reset_short: c.reset === 'S', reset_long: c.reset === 'L' || c.reset === 'S',
+                id: generateId(), classTag: className
               });
             } else {
-              existingCounter.max = parseInt(c.value) || existingCounter.max;
-              existingCounter.value = existingCounter.max;
+              modifyCounter(existingCounter, newMax);
             }
           });
         }
@@ -6593,47 +6611,38 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
     }
   }
 
-  // 5. Handle subclass selection
-  let subclassFeatureListId = existingEntry ? existingEntry.subclassListId : null;
-  let subclassSpellListId = existingEntry ? existingEntry.subclassSpellListId : null;
-
+  // New subclass chosen at this level
   if (selectedSubclass) {
-    // Add Subclass Feature List
-    char.featureLists.push({ id: generateId(), name: `Subclass: ${selectedSubclass.name}` });
-    const subclassListDef = char.featureLists[char.featureLists.length - 1];
-    subclassFeatureListId = subclassListDef.id;
+    const newSubList = { id: generateId(), name: `Subclass: ${selectedSubclass.name}` };
+    char.featureLists.push(newSubList);
+    subclassFeatureListId = newSubList.id;
+    delta.addedFeatureListIds.push(subclassFeatureListId);
 
-    // Add subclass level 3 features
     const subLvl3Als = selectedSubclass.autolevels?.filter(a => a.level === 3) || [];
     subLvl3Als.forEach(al => {
       if (al.features) {
         al.features.forEach(f => {
-          char.features.push({
-            name: f.name,
-            active: true,
-            favorite: false,
-            selected: true,
-            id: generateId(),
-            listId: subclassFeatureListId,
-            texts: f.texts || [],
-            modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
+          pushFeature({
+            name: f.name, active: true, favorite: false, selected: true,
+            id: generateId(), listId: subclassFeatureListId,
+            texts: f.texts || [], modifiers: JSON.parse(JSON.stringify(f.modifiers || []))
           });
         });
       }
     });
 
-    // Set top-level subclass field for backwards compatibility
     char.subclass = selectedSubclass.name;
-    
-    // Subclass spellcasting (e.g. Arcane Trickster, Eldritch Knight)
+
     const spellAbility = selectedSubclass.spellAbility || classRecord.spellAbility;
     if (spellAbility && !classSpellListId) {
-      char.spellLists.push({
+      const newSpellList = {
         id: generateId(),
         name: `${selectedSubclass.name} Spells`,
         spellcastingAbility: spellAbility.toLowerCase()
-      });
-      subclassSpellListId = char.spellLists[char.spellLists.length - 1].id;
+      };
+      char.spellLists.push(newSpellList);
+      subclassSpellListId = newSpellList.id;
+      delta.addedSpellListIds.push(subclassSpellListId);
     }
   }
 
@@ -6659,12 +6668,13 @@ async function applyLevelUp(char, existingEntry, classRecord, targetLevel, chose
     }
   }
 
-  // Update top-level class/level for compatibility
-  // In multiclass, display class subtitle as a combined string (e.g. Fighter 3 / Wizard 1)
-  const classSubtitle = char.classes.map(cc => `${cc.name} ${cc.level}`).join(' / ');
-  char.class = char.classes[0].name; // primary class remains first class
-  
+  // 7. Update top-level class/level for compatibility
+  char.class = char.classes[0].name;
   char._modified_at = new Date().toISOString();
+
+  // 8. Record delta in level history
+  if (!char.levelHistory) char.levelHistory = [];
+  char.levelHistory.push(delta);
 
   await saveCharacterToDb(char);
   document.getElementById('cs-levelup-modal').style.display = 'none';
@@ -8582,6 +8592,103 @@ if (typeof window !== 'undefined') {
       const className = feature.classData.parentClass || feature.classData.name;
       if (className) resyncClassFeatures(className);
     }
+  };
+
+  /**
+   * Returns starting equipment strings for a given class name, stripping {@tag} markup.
+   * Used by the Preact LevelHistorySection / StartingEquipment display.
+   */
+  window.__legacyGetStartingEquipment = (className) => {
+    const classRecord = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === className.toLowerCase());
+    if (!classRecord || !classRecord.startingEquipment) return null;
+    const se = classRecord.startingEquipment;
+    // Strip {@tag ...} markup to plain text
+    function stripTags(str) {
+      return str.replace(/\{@\w+\s+([^|}]+)[^}]*\}/g, (_, inner) => {
+        // For filter tags: just use the first part before |
+        return inner.split('|')[0];
+      });
+    }
+    return {
+      lines: (se.default || []).map(stripTags),
+      goldAlt: se.goldAlternative ? stripTags(se.goldAlternative) : null,
+      fromBackground: !!se.additionalFromBackground,
+    };
+  };
+
+  window.__legacyRespecLastLevel = async () => {
+    const char = currentCharacter;
+    if (!char) return;
+    if (!char.levelHistory || char.levelHistory.length === 0) {
+      alert('No level history found — nothing to respec.');
+      return;
+    }
+    const last = char.levelHistory[char.levelHistory.length - 1];
+    const confirmMsg = `Remove ${last.className} level ${last.toLevel}?\n\nThis will:\n• Remove ${last.addedFeatureIds.length} feature(s): ${last.featureNames.slice(0,3).join(', ')}${last.featureNames.length > 3 ? '…' : ''}\n• Reverse +${last.hpGain} HP\n• Restore any modified counters\n\nThis cannot be undone automatically.`;
+    if (!confirm(confirmMsg)) return;
+
+    // Reverse HP
+    char.level = Math.max(1, (char.level || 1) - 1);
+    char.baseHpMax = Math.max(1, (char.baseHpMax || 10) - last.hpGain);
+    char.hp = char.hp || { current: char.baseHpMax, temp: 0 };
+    char.hp.current = Math.min(char.hp.current, char.baseHpMax);
+
+    // Reverse stat increases
+    if (last.statIncreases) {
+      Object.keys(last.statIncreases).forEach(attr => {
+        const val = last.statIncreases[attr] || 0;
+        if (val !== 0) char.baseStats[attr] = (char.baseStats[attr] || 10) - val;
+      });
+    }
+
+    // Remove added features
+    const removedFeatureSet = new Set(last.addedFeatureIds);
+    char.features = (char.features || []).filter(f => !removedFeatureSet.has(f.id));
+
+    // Remove added counters / restore modified ones
+    const removedCounterSet = new Set(last.addedCounterIds);
+    char.counters = (char.counters || []).filter(c => !removedCounterSet.has(c.id));
+    (last.modifiedCounters || []).forEach(delta => {
+      const c = (char.counters || []).find(cc => cc.id === delta.id);
+      if (c) { c.max = delta.oldMax; c.value = delta.oldValue; }
+    });
+
+    // Remove added feature/spell lists
+    const removedListSet = new Set([...last.addedFeatureListIds, ...last.addedSpellListIds]);
+    char.featureLists = (char.featureLists || []).filter(l => !removedListSet.has(l.id));
+    char.spellLists = (char.spellLists || []).filter(l => !removedListSet.has(l.id));
+
+    // Reverse class entry
+    if (last.isMulticlass) {
+      char.classes = (char.classes || []).filter(c => !(c.name === last.className && c.level === 1));
+    } else {
+      const classEntry = (char.classes || []).find(c => c.name === last.className);
+      if (classEntry) {
+        classEntry.level = last.fromLevel;
+        if (last.addedSubclassName) {
+          classEntry.subclass = null;
+          classEntry.subclassListId = null;
+          classEntry.subclassSpellListId = null;
+          if (char.subclass === last.addedSubclassName) char.subclass = null;
+        }
+      }
+    }
+
+    // Update top-level class for compat
+    if (char.classes && char.classes.length > 0) {
+      char.class = char.classes[0].name;
+    }
+
+    // Pop the last history entry
+    char.levelHistory = char.levelHistory.slice(0, -1);
+    char._modified_at = new Date().toISOString();
+
+    await saveCharacterToDb(char);
+    if (currentCharacter && currentCharacter.name === char.name) {
+      currentCharacter = char;
+      renderCharacterSheetUI();
+    }
+    await refreshCharactersList();
   };
 
   window.__legacyRestoreSpellSlots = () => {
