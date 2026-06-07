@@ -2,6 +2,26 @@
 
 **IMPORTANT: Agent should not execute any of these changes without specific instructions. When completing items in this list prefix them with `*DONE*` as a record. Ignore complete items.**
 
+BUG: Bestiary shows types (e.g. Dragon, Aberration, Beast) but the filter by type is blank. Ensure it shows all types in the list for easy filtering.
+
+BUG: Imported TCE and EFA Artificer, ended up with Arcane Infusions in features even though that's TCE Artificer which should be superseded by EFA. Additionally artificer magic item plans should be in options per the subclass abilities. This has been marked complete before, bug may still exist.
+
+ENHANCEMENT: Add custom elements to any list (spells, items, features, etc). 
+
+Provide dialog to enter common attributes for that item type. 
+
+Add "Modifiers" list to this dialog to let people add modifiers. Provide dropdowns to make modifiers easy, or option to ender modifier notation per internal system, along with guide for syntax.
+
+Add option to edit any existing element with same structure. This will require clicking a pencil button in the item detail.
+
+Sync with compendium will be a sync button in the detail view (and nowhere else). This should warn that it will overwrite any customizations.
+
+ENHANCEMENT: Following above enhancement, enable class resync. Syncing a class overview with a compendium will offer an option to re-sync class and subclass features, in which case it will update everything to match current compendium as though leveling up and making same selections where possible. This will ensure that new features are added, and out of data features are deleted.
+
+
+
+
+
 *DONE* ENHANCEMENTS: Counters and increases by level should also appear for sub-classes where they have level-based tables. (e.g. Fighter psi warrior subclass dice and dice type) These counters should be named based on their table name.
 
 *DONE* BUG: Class overview should also be in Class"Barbarian features. (Same with other classes/subclasses)
