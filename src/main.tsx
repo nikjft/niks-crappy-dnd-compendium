@@ -1,4 +1,5 @@
 import { render } from 'preact';
+import { useState, useEffect } from 'preact/hooks';
 import { currentCharacter, patchCharacter } from './state/stores.js';
 import { startPersistenceEffect } from './state/persistence.js';
 import { CombatTab } from './components/combat/CombatTab.js';
@@ -6,6 +7,7 @@ import { StatsTab } from './components/stats/StatsTab.js';
 import { InventoryTab } from './components/inventory/InventoryTab.js';
 import { SpellsTab } from './components/spells/SpellsTab.js';
 import { FeaturesTab } from './components/features/FeaturesTab.js';
+import { QuickLookupPanel } from './components/shared/QuickLookupPanel.js';
 import './combat.css';
 import './stats.css';
 import './inventory.css';
@@ -40,6 +42,32 @@ if (spellsRoot) {
 const featuresRoot = document.getElementById('features-root');
 if (featuresRoot) {
   render(<FeaturesTab />, featuresRoot);
+}
+
+// Mount Quick Lookup panel root (global — lives outside any tab)
+function QuickLookupRoot() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setOpen(o => !o);
+      }
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, []);
+
+  // Expose to legacy so the sheet header button can open it
+  (window as any).__openQuickLookup = () => setOpen(true);
+
+  return open ? <QuickLookupPanel onClose={() => setOpen(false)} /> : null;
+}
+
+const qlRoot = document.getElementById('quick-lookup-root');
+if (qlRoot) {
+  render(<QuickLookupRoot />, qlRoot);
 }
 
 // Start debounced persistence
