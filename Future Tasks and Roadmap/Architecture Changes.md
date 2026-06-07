@@ -285,6 +285,8 @@ until parity is reached.
 | **8 — Integration & Reference** (spec Phase 7 + Game-Reference spec) | Inline compendium expansion, Quick Lookup panel, `{@tag}` cross-ref links, batch picker. | 2–6 |
 | **9 — Backlog** | Address any tracked backlogged or deferred items which are not already fixed. | 
 | **10 — Cutover** | Migrate compendium browser; delete `app.js`/`sw.js`; remove legacy flag. | all |
+| **11 - Technical Documentation** | Update Architecture.md and related documents to match revised architecture to support future changes. |
+
 
 ---
 
