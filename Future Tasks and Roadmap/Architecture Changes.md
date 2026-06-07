@@ -6,6 +6,12 @@
 > [Character Sheet UX Spec](./FUTURE%20FEATURE%20-%20Character%20Sheet/UX%20Spec%20-%20Character%20Sheet.md)
 > and [Game Reference UX Spec](./FUTURE%20FEATURE%20-%20Character%20Sheet/UX%20Spec%20-%20Game%20Reference.md).
 > **Constraint:** Must still deploy as static files (offline-first PWA). A build/compile step before commit is acceptable.
+> **CRITICAL: Work Process:** Manage progress by following Section 10.
+ - Mark each step of section 10 as complete when done
+  - As items are addressed in sections 2 - 9, add italicized comment on completion status
+  - Any decisions which have been backlogged should be added to list in Section 13 and marked complete once addressed
+  - Review section 13 backlog prior to starting work. If it is a dependency of current work, address it prior to continuing.
+  - Prior to starting each section, create a feature branch for that step. Commit frequently. Once completed and tested, merge into main and sync to main.
 
 ---
 
@@ -192,10 +198,10 @@ To be added to `data/types.ts` and the `Character` interface:
 
 | Field | Type | Purpose |
 |---|---|---|
-| `pinnedActions` | `{ sourceList: string; sourceId: string }[]` | Quick Actions panel |
-| `conditions` | `{ name: string; effects?: string; isConcentration?: boolean; spellName?: string }[]` | Conditions bar |
+| `pinnedActions` | `{ sourceList: string; sourceId: string }[]` | Quick Actions panel *(Completed in Phase 2)* |
+| `conditions` | `{ name: string; effects?: string; isConcentration?: boolean; spellName?: string }[]` | Conditions bar *(Completed in Phase 2)* |
 | `attunementMax` | `number` (default 3) | Attunement override |
-| `toolProficiencies` | `{ name: string; attr: string; profLevel: number }[]` | Tool prof tracking |
+| `toolProficiencies` | `{ name: string; attr: string; profLevel: number }[]` | Tool prof tracking *(Completed in Phase 1)* |
 | `weightTrackingEnabled` | `boolean` (default true) | Carry-weight toggle |
 | `collapsedLists` | `Record<string, boolean>` | Persist list collapse state |
 | `levelHistory` | `{ level: number; class: string; choices: object }[]` | Level-down / respec audit |
@@ -208,20 +214,19 @@ defaulted on load) so existing saved characters keep working.
 ## 6. Engine & parser enhancements (spec §14.2 / §14.3)
 
 **Engine (`engine/engine.ts`):**
-- Breakdown return type (§4.3).
-- **Armor AC**: detect equipped armor's `armorAC` (base + max-DEX + stealth flag) instead of `10 + DEX`.
-- **Finesse**: weapons with the Finesse property compute both STR and DEX lines and use the higher.
-- **Tool proficiency** as skill-like: `attrMod + profLevel × profBonus`.
-- **Concentration**: toggling a concentration spell to Active sets the `Concentrating` condition (prompt to drop an
-  existing one). No rule *enforcement* — trust the player (§0.1.2).
+- Breakdown return type (§4.3). *(Completed in Phase 1)*
+- **Armor AC**: detect equipped armor's `armorAC` (base + max-DEX + stealth flag) instead of `10 + DEX`. *(Completed in Phase 1)*
+- **Finesse**: weapons with the Finesse property compute both STR and DEX lines and use the higher. *(Completed in Phase 1)*
+- **Tool proficiency** as skill-like: `attrMod + profLevel × profBonus`. *(Completed in Phase 1)*
+- **Concentration**: toggling a concentration spell to Active sets the `Concentrating` condition (prompt to drop an existing one). No rule *enforcement* — trust the player (§0.1.2). *(Completed in Phase 2)*
 - Multi-ability spellcasting already supported via `spellLists[].spellcastingAbility`; formalize per-list DC/attack.
 
 **Parser (`data/parser-5etools.ts`):**
-- Extract `startingEquipment` from class data.
-- Structured `properties[]` for weapons (Finesse/Light/Heavy/Thrown/Versatile…).
-- Structured `armorAC` for armor items.
-- Boolean `isRitual` / `isConcentration` spell flags.
-- Standard conditions list (parse or bundle as static SRD data) for the conditions picker + reference.
+- Extract `startingEquipment` from class data. *(Completed in Phase 1)*
+- Structured `properties[]` for weapons (Finesse/Light/Heavy/Thrown/Versatile…). *(Completed in Phase 1)*
+- Structured `armorAC` for armor items. *(Completed in Phase 1)*
+- Boolean `isRitual` / `isConcentration` spell flags. *(Completed in Phase 1)*
+- Standard conditions list (parse or bundle as static SRD data) for the conditions picker + reference. *(Completed in Phase 2)*
 
 Each is covered by a unit test in the existing `node`/Vitest harness.
 
@@ -241,11 +246,9 @@ Each is covered by a unit test in the existing `node`/Vitest harness.
 
 ## 8. Testing strategy
 
-- Port `test_engine.js`, `test_5etools_parser.js`, `test_sync.js` to Vitest (Jest-compatible — minimal edits). They
-  remain runnable under `node` during the transition.
-- **Add engine breakdown tests** as the safety net for the §4.3 change (golden-value assertions per target).
-- Component tests via `@testing-library/preact` for the high-risk interactive pieces: Breakdown popup, ModifierEditor,
-  HP modal, Rest wizard.
+- Port `test_engine.js`, `test_5etools_parser.js`, `test_sync.js` to Vitest (Jest-compatible — minimal edits). They remain runnable under `node` during the transition. *(Completed in Phase 0)*
+- **Add engine breakdown tests** as the safety net for the §4.3 change (golden-value assertions per target). *(Completed in Phase 1)*
+- Component tests via `@testing-library/preact` for the high-risk interactive pieces: Breakdown popup, ModifierEditor, HP modal, Rest wizard. *(Completed in Phase 2)*
 - CI gate: typecheck (`tsc --noEmit`) + `vitest run` + `vite build` must pass.
 
 ---
@@ -255,19 +258,11 @@ Each is covered by a unit test in the existing `node`/Vitest harness.
 The goal is to **never have a long-lived broken state**. The existing `app.js` keeps running while pieces move
 behind it.
 
-1. **Scaffold.** Add Vite + TS + Preact + plugins. Wrap the *current* app as-is so it builds and runs under Vite
-   (the monolith can be imported as a side-effecting module initially). Ship nothing new yet; prove the toolchain
-   and PWA output.
-2. **Foundation.** Move `engine`, `db`, `sync`, `parser`, etc. into `src/` and add types + the **breakdown engine**
-   with tests. No UI change yet — old UI consumes `.total`.
-3. **State layer.** Stand up `state/stores.ts` signals + persistence effect; have the legacy sheet read/write
-   through them. This decouples state from the render loop before touching components.
-4. **Tab-by-tab replacement.** Replace one sheet tab at a time with a Preact component mounted into the existing
-   shell slot, newest spec behavior included. Order follows the spec's own phasing (Combat → Stats → Inventory →
-   Spells → Features), each behind the new state layer. The compendium browser migrates last (it's stable and
-   self-contained).
-5. **Shell + panels.** Replace the app shell, conditions bar, slide-out panels (Bestiary, Profile, Quick Lookup),
-   and wizards.
+1. **Scaffold.** Add Vite + TS + Preact + plugins. Wrap the *current* app as-is so it builds and runs under Vite (the monolith can be imported as a side-effecting module initially). Ship nothing new yet; prove the toolchain and PWA output. *(Completed in Phase 0)*
+2. **Foundation.** Move `engine`, `db`, `sync`, `parser`, etc. into `src/` and add types + the **breakdown engine** with tests. No UI change yet — old UI consumes `.total`. *(Completed in Phase 1)*
+3. **State layer.** Stand up `state/stores.ts` signals + persistence effect; have the legacy sheet read/write through them. This decouples state from the render loop before touching components. *(Completed in Phase 1)*
+4. **Tab-by-tab replacement.** Replace one sheet tab at a time with a Preact component mounted into the existing shell slot, newest spec behavior included. Order follows the spec's own phasing (Combat → Stats → Inventory → Spells → Features), each behind the new state layer. The compendium browser migrates last (it's stable and self-contained). *(Combat Tab completed in Phase 2)*
+5. **Shell + panels.** Replace the app shell, conditions bar, slide-out panels (Bestiary, Profile, Quick Lookup), and wizards.
 6. **Delete `app.js`.** Once every section is migrated, remove the monolith and the hand-written `sw.js`.
 
 Each step is independently shippable and reviewable. A feature flag or route can gate "new sheet" vs "legacy sheet"
@@ -281,7 +276,7 @@ until parity is reached.
 |---|---|---|
 | **DONE: 0 — Toolchain** | Vite + TS + Preact + PWA scaffold; legacy app runs under build; tests ported to Vitest.; update github action to build under new model (keep up to date with current actions) | — |
 | **DONE: 1 — Foundation** | Typed data layer; **breakdown engine** + armor AC + finesse + tool-prof + concentration; signal state store; persistence effect; escaping handled by component rendering (no raw `innerHTML`). | 0 |
-| **2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
+| **DONE: 2 — Combat tab** (spec Phase 1) | Breakdown popup, HP modal, conditions bar, rest wizard, quick actions, active-modifiers section. | 1 |
 | **3 — Stats & Skills** (spec Phase 2) | Ability cards w/ breakdowns, skill proficiency cycling, tool proficiencies, attribute override. | 1 |
 | **4 — Inventory** (spec Phase 3) | Equipped/Carried/Stored tiers + drag, attunement, carry capacity, quantity. | 1 |
 | **5 — Spells** (spec Phase 4) | Per-list DC/attack, slot tracker, concentration integration, filters. | 1 |
@@ -320,7 +315,7 @@ until parity is reached.
 
 *Running list of all items that need to be addressed. Should be reviewed prior to dev of each step in case it is a dependency. Review at stage 9 of section 10 for open items. As items are completed, mark complete*
 
-- Magic bonus (e.g. +1 Club) not applying to total combat bonus
-- Clicking on item for popup of how things are added up does not show damage, only attack. Should show both.
-- Applied conditions should have popup when clicked on show the effect of the condition.
+- [x] Magic bonus (e.g. +1 Club) not applying to total combat bonus
+- [ ] Clicking on item for popup of how things are added up does not show damage, only attack. Should show both.
+- [ ] Applied conditions should have popup when clicked on show the effect of the condition.
 - 
