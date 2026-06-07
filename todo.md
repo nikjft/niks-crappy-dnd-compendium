@@ -16,8 +16,9 @@
 - [x] *DONE* ENHANCEMENT: Gray-on-black text hard to read. Increase brightness of gray descriptive text and subtitles. Meet general accessibility standards for contrast.
 - [ ] ENHANCEMENT: Update icons so all are outlined material icons - no emojis, minimal coloring. https://fonts.google.com/icons
 - [x] *DONE* BUG: Adding a spell to spell list doesn't show it until you refresh the page
-- [ ] ENHANCEMENT: When adding items from compendium (spells, items, feats, options, beasts, etc.), do not leave compendium/picker view immediately so users can add multiple things at a time.
+- [x] *DONE* ENHANCEMENT: When adding items from compendium (spells, items, feats, options, beasts, etc.), do not leave compendium/picker view immediately so users can add multiple things at a time.
 - [ ] ENHANCEMENT: Cannot edit elements from compendium. All feats, spells, items, abilities, species and class features should be editable, including modifier adding/editing. May require significant modal work, start with:
     - Weapons, be able to add attack, damage, modifiers, range, etc.
     - Features, be able to add description and modifiers
 - [ ] BUG: Bestiary in compendium should have its first facet be "By CR" and "By Type". Clicking on By Type provides a list of creature types. Clicking on a type finds matching creatures. By CR does the same with CR. Clicking on By CR will show CRs in the following groupings: < 1, 1, 2 - 5, 6 - 10, 11 - 16, 17 - 20, 21+. Clicking on a CR range will reveal a list of creatures within that range.
+- [ ] enhancement: Have URLs for individual characters and tabs so you can reload browser without losing state

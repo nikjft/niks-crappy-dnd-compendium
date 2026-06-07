@@ -7489,7 +7489,7 @@ function addSelectedItemToCharacter() {
   }
 
   addCompendiumEntityToCharacter(selectedItem, category);
-  closePickerAndReturn();
+  updateDetailFooterUI();
 }
 
 function addCompendiumEntityToCharacter(record, category) {
@@ -8424,9 +8424,7 @@ function setupCharacterSheetEvents() {
         clone.hp_max = 10; clone.hp_current = 10;
         clone.listId = pickerTargetListId || currentCharacter.bestiaryLists[0]?.id;
         currentCharacter.bestiary.push(clone);
-      }
       saveCurrentCharacterAndRefresh();
-      closePickerAndReturn();
     };
   }
 
