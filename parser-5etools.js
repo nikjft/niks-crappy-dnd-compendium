@@ -358,11 +358,14 @@ export function parse5etoolsSpell(spell, source, lookup = null, activeSources = 
     classesList = Array.from(classesSet).sort();
   }
 
+  const isConcentration = !!(spell.duration && spell.duration[0]?.concentration);
+
   return {
     name: spell.name,
     level: spell.level,
     school: school,
     ritual: !!spell.meta?.ritual,
+    isConcentration,
     time: timeStr,
     range: rangeStr,
     components: compStr,
@@ -409,6 +412,10 @@ export function parse5etoolsItem(item, source) {
   if (item.property && Array.isArray(item.property)) {
     propertyStr = item.property.join(', ');
   }
+  // Structured properties array (abbreviations, e.g. ['F', 'L', 'T'])
+  const properties = Array.isArray(item.property)
+    ? item.property.map(p => (typeof p === 'string' ? p.split('|')[0] : p))
+    : [];
 
   // Range
   let rangeStr = '';
@@ -440,7 +447,11 @@ export function parse5etoolsItem(item, source) {
     armor: !!item.armor || ['LA', 'MA', 'HA'].includes(typeAbbrev),
     weapon: !!item.weapon || ['M', 'R'].includes(typeAbbrev),
     shield: typeAbbrev === 'S' || !!item.shield,
-    ammo: typeAbbrev === 'A' || !!item.ammo
+    ammo: typeAbbrev === 'A' || !!item.ammo,
+    // Armor type for AC calculation in the TypeScript engine
+    armorType: ['LA', 'MA', 'HA', 'S'].includes(typeAbbrev) ? typeAbbrev : (item.armorType || null),
+    // Structured weapon property abbreviations (e.g. ['F', 'L', 'T'])
+    properties
   };
 
   // Copy other flags (like club, dagger, net, weaponCategory, etc.)

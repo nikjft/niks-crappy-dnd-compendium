@@ -4,9 +4,9 @@
 //   v5: adds _sync_meta, _app_settings; adds _modified_at timestamps
 
 const DB_NAME = 'dnd_compendium_db';
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
-export const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'classFeatures', 'subclassFeatures', 'feats', 'backgrounds', 'races', 'options', 'favorites', 'characters'];
+export const STORES = ['spells', 'items', 'monsters', 'classes', 'subclasses', 'classFeatures', 'subclassFeatures', 'feats', 'backgrounds', 'races', 'options', 'favorites', 'characters', 'conditions', 'actions'];
 export const CUSTOM_STORE = 'custom_records';
 const META_STORE = '_sync_meta';
 const SETTINGS_STORE = '_app_settings';
@@ -33,6 +33,14 @@ export function openDB() {
       // Custom user-created / user-edited compendium records
       if (!db.objectStoreNames.contains(CUSTOM_STORE)) {
         db.createObjectStore(CUSTOM_STORE, { keyPath: '_id' });
+      }
+
+      // Phase 1: per-character conditions and pinned actions
+      if (!db.objectStoreNames.contains('conditions')) {
+        db.createObjectStore('conditions', { keyPath: 'name' });
+      }
+      if (!db.objectStoreNames.contains('actions')) {
+        db.createObjectStore('actions', { keyPath: 'name' });
       }
 
       // Sync metadata store (per-store sync state)
