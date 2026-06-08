@@ -52,7 +52,7 @@
 - [x] *DONE* Bug: Lost ability to sync an edited spell to the compendium.
 - [x] *DONE* Armor and weapon proficiencies should be listed under class features. Note differences between multiclass and single class.
 - [x] *DONE* Features + Options tab: Class features shows starting equipment. Should just be a line in class features, not its section.
-- [ ] Features + Options: All General class information should show up (e.g. Druid Overview) - spell progression, everything, as though showing in the class picker.
+- [x] *DONE* Features + Options: All General class information should show up (e.g. Druid Overview) - spell progression, everything, as though showing in the class picker.
 - [x] *DONE* Class in compendium: Change "generic features" to "[Class] Features"
 - [x] *DONE* Class in compendium: For subclasses, list the subclass overview item at the top of each subclass.
 - [x] *DONE* Inventory picker: Add quantity to add > 1 of an item.

@@ -4,6 +4,7 @@ import { CustomFeatureModal } from './CustomFeatureModal.js';
 import { LevelHistorySection } from './LevelHistorySection.js';
 import { StartingEquipmentSection } from './StartingEquipmentSection.js';
 import { ClassInfoSection } from './ClassInfoSection.js';
+import { ClassOverviewSection } from './ClassOverviewSection.js';
 import { MarkdownContent } from '../shared/MarkdownContent.js';
 import type { FeatureList, CharacterFeature } from '../../data/types.js';
 
@@ -300,6 +301,9 @@ export function FeaturesTab() {
           ))}
         </div>
       )}
+
+      {/* Class progression overview (spell table, features by level) */}
+      <ClassOverviewSection character={char} />
 
       {/* Class Proficiencies */}
       <ClassInfoSection character={char} />

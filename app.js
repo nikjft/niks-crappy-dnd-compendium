@@ -8621,6 +8621,108 @@ if (typeof window !== 'undefined') {
     };
   };
 
+  window.__legacyGetClassOverviewHTML = (className, subclassName, charLevel) => {
+    const baseClass = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === className.toLowerCase());
+    if (!baseClass) return null;
+
+    // If a subclass is specified, try to use its data as the subject
+    let cls = baseClass;
+    let isSubclass = false;
+    if (subclassName) {
+      const sub = baseClass.subclassEntities?.find(s => s.name.toLowerCase() === subclassName.toLowerCase());
+      if (sub) { cls = sub; isSubclass = true; }
+    }
+
+    const getProfBonus = (lvl) => {
+      if (lvl <= 4) return '+2';
+      if (lvl <= 8) return '+3';
+      if (lvl <= 12) return '+4';
+      if (lvl <= 16) return '+5';
+      return '+6';
+    };
+
+    const levelFeatures = {};
+    if (cls.features) {
+      cls.features.forEach(f => {
+        if (!levelFeatures[f.level]) levelFeatures[f.level] = [];
+        levelFeatures[f.level].push(f.name);
+      });
+    } else if (cls.autolevels) {
+      cls.autolevels.forEach(al => {
+        if (!levelFeatures[al.level]) levelFeatures[al.level] = [];
+        (al.features || []).forEach(f => levelFeatures[al.level].push(f.name));
+      });
+    }
+
+    // Custom columns from classTableGroups (excluding spell slot groups)
+    const customCols = [];
+    const customGroups = (cls.classTableGroups || []).filter(g => !g.title?.includes('Spell Slots') && !g.rowsSpellProgression);
+    customGroups.forEach(g => {
+      if (g.colLabels && g.rows) {
+        g.colLabels.forEach((label, idx) => {
+          const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
+          const colRows = g.rows.map(row => row[idx]);
+          customCols.push({ label: cleanLabel, rows: colRows });
+        });
+      }
+    });
+
+    // Spell slots (use base class for subclasses)
+    const slotSource = isSubclass ? baseClass : cls;
+    let maxSpellLvl = 0;
+    const spellSlotsByLevel = [];
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      const slotsRow = slotSource.slotsTable ? slotSource.slotsTable.find(st => st.level === lvl) : null;
+      const slots = slotsRow?.slots ? slotsRow.slots.split(',').map(Number) : [];
+      spellSlotsByLevel.push(slots);
+      if (slots.length > maxSpellLvl) maxSpellLvl = slots.length;
+    }
+
+    const spellLabels = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+
+    let headerHtml = '<tr><th style="width:50px">Lvl</th><th style="width:40px">PB</th><th>Features</th>';
+    customCols.forEach(col => { headerHtml += `<th>${col.label}</th>`; });
+    if (maxSpellLvl > 0) {
+      for (let i = 0; i < maxSpellLvl; i++) headerHtml += `<th style="width:38px">${spellLabels[i]}</th>`;
+    }
+    headerHtml += '</tr>';
+
+    let tableRows = '';
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      const feats = levelFeatures[lvl] || [];
+      const pb = getProfBonus(lvl);
+      const isCurrent = charLevel && lvl === charLevel;
+      const rowStyle = isCurrent ? 'background:rgba(212,175,55,0.12);font-weight:600;' : '';
+      let row = `<tr style="${rowStyle}"><td>${lvl}</td><td>${pb}</td><td>${feats.join(', ') || '—'}</td>`;
+      customCols.forEach(col => { row += `<td>${col.rows[lvl - 1] ?? '—'}</td>`; });
+      if (maxSpellLvl > 0) {
+        const slots = spellSlotsByLevel[lvl - 1];
+        for (let i = 0; i < maxSpellLvl; i++) row += `<td>${slots[i] > 0 ? slots[i] : '—'}</td>`;
+      }
+      row += '</tr>';
+      tableRows += row;
+    }
+
+    const metaBox = !isSubclass ? `
+      <div class="detail-meta-box" style="margin-bottom:16px;">
+        ${baseClass.proficiency ? `<div class="meta-entry"><span class="meta-label">Skills</span><span class="meta-value">${baseClass.proficiency}</span></div>` : ''}
+        ${baseClass.armor ? `<div class="meta-entry"><span class="meta-label">Armor</span><span class="meta-value">${baseClass.armor}</span></div>` : ''}
+        ${baseClass.weapons ? `<div class="meta-entry"><span class="meta-label">Weapons</span><span class="meta-value">${baseClass.weapons}</span></div>` : ''}
+        ${baseClass.savingThrows ? `<div class="meta-entry"><span class="meta-label">Saves</span><span class="meta-value">${baseClass.savingThrows}</span></div>` : ''}
+      </div>
+    ` : '';
+
+    return `
+      <div style="overflow-x:auto;">
+        ${metaBox}
+        <table class="class-features-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>${headerHtml}</thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    `;
+  };
+
   window.__legacyRespecLastLevel = async () => {
     const char = currentCharacter;
     if (!char) return;

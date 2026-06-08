@@ -468,6 +468,73 @@
   font-style: italic;
 }
 
+/* ── Class overview card (progression table) ──────────────────────────────── */
+.class-overview-card {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.class-overview-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+  overflow-x: auto;
+}
+
+.class-overview-body .class-features-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.class-overview-body .class-features-table th,
+.class-overview-body .class-features-table td {
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.class-overview-body .class-features-table th {
+  background: var(--panel-bg-active);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-header);
+}
+
+.class-overview-body .class-features-table td:nth-child(3) {
+  text-align: left;
+  white-space: normal;
+  min-width: 120px;
+}
+
+.class-overview-body .detail-meta-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.class-overview-body .meta-entry {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.class-overview-body .meta-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.class-overview-body .meta-value {
+  color: var(--text-secondary);
+}
+
 /* ── Class proficiency info inline cards ──────────────────────────────────── */
 .class-info-card {
   border-top: 1px solid var(--border-color);
