@@ -7530,6 +7530,13 @@ function closePickerAndReturn() {
 
   // Re-open character sheet
   document.getElementById('character-sheet-view').style.display = 'flex';
+
+  // Ensure Preact tabs always reflect the latest app.js state when returning
+  // from the picker, regardless of whether async saves have completed.
+  if (window.__dndStore?.currentCharacter && currentCharacter) {
+    window.__dndStore.currentCharacter.value = JSON.parse(JSON.stringify(currentCharacter));
+  }
+
   renderCharacterSheetUI();
 }
 
@@ -7644,6 +7651,12 @@ function addCompendiumEntityToCharacter(record, category) {
     currentCharacter.bestiary.push(clone);
   }
 
+  // Sync Preact signal immediately so the UI updates without waiting for the
+  // async IndexedDB write in saveCurrentCharacterAndRefresh.
+  if (window.__dndStore?.currentCharacter) {
+    window.__dndStore.currentCharacter.value = JSON.parse(JSON.stringify(currentCharacter));
+  }
+
   saveCurrentCharacterAndRefresh();
 }
 
@@ -7665,9 +7678,14 @@ async function syncLocalEntityWithCompendium(entity, category) {
   const idx = list.findIndex(e => e.id === id);
   if (idx >= 0) {
     list[idx] = synced;
+    // Sync Preact signal immediately so UI updates without waiting for DB write
+    if (window.__dndStore?.currentCharacter) {
+      window.__dndStore.currentCharacter.value = JSON.parse(JSON.stringify(currentCharacter));
+    }
     await saveCurrentCharacterAndRefresh();
-    // Close the detail modal after sync
-    document.getElementById('cs-detail-modal').style.display = 'none';
+    // Close the legacy detail modal if open
+    const detailModal = document.getElementById('cs-detail-modal');
+    if (detailModal) detailModal.style.display = 'none';
   }
 }
 
@@ -8710,6 +8728,15 @@ if (typeof window !== 'undefined') {
       const className = feature.classData.parentClass || feature.classData.name;
       if (className) resyncClassFeatures(className);
     }
+  };
+
+  /**
+   * Sync a Preact-managed entity back from the compendium.
+   * category: 'spells' | 'items' | 'feats' | 'options' | 'monsters'
+   */
+  window.__legacySyncEntity = (entity, category) => {
+    if (!entity || !currentCharacter) return;
+    syncLocalEntityWithCompendium(entity, category);
   };
 
   /**

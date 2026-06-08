@@ -34,12 +34,19 @@
 - [x] *DONE* ENHANCEMENT: Eliminate "half proficiency" from proficiencies/skills list. Only options are proficient (empty circle), proficient (full circle), expert (filled circle with dot). (Preact SkillsList and ToolsList cycle 0→1→2 only; no user-settable 0.5)
 - [x] *DONE* ENHANCEMENT: Add test suite to test full UX with headless browser. Importing, clearing db, browsing compendium, adding and deleting characters, updating each tab, adding each type of entity, deleting each type of entity
 - [x] *DONE* Enhancement: Add character option for Weapon Masteries. Just category with an entry for each base weapon (Longsword, short sword, etc.). Each one should list the mastery property and effect for that weapon.
-- [ ] *BACKLOG - do not do* Enhancement: UX clean-up. Fix odd sized buttons, varying text size, odd colors, just make consistent
+- [ ] *BACKLOG - do not do* Enhancement: UX clean-up
+    - Default action button orange, otherwise gray
+    - Make font sizes consistent
+    - Make toggle buttons for active/inactive/equipped/etc. consistent in placement and general look (empty for not, filled for active, no other borders).
+    - Fix odd sized buttons
+    - Make text colors consistent, including visited and unvisited links
+    - Edit, sync, etc. buttons are in varying locations, make consistent with actions and edits in the upper-right, buttons (save/etc.) on bottom-right.
 - [ ] Enhancement: Update equipping of weapons (and only weapons) to indicate on-hand and off-hand. Must respect rules around two weapon fighting and related feats:
     - Do not add your ability modifier (Typically STR, for finesse weapons it will be the greater of STR or DEX)to the off-hand attack's to hit or damage unless it is negative
     - If you have the two weapon fighting style active, you can add your ability modifier
     - Interface: Using toggle for carried/equipped, add an extra level just for weapons that is an off-hand equip. Use shield icon for that. For weapons that are normal-equipped use a sword icon.
 - [x] *DONE* Enhancement: Update abilities view so that the score is larger than the bonus (swap position of bonus and score)
 - [x] *DONE* BUG: Attunement requirements not getting mapped to items. Suspect import parser. (parser-5etools.js now maps reqAttune → requiresAttunement)
-- [ ] Refactor: Eliminate legacy code, no longer required. No legacy content or characters.
-- [ ] BUG: When adding spells to a spell list from a compendium, you need to reload the window before the spell appears. They should appear immediately after you close the compendium picker.
+- [ ] *Backlog Do not do yet* Refactor: Eliminate legacy code, no longer required. No legacy content or characters.
+- [x] *DONE* BUG: When adding spells to a spell list from a compendium, you need to reload the window before the spell appears. They should appear immediately after you close the compendium picker.
+- [x] *DONE* Bug: Lost ability to sync an edited spell to the compendium.

@@ -46,6 +46,16 @@ export function SpellRow({ spell, onTogglePrepared, onEdit, onDelete }: Props) {
         </div>
 
         <div class="spell-row-actions" onClick={e => e.stopPropagation()}>
+          {/* Sync from compendium (only for compendium-sourced spells) */}
+          {spell.compendiumId && (
+            <button
+              class="spell-action-btn"
+              onClick={() => (window as any).__legacySyncEntity?.(spell, 'spells')}
+              title="Resync from compendium"
+            >
+              <span class="material-icons-outlined" style="font-size: 14px;">sync</span>
+            </button>
+          )}
           {/* Edit spell */}
           <button
             class="spell-action-btn"
