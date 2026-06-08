@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'preact/hooks';
+import { useState, useMemo, useRef } from 'preact/hooks';
 import { currentCharacter, charState, patchCharacter } from '../../state/stores.js';
 import { BreakdownPopup } from '../shared/BreakdownPopup.js';
 import { SpellSlotsTracker } from './SpellSlotsTracker.js';
@@ -119,6 +119,8 @@ export function SpellsTab() {
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalListId, setCustomModalListId] = useState<string | undefined>();
   const [editingSpell, setEditingSpell] = useState<CharacterSpell | undefined>();
+  const [dragOverListId, setDragOverListId] = useState<string | null>(null);
+  const draggingListId = useRef<string | null>(null);
 
   if (!character || !state) {
     return <div class="combat-placeholder">Open a character sheet to get started.</div>;
@@ -241,7 +243,35 @@ export function SpellsTab() {
           const listSpells = filteredSpells.filter(s => s.listId === listDef.id || (!s.listId && spellLists.indexOf(listDef) === 0));
 
           return (
-            <div key={listDef.id} class="spell-list-section">
+            <div
+              key={listDef.id}
+              class={`spell-list-section${dragOverListId === listDef.id ? ' list-drag-over' : ''}`}
+              draggable={true}
+              onDragStart={e => {
+                draggingListId.current = listDef.id;
+                setTimeout(() => { (e.currentTarget as HTMLElement).style.opacity = '0.5'; }, 0);
+              }}
+              onDragEnd={e => {
+                (e.currentTarget as HTMLElement).style.opacity = '';
+                setDragOverListId(null);
+                draggingListId.current = null;
+              }}
+              onDragOver={e => { e.preventDefault(); if (draggingListId.current !== listDef.id) setDragOverListId(listDef.id); }}
+              onDragLeave={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragOverListId(null); }}
+              onDrop={e => {
+                e.preventDefault();
+                const fromId = draggingListId.current;
+                if (!fromId || fromId === listDef.id) { setDragOverListId(null); return; }
+                const lists = [...spellLists];
+                const fromIdx = lists.findIndex(l => l.id === fromId);
+                const toIdx = lists.findIndex(l => l.id === listDef.id);
+                if (fromIdx < 0 || toIdx < 0) { setDragOverListId(null); return; }
+                lists.splice(toIdx, 0, lists.splice(fromIdx, 1)[0]);
+                patchCharacter({ spellLists: lists });
+                setDragOverListId(null);
+                draggingListId.current = null;
+              }}
+            >
               <ListHeader listDef={listDef} profBonus={profBonus} flatState={flatState} onChangeAbility={handleChangeListAbility} />
 
               {/* Group by level */}

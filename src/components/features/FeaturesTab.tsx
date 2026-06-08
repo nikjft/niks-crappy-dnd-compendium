@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useState, useRef } from 'preact/hooks';
 import { currentCharacter, patchCharacter } from '../../state/stores.js';
 import { CustomFeatureModal } from './CustomFeatureModal.js';
 import { LevelHistorySection } from './LevelHistorySection.js';
@@ -128,12 +128,9 @@ function FeatureListSection({
   onDelete,
   onAddCustom,
 }: FeatureListSectionProps) {
-  const sorted = [...features].sort((a, b) => {
-    const rank = (i: CharacterFeature) => i.active ? 0 : (i.selected ? 1 : 2);
-    const r = rank(a) - rank(b);
-    if (r !== 0) return r;
-    return (a.name || '').localeCompare(b.name || '');
-  });
+  const sorted = [...features].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '')
+  );
 
   return (
     <div class="feat-list-section">
@@ -187,6 +184,8 @@ export function FeaturesTab() {
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalListId, setCustomModalListId] = useState<string | undefined>();
   const [editingFeature, setEditingFeature] = useState<CharacterFeature | undefined>();
+  const [dragOverListId, setDragOverListId] = useState<string | null>(null);
+  const draggingListId = useRef<string | null>(null);
 
   if (!character) {
     return <div class="combat-placeholder">Open a character sheet to get started.</div>;
@@ -282,17 +281,46 @@ export function FeaturesTab() {
       ) : (
         <div class="feat-lists-container">
           {featureLists.map(listDef => (
-            <FeatureListSection
+            <div
               key={listDef.id}
-              listDef={listDef}
-              features={getListFeatures(listDef.id)}
-              collapsed={!!collapsedLists[listDef.id]}
-              onToggleCollapse={() => toggleCollapse(listDef.id)}
-              onToggleActive={handleToggleActive}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onAddCustom={handleAddCustom}
-            />
+              class={dragOverListId === listDef.id ? 'list-drag-over' : undefined}
+              draggable={true}
+              onDragStart={e => {
+                draggingListId.current = listDef.id;
+                setTimeout(() => { (e.currentTarget as HTMLElement).style.opacity = '0.5'; }, 0);
+              }}
+              onDragEnd={e => {
+                (e.currentTarget as HTMLElement).style.opacity = '';
+                setDragOverListId(null);
+                draggingListId.current = null;
+              }}
+              onDragOver={e => { e.preventDefault(); if (draggingListId.current !== listDef.id) setDragOverListId(listDef.id); }}
+              onDragLeave={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragOverListId(null); }}
+              onDrop={e => {
+                e.preventDefault();
+                const fromId = draggingListId.current;
+                if (!fromId || fromId === listDef.id) { setDragOverListId(null); return; }
+                const lists = [...featureLists];
+                const fromIdx = lists.findIndex(l => l.id === fromId);
+                const toIdx = lists.findIndex(l => l.id === listDef.id);
+                if (fromIdx < 0 || toIdx < 0) { setDragOverListId(null); return; }
+                lists.splice(toIdx, 0, lists.splice(fromIdx, 1)[0]);
+                patchCharacter({ featureLists: lists });
+                setDragOverListId(null);
+                draggingListId.current = null;
+              }}
+            >
+              <FeatureListSection
+                listDef={listDef}
+                features={getListFeatures(listDef.id)}
+                collapsed={!!collapsedLists[listDef.id]}
+                onToggleCollapse={() => toggleCollapse(listDef.id)}
+                onToggleActive={handleToggleActive}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onAddCustom={handleAddCustom}
+              />
+            </div>
           ))}
         </div>
       )}

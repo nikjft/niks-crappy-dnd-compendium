@@ -1764,7 +1764,6 @@ a:hover { color: var(--accent-hover); }
 
 /* Header */
 .cs-header {
-  height: 80px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--panel-bg);
   display: flex;
@@ -1772,6 +1771,22 @@ a:hover { color: var(--accent-hover); }
   justify-content: space-between;
   padding: 0 24px;
   flex-shrink: 0;
+  height: 80px;
+}
+
+/* Desktop: two "rows" are displayed side by side within the single-line header */
+.cs-header-row {
+  display: contents; /* transparent in layout — children participate directly */
+}
+
+.cs-header-identity {
+  /* identity items float to the left naturally */
+}
+
+.cs-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 .cs-header-left {
@@ -1830,11 +1845,7 @@ a:hover { color: var(--accent-hover); }
   color: var(--accent-color);
 }
 
-.cs-header-right {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
+/* .cs-header-right is no longer in HTML; .cs-header-controls handles desktop layout */
 
 /* HP Tracker */
 .cs-hp-tracker {
@@ -1985,7 +1996,7 @@ a:hover { color: var(--accent-hover); }
   border: none;
   color: var(--text-secondary);
   font-family: var(--font-header);
-  font-size: var(--fs-base);
+  font-size: var(--fs-md);
   font-weight: 500;
   padding: 0 16px;
   cursor: pointer;
@@ -2827,25 +2838,56 @@ a:hover { color: var(--accent-hover); }
     grid-template-columns: repeat(3, 1fr);
   }
   .cs-header {
-    padding: 0 16px;
-    height: 70px;
+    padding: 0 12px;
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+  }
+  .cs-header-row {
+    display: flex;
+    align-items: center;
+  }
+  .cs-header-identity {
+    padding: 6px 0 4px;
+  }
+  .cs-header-controls {
+    padding: 4px 0 6px;
+    gap: 10px;
+    justify-content: flex-start;
+    border-top: 1px solid var(--border-color);
   }
   .cs-portrait-placeholder {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     font-size: var(--fs-lg);
   }
   .cs-name-details h1 {
-    font-size: var(--fs-lg);
+    font-size: var(--fs-md);
   }
-  .cs-header-right {
-    gap: 10px;
+  #cs-char-subtitle {
+    font-size: var(--fs-xs);
+  }
+  /* Hide "Inspiration" text on mobile — just show the star icon */
+  .cs-inspiration-label {
+    display: none;
+  }
+  /* Compact HP tracker on mobile */
+  .cs-hp-label {
+    display: none;
+  }
+  .cs-hp-tracker {
+    padding: 4px 8px;
+    flex-direction: row;
+    gap: 6px;
+    align-items: center;
   }
   .cs-tabs-nav {
-    padding: 0 16px;
+    padding: 0 12px;
   }
   .cs-tab-panel {
-    padding: 16px;
+    padding: 12px;
   }
 }
 
@@ -2991,6 +3033,24 @@ a:hover { color: var(--accent-hover); }
 .cs-toggle-btn.active svg {
   fill: currentColor;
 }
+
+/* ── List drag-and-drop ───────────────────────────────────────────────────── */
+.list-drag-over {
+  outline: 2px dashed var(--accent-color);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.list-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 6px 2px 0;
+  user-select: none;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.list-drag-handle:hover { opacity: 1; }
 
 /* Beast 3-state cycle button */
 .beast-cycle-btn {

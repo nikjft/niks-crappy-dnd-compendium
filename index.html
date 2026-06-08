@@ -222,29 +222,33 @@
   <!-- Full-Screen Character Sheet View -->
   <div id="character-sheet-view" class="cs-view" style="display: none;">
     <header class="cs-header">
-      <div class="cs-header-left">
-        <button id="cs-btn-back" class="cs-icon-btn" aria-label="Back to Roster">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
-        </button>
-        <div id="cs-portrait" class="cs-portrait-placeholder">👤</div>
-        <div class="cs-name-details">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <h1 id="cs-char-name">Character Name</h1>
-            <button id="cs-btn-edit-char" class="cs-edit-btn" aria-label="Edit Character">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            </button>
-            <button id="cs-btn-level-up" class="cs-edit-btn" aria-label="Level Up" title="Level Up" style="color: var(--accent-color); border-color: var(--accent-color);">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
-            </button>
-            <button id="cs-btn-quick-lookup" class="cs-edit-btn" aria-label="Quick Lookup (Ctrl+K)" title="Quick Lookup (Ctrl+K)" onclick="window.__openQuickLookup?.()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </button>
+      <!-- Row 1: identity (back + portrait + name/class) -->
+      <div class="cs-header-row cs-header-identity">
+        <div class="cs-header-left">
+          <button id="cs-btn-back" class="cs-icon-btn" aria-label="Back to Roster">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          <div id="cs-portrait" class="cs-portrait-placeholder">👤</div>
+          <div class="cs-name-details">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h1 id="cs-char-name">Character Name</h1>
+              <button id="cs-btn-edit-char" class="cs-edit-btn" aria-label="Edit Character">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button id="cs-btn-level-up" class="cs-edit-btn" aria-label="Level Up" title="Level Up" style="color: var(--accent-color); border-color: var(--accent-color);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+              </button>
+              <button id="cs-btn-quick-lookup" class="cs-edit-btn" aria-label="Quick Lookup (Ctrl+K)" title="Quick Lookup (Ctrl+K)" onclick="window.__openQuickLookup?.()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </button>
+            </div>
+            <div id="cs-char-subtitle">Level 1 Fighter</div>
           </div>
-          <div id="cs-char-subtitle">Level 1 Fighter</div>
         </div>
       </div>
-      
-      <div class="cs-header-right">
+
+      <!-- Row 2: controls (HP, Inspiration, Rest) — on desktop this is cs-header-right inline with row 1 -->
+      <div class="cs-header-row cs-header-controls">
         <!-- HP Tracker -->
         <div class="cs-hp-tracker">
           <span class="cs-hp-label">Hit Points</span>
@@ -263,11 +267,11 @@
         </div>
 
         <!-- Inspiration -->
-        <button id="cs-btn-inspiration" class="cs-inspiration-toggle" aria-label="Toggle Heroic Advantage">
+        <button id="cs-btn-inspiration" class="cs-inspiration-toggle" aria-label="Toggle Inspiration">
           <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
-          <span>Heroic Advantage</span>
+          <span class="cs-inspiration-label">Inspiration</span>
         </button>
-        
+
         <!-- Rest controls -->
         <div class="cs-rest-buttons">
           <button id="cs-btn-short-rest" class="cs-rest-btn">Short Rest</button>
@@ -353,12 +357,9 @@
             </div>
           </div>
 
-          <div class="cs-notes-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 style="margin: 0;">Character Notes</h3>
-              <button id="cs-btn-add-note" class="cs-btn-small">+ Add Note</button>
-            </div>
-            <div id="cs-freeform-notes-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+          <div id="cs-note-lists-container" style="display: flex; flex-direction: column; gap: 16px;"></div>
+          <div style="margin-top: 8px;">
+            <button id="cs-btn-add-note-list" class="cs-btn-small">+ Note List</button>
           </div>
         </div>
       </section>

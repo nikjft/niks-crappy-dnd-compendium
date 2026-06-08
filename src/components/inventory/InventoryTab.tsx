@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useState, useRef } from 'preact/hooks';
 import { currentCharacter, charState, expandedRowId, patchCharacter } from '../../state/stores.js';
 import { CurrencyEditor } from './CurrencyEditor.js';
 import type { Character, EquipmentItem, Modifier } from '../../data/types.js';
@@ -486,6 +486,8 @@ export function InventoryTab() {
   const char = characterVal;
 
   const [showCurrencyEdit, setShowCurrencyEdit] = useState(false);
+  const [dragOverListId, setDragOverListId] = useState<string | null>(null);
+  const draggingListId = useRef<string | null>(null);
 
   const equipment = (char.equipment ?? []) as EquipmentItem[];
   const itemLists = char.itemLists ?? [];
@@ -590,22 +592,51 @@ export function InventoryTab() {
           i.listId === listDef.id || (!i.listId && listDef.id === (itemLists[0] as any)?.id)
         );
         return (
-          <ItemListSection
+          <div
             key={listDef.id}
-            listDef={listDef}
-            items={listItems}
-            allEquipment={equipment}
-            allLists={itemLists}
-            weightEnabled={weightEnabled}
-            pinnedActions={char.pinnedActions ?? []}
-            onCycleState={handleCycleState}
-            onUpdateQty={handleUpdateQty}
-            onMoveToList={handleMoveToList}
-            onDelete={handleDeleteItem}
-            onTogglePin={handleTogglePin}
-            onSync={handleSync}
-            onAddFromCompendium={handleAddFromCompendium}
-          />
+            class={dragOverListId === listDef.id ? 'list-drag-over' : undefined}
+            draggable={true}
+            onDragStart={e => {
+              draggingListId.current = listDef.id;
+              setTimeout(() => { (e.currentTarget as HTMLElement).style.opacity = '0.5'; }, 0);
+            }}
+            onDragEnd={e => {
+              (e.currentTarget as HTMLElement).style.opacity = '';
+              setDragOverListId(null);
+              draggingListId.current = null;
+            }}
+            onDragOver={e => { e.preventDefault(); if (draggingListId.current !== listDef.id) setDragOverListId(listDef.id); }}
+            onDragLeave={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragOverListId(null); }}
+            onDrop={e => {
+              e.preventDefault();
+              const fromId = draggingListId.current;
+              if (!fromId || fromId === listDef.id) { setDragOverListId(null); return; }
+              const lists = [...itemLists];
+              const fromIdx = lists.findIndex((l: any) => l.id === fromId);
+              const toIdx = lists.findIndex((l: any) => l.id === listDef.id);
+              if (fromIdx < 0 || toIdx < 0) { setDragOverListId(null); return; }
+              lists.splice(toIdx, 0, lists.splice(fromIdx, 1)[0]);
+              patchCharacter({ itemLists: lists });
+              setDragOverListId(null);
+              draggingListId.current = null;
+            }}
+          >
+            <ItemListSection
+              listDef={listDef}
+              items={listItems}
+              allEquipment={equipment}
+              allLists={itemLists}
+              weightEnabled={weightEnabled}
+              pinnedActions={char.pinnedActions ?? []}
+              onCycleState={handleCycleState}
+              onUpdateQty={handleUpdateQty}
+              onMoveToList={handleMoveToList}
+              onDelete={handleDeleteItem}
+              onTogglePin={handleTogglePin}
+              onSync={handleSync}
+              onAddFromCompendium={handleAddFromCompendium}
+            />
+          </div>
         );
       })}
 

@@ -7025,6 +7025,7 @@ function ensureCharacterLists(char) {
   if (!char.itemLists)     char.itemLists     = [{ id: generateId(), name: 'Inventory' }];
   if (!char.spellLists)    char.spellLists    = [];
   if (!char.bestiaryLists) char.bestiaryLists = [{ id: generateId(), name: 'Companions & Summons' }];
+  if (!char.noteLists)     char.noteLists     = [{ id: generateId(), name: 'Notes' }];
   
   if (!char.classes) char.classes = [];
   if (char.classes.length === 0 && char.class) {
@@ -7176,6 +7177,14 @@ function migrateCharacter(char) {
   if (!char.currency)              char.currency              = { gp: 0, sp: 0, cp: 0, ep: 0, pp: 0 };
   if (!char.notes)                 char.notes                 = { freeNotes: [] };
   if (!char.notes.freeNotes)       char.notes.freeNotes       = [];
+  // Migrate notes to multi-list structure
+  if (!char.noteLists) {
+    char.noteLists = [{ id: generateId(), name: 'Notes' }];
+  }
+  if (char.noteLists.length > 0) {
+    const firstListId = char.noteLists[0].id;
+    char.notes.freeNotes = char.notes.freeNotes.map(n => n.listId ? n : { ...n, listId: firstListId });
+  }
   if (!char.equipment)             char.equipment             = [];
   if (!char.spells)                char.spells                = [];
   if (!char.features)              char.features              = [];
@@ -7384,6 +7393,43 @@ function openItemDetailModal(item, type) {
  * @param {object} state        - calculateCharacterState result
  * @param {object} opts         - { showSpellInfo }
  */
+// ─── List drag-and-drop helper (vanilla JS) ───────────────────────────────────
+let _draggingListId = null;
+function makeSectionDraggable(section, listId, listArrKey) {
+  section.draggable = true;
+  section.addEventListener('dragstart', e => {
+    _draggingListId = listId;
+    setTimeout(() => { section.style.opacity = '0.5'; }, 0);
+    e.stopPropagation();
+  });
+  section.addEventListener('dragend', () => {
+    section.style.opacity = '';
+    section.classList.remove('list-drag-over');
+    _draggingListId = null;
+  });
+  section.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (_draggingListId && _draggingListId !== listId) section.classList.add('list-drag-over');
+  });
+  section.addEventListener('dragleave', e => {
+    if (!section.contains(e.relatedTarget)) section.classList.remove('list-drag-over');
+  });
+  section.addEventListener('drop', e => {
+    e.preventDefault();
+    section.classList.remove('list-drag-over');
+    const fromId = _draggingListId;
+    if (!fromId || fromId === listId || !currentCharacter) return;
+    const arr = currentCharacter[listArrKey];
+    if (!arr) return;
+    const fromIdx = arr.findIndex(l => l.id === fromId);
+    const toIdx   = arr.findIndex(l => l.id === listId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    arr.splice(toIdx, 0, arr.splice(fromIdx, 1)[0]);
+    _draggingListId = null;
+    saveCurrentCharacterAndRefresh();
+  });
+}
+
 function renderListSection(container, listDef, items, type, state, opts = {}) {
   const sorted = sortListItems(items);
   const section = document.createElement('div');
@@ -7449,6 +7495,7 @@ function renderListSection(container, listDef, items, type, state, opts = {}) {
   }
 
   container.appendChild(section);
+  return section;
 }
 
 // ─── List Config Modal ────────────────────────────────────────────────────────
@@ -7489,6 +7536,7 @@ function saveListConfig() {
     else if (type === 'item')  currentCharacter.itemLists.push(listDef);
     else if (type === 'spell') currentCharacter.spellLists.push(listDef);
     else if (type === 'beast') currentCharacter.bestiaryLists.push(listDef);
+    else if (type === 'note')  currentCharacter.noteLists.push(listDef);
   }
 
   document.getElementById('cs-list-config-modal').style.display = 'none';
@@ -7501,10 +7549,10 @@ function deleteListAndItems() {
   const { listDef, type } = listConfigTarget;
 
   // Remove the list definition
-  const listArrMap = { feature: 'featureLists', item: 'itemLists', spell: 'spellLists', beast: 'bestiaryLists' };
+  const listArrMap = { feature: 'featureLists', item: 'itemLists', spell: 'spellLists', beast: 'bestiaryLists', note: 'noteLists' };
   const itemArrMap = { feature: 'features', item: 'equipment', spell: 'spells', beast: 'bestiary' };
   const listArr = currentCharacter[listArrMap[type]];
-  const itemArr = currentCharacter[itemArrMap[type]];
+  const itemArr = type === 'note' ? currentCharacter.notes?.freeNotes : currentCharacter[itemArrMap[type]];
 
   const listIdx = listArr.findIndex(l => l.id === listDef.id);
   if (listIdx >= 0) listArr.splice(listIdx, 1);
@@ -8239,7 +8287,8 @@ function renderCharacterSheetUI() {
   bestiaryContainer.innerHTML = '';
   currentCharacter.bestiaryLists.forEach(listDef => {
     const items = getItemsForList(currentCharacter.bestiary, listDef.id);
-    renderListSection(bestiaryContainer, listDef, items, 'beast', state);
+    const sec = renderListSection(bestiaryContainer, listDef, items, 'beast', state);
+    if (sec) makeSectionDraggable(sec, listDef.id, 'bestiaryLists');
   });
 
   // ── Tab 7: Notes & Profile ───────────────────────────────────────────────────
@@ -8255,53 +8304,23 @@ function renderCharacterSheetUI() {
     }
   });
 
-  // Freeform notes
-  const notesList = document.getElementById('cs-freeform-notes-list');
-  notesList.innerHTML = '';
+  // Note lists (multi-list)
+  const noteListsContainer = document.getElementById('cs-note-lists-container');
+  noteListsContainer.innerHTML = '';
   const freeNotes = currentCharacter.notes.freeNotes || [];
-  freeNotes.forEach((note, idx) => {
-    const card = document.createElement('div');
-    card.className = 'cs-note-card';
-    // Render markdown-ish (replace \n with <br>, **bold**, *italic*)
-    const rendered = (note.content || '')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br>');
-    card.innerHTML = `
-      <div class="cs-note-header">
-        <span class="cs-note-title">${escapeHtml(note.title || 'Note')}</span>
-      </div>
-      <div class="cs-note-expanded">
-        <div class="cs-note-actions-row">
-          <button class="cs-btn-small btn-edit-note" title="Edit">
-            <span class="material-icons-outlined" style="font-size:11px;">edit</span> Edit
-          </button>
-          <button class="cs-btn-small danger btn-del-note" title="Delete">
-            <span class="material-icons-outlined" style="font-size:11px;">delete</span> Delete
-          </button>
-        </div>
-        <div class="cs-note-content">${rendered}</div>
-      </div>
-    `;
-    card.querySelector('.cs-note-header').onclick = () => card.classList.toggle('expanded');
-    card.querySelector('.btn-edit-note').onclick = (e) => { e.stopPropagation(); openNoteModal(note, idx); };
-    card.querySelector('.btn-del-note').onclick  = (e) => {
-      e.stopPropagation();
-      freeNotes.splice(idx, 1);
-      saveCurrentCharacterAndRefresh();
-    };
-    notesList.appendChild(card);
+  (currentCharacter.noteLists || []).forEach((listDef, listIdx) => {
+    const listNotes = freeNotes.filter(n => n.listId === listDef.id || (listIdx === 0 && !n.listId));
+    renderNoteListSection(noteListsContainer, listDef, listNotes);
   });
-  if (!freeNotes.length) {
-    notesList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No notes yet. Click + Add Note to create one.</div>';
-  }
 }
 
 // ── Note Modal ────────────────────────────────────────────────────────────────
 let noteEditIndex = -1;
+let noteEditListId = null;
 
-function openNoteModal(note = null, idx = -1) {
+function openNoteModal(note = null, idx = -1, listId = null) {
   noteEditIndex = idx;
+  noteEditListId = listId;
   const modal = document.getElementById('cs-note-modal');
   document.getElementById('cs-note-modal-title').textContent = note ? 'Edit Note' : 'Add Note';
   document.getElementById('cs-note-title-input').value   = note?.title   || '';
@@ -8314,12 +8333,77 @@ function saveNote() {
   const content = document.getElementById('cs-note-content-input').value;
   if (!currentCharacter.notes.freeNotes) currentCharacter.notes.freeNotes = [];
   if (noteEditIndex >= 0) {
-    currentCharacter.notes.freeNotes[noteEditIndex] = { title, content };
+    const existing = currentCharacter.notes.freeNotes[noteEditIndex];
+    currentCharacter.notes.freeNotes[noteEditIndex] = { ...existing, title, content };
   } else {
-    currentCharacter.notes.freeNotes.push({ title, content });
+    const listId = noteEditListId || currentCharacter.noteLists?.[0]?.id;
+    currentCharacter.notes.freeNotes.push({ title, content, listId });
   }
   document.getElementById('cs-note-modal').style.display = 'none';
   saveCurrentCharacterAndRefresh();
+}
+
+// ── Note List Section renderer ─────────────────────────────────────────────────
+function renderNoteListSection(container, listDef, notes) {
+  const section = document.createElement('div');
+  section.className = 'cs-notes-card';
+
+  // Header
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;';
+  header.innerHTML = `
+    <h3 style="margin:0;flex:1;">${escapeHtml(listDef.name)}</h3>
+    <button class="cs-btn-small btn-note-add">+ Add Note</button>
+    <button class="cs-btn-small secondary btn-note-config" style="font-size:11px;padding:2px 8px;">⚙</button>
+  `;
+  header.querySelector('.btn-note-add').onclick = () => openNoteModal(null, -1, listDef.id);
+  header.querySelector('.btn-note-config').onclick = () => openListConfigModal(listDef, 'note');
+  section.appendChild(header);
+
+  // Note cards
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  if (notes.length === 0) {
+    list.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No notes yet. Click + Add Note to create one.</div>';
+  } else {
+    notes.forEach((note, localIdx) => {
+      const globalIdx = currentCharacter.notes.freeNotes.indexOf(note);
+      const card = document.createElement('div');
+      card.className = 'cs-note-card';
+      const rendered = (note.content || '')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/\n/g, '<br>');
+      card.innerHTML = `
+        <div class="cs-note-header">
+          <span class="cs-note-title">${escapeHtml(note.title || 'Note')}</span>
+        </div>
+        <div class="cs-note-expanded">
+          <div class="cs-note-actions-row">
+            <button class="cs-btn-small btn-edit-note" title="Edit">
+              <span class="material-icons-outlined" style="font-size:11px;">edit</span> Edit
+            </button>
+            <button class="cs-btn-small danger btn-del-note" title="Delete">
+              <span class="material-icons-outlined" style="font-size:11px;">delete</span> Delete
+            </button>
+          </div>
+          <div class="cs-note-content">${rendered}</div>
+        </div>
+      `;
+      card.querySelector('.cs-note-header').onclick = () => card.classList.toggle('expanded');
+      card.querySelector('.btn-edit-note').onclick = (e) => { e.stopPropagation(); openNoteModal(note, globalIdx, listDef.id); };
+      card.querySelector('.btn-del-note').onclick  = (e) => {
+        e.stopPropagation();
+        currentCharacter.notes.freeNotes.splice(globalIdx, 1);
+        saveCurrentCharacterAndRefresh();
+      };
+      list.appendChild(card);
+    });
+  }
+  section.appendChild(list);
+  container.appendChild(section);
+  makeSectionDraggable(section, listDef.id, 'noteLists');
+  return section;
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -8445,7 +8529,10 @@ function setupCharacterSheetEvents() {
   };
 
   // Note modal
-  document.getElementById('cs-btn-add-note').onclick    = () => openNoteModal();
+  document.getElementById('cs-btn-add-note-list').onclick = () => {
+    ensureCharacterLists(currentCharacter);
+    openListConfigModal({ id: generateId(), name: 'New Note List' }, 'note', true);
+  };
   document.getElementById('cs-note-btn-cancel').onclick = () => { document.getElementById('cs-note-modal').style.display = 'none'; };
   document.getElementById('cs-note-btn-save').onclick   = () => saveNote();
 
