@@ -2651,7 +2651,7 @@ a:hover { color: var(--accent-hover); }
 /* ── Tab 7: Profile & Notes ── */
 .cs-notes-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 24px;
 }
 
@@ -2826,9 +2826,6 @@ a:hover { color: var(--accent-hover); }
   .cs-currency-box {
     grid-template-columns: repeat(3, 1fr);
   }
-  .cs-notes-layout {
-    grid-template-columns: 1fr;
-  }
   .cs-header {
     padding: 0 16px;
     height: 70px;
@@ -2997,8 +2994,8 @@ a:hover { color: var(--accent-hover); }
 
 /* Beast 3-state cycle button */
 .beast-cycle-btn {
-  width: 20px;
-  height: 20px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 1.5px solid var(--text-muted);
   background: transparent;
@@ -3009,6 +3006,7 @@ a:hover { color: var(--accent-hover); }
   padding: 0;
   transition: all 0.15s;
   flex-shrink: 0;
+  margin-right: 8px;
 }
 
 .beast-cycle-btn.state-tracking {
@@ -3020,8 +3018,8 @@ a:hover { color: var(--accent-hover); }
   border-color: var(--accent-color);
   background: transparent;
   color: var(--accent-color);
-  width: 24px;
-  height: 24px;
+  width: 16px;
+  height: 16px;
   border-radius: var(--radius-sm);
 }
 
@@ -3035,10 +3033,7 @@ a:hover { color: var(--accent-hover); }
   background-color: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  overflow: hidden;
   transition: border-color 0.2s;
 }
 .cs-note-card:hover {
@@ -3046,14 +3041,40 @@ a:hover { color: var(--accent-hover); }
 }
 .cs-note-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.cs-note-header:hover {
+  background: var(--panel-bg-hover);
 }
 .cs-note-title {
   font-weight: 600;
   color: var(--accent-color);
   font-size: var(--fs-base);
   font-family: var(--font-header);
+  flex: 1;
+}
+/* Collapsed: hide expanded section */
+.cs-note-expanded {
+  display: none;
+  padding: 10px 14px 14px;
+  border-top: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+}
+/* Show when card is expanded */
+.cs-note-card.expanded .cs-note-expanded {
+  display: block;
+}
+.cs-note-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
 }
 .cs-note-content {
   font-size: var(--fs-base);

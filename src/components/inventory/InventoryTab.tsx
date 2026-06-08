@@ -163,6 +163,17 @@ function ItemRow({
         class="item-table-row"
         onClick={() => { expandedRowId.value = isExpanded ? null : (item.id ?? null); }}
       >
+        <div class="col-state-icon" onClick={e => e.stopPropagation()}>
+          <button
+            class={`item-cycle-btn ${isMainHand ? 'main-hand' : isOffHand ? 'off-hand' : isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
+            onClick={() => onCycleState(item)}
+            aria-label={cycleBtnTitle()}
+            title={cycleBtnTitle()}
+          >
+            {renderStateIcon()}
+          </button>
+        </div>
+
         <div class="col-item-details">
           <div class="item-name-line">
             <span style="font-weight: 500;">{item.name}</span>
@@ -182,16 +193,6 @@ function ItemRow({
               {((parseFloat(String(item.weight)) || 0) * (item.quantity ?? 1)).toFixed(1)} lbs
             </span>
           )}
-          <div class="col-state-icon" onClick={e => e.stopPropagation()}>
-            <button
-              class={`item-cycle-btn ${isMainHand ? 'main-hand' : isOffHand ? 'off-hand' : isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
-              onClick={() => onCycleState(item)}
-              aria-label={cycleBtnTitle()}
-              title={cycleBtnTitle()}
-            >
-              {renderStateIcon()}
-            </button>
-          </div>
         </div>
       </div>
 

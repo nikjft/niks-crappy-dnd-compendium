@@ -65,41 +65,36 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
   return (
     <div class={`feat-row${feature.active ? ' feat-active' : ''}`}>
       <div class="feat-row-main" onClick={() => setExpanded(e => !e)}>
-        <div class="feat-name-block">
-          <span class="feat-name">{feature.name}</span>
-          {feature.category && <span class="feat-category">{feature.category}</span>}
-        </div>
-        <div class="feat-row-actions" onClick={e => e.stopPropagation()}>
-          {/* Active toggle — circle (empty = off, filled accent = on) */}
+        {/* Active toggle — left side, like spells */}
+        <div onClick={e => e.stopPropagation()}>
           <button
             class={`cs-prof-indicator${feature.active ? ' prof' : ''}`}
             title={feature.active ? 'Deactivate' : 'Activate'}
             aria-label={feature.active ? 'Deactivate feature' : 'Activate feature'}
             onClick={() => onToggleActive(feature)}
+            style="margin-right: 8px;"
           />
-          {/* Edit */}
-          <button
-            class="icon-action-btn"
-            title="Edit"
-            onClick={() => onEdit(feature)}
-          >
-            <span class="material-icons-outlined" style="font-size: 14px;">edit</span>
-          </button>
-          {/* Delete */}
-          <button
-            class="icon-action-btn danger"
-            title="Remove"
-            onClick={() => {
-              if (window.confirm(`Remove "${feature.name}"?`)) onDelete(feature);
-            }}
-          >
-            <span class="material-icons-outlined" style="font-size: 14px;">delete</span>
-          </button>
+        </div>
+        <div class="feat-name-block">
+          <span class="feat-name">{feature.name}</span>
+          {feature.category && <span class="feat-category">{feature.category}</span>}
         </div>
       </div>
 
       {expanded && (
         <div class="feat-detail">
+          <div class="feat-detail-actions-row">
+            <div class="feat-detail-actions-right" onClick={e => e.stopPropagation()}>
+              <button class="cs-btn-small" onClick={() => onEdit(feature)}>
+                <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
+              </button>
+              <button class="cs-btn-small danger" onClick={() => {
+                if (window.confirm(`Remove "${feature.name}"?`)) onDelete(feature);
+              }}>
+                <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
+              </button>
+            </div>
+          </div>
           {texts.length > 0
             ? <MarkdownContent texts={texts} class="feat-detail-text" />
             : <p class="feat-detail-text" style={{ color: 'var(--text-muted)' }}>No description.</p>

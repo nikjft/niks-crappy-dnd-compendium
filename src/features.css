@@ -188,6 +188,17 @@
   background: var(--panel-bg-hover);
 }
 
+.feat-detail-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.feat-detail-actions-right {
+  display: flex;
+  gap: 6px;
+}
+
 .feat-detail-text {
   font-size: var(--fs-base);
   color: var(--text-secondary);

@@ -510,10 +510,22 @@
   <!-- Character Sheet Item Detail Modal -->
   <div id="cs-detail-modal" class="overlay" style="display: none; justify-content: center; align-items: center; z-index: 1100;">
     <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 600px; width: 90vw; max-height: 85vh; display: flex; flex-direction: column; padding: 20px; overflow: hidden; border-radius: 12px; background-color: var(--bg-color);">
-      <h2 id="cs-detail-title" style="color: var(--text-primary); margin-top: 0; margin-bottom: 8px; font-family: var(--font-header);">Item Details</h2>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-shrink: 0;">
+        <h2 id="cs-detail-title" style="color: var(--text-primary); margin: 0; font-family: var(--font-header); flex: 1; min-width: 0;">Item Details</h2>
+        <div style="display: flex; gap: 6px; flex-shrink: 0;">
+          <button id="cs-detail-btn-edit" class="cs-btn-small" style="display: none;" title="Edit">
+            <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
+          </button>
+          <button id="cs-detail-btn-delete" class="cs-btn-small danger" style="display: none;" title="Delete">
+            <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
+          </button>
+          <button id="cs-detail-btn-sync" class="cs-btn-small" style="display: none;" title="Sync with Compendium">
+            <span class="material-icons-outlined" style="font-size: 11px;">sync</span> Sync
+          </button>
+        </div>
+      </div>
       <div id="cs-detail-content" style="flex: 1; overflow-y: auto; margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; background-color: var(--bg-color);"></div>
       <div style="display: flex; justify-content: flex-end; gap: 12px; align-items: center; flex-shrink: 0;">
-        <button id="cs-detail-btn-sync" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color); width: auto; padding: 8px 16px; margin: 0; border-radius: 6px;">Sync with Compendium</button>
         <button id="cs-detail-btn-close" class="settings-action-btn" style="width: auto; padding: 8px 24px; margin: 0; border-radius: 6px;">Close</button>
       </div>
     </div>

@@ -392,13 +392,14 @@
   opacity: 0.75;
 }
 
-/* ── Spell detail actions (edit / sync / delete) ──────────────────────────── */
+/* ── Spell detail actions (edit / sync / delete) — upper right ──────────── */
 .spell-detail-actions {
   display: flex;
+  justify-content: flex-end;
   gap: 6px;
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-color);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 /* ── Bottom controls ──────────────────────────────────────────────────────── */

@@ -30,7 +30,7 @@ function StateButton({ spell, onCycle }: { spell: CharacterSpell; onCycle: () =>
         aria-label="Active — click to un-prepare"
         title="Active — click to un-prepare"
       >
-        <span class="material-icons-outlined" style="font-size: 14px;">bolt</span>
+        <span class="material-icons-outlined" style="font-size: 14px; font-variation-settings: 'FILL' 1;">bolt</span>
       </button>
     );
   }
@@ -68,13 +68,7 @@ export function SpellRow({ spell, onCycleState, onEdit, onDelete }: Props) {
 
       {expanded && (
         <div class="spell-detail">
-          <div class="spell-detail-stats">
-            {spell.range && <span><b>Range:</b> {spell.range}</span>}
-            {spell.components && <span><b>Components:</b> {spell.components}</span>}
-            {spell.duration && <span><b>Duration:</b> {spell.duration}</span>}
-          </div>
-          <MarkdownContent texts={spell.texts ?? []} class="spell-detail-text" />
-          {/* Edit / Sync / Delete actions in the expanded detail */}
+          {/* Edit / Sync / Delete actions — upper right */}
           <div class="spell-detail-actions">
             <button class="cs-btn-small" onClick={() => onEdit(spell)}>
               <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
@@ -88,6 +82,12 @@ export function SpellRow({ spell, onCycleState, onEdit, onDelete }: Props) {
               <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
             </button>
           </div>
+          <div class="spell-detail-stats">
+            {spell.range && <span><b>Range:</b> {spell.range}</span>}
+            {spell.components && <span><b>Components:</b> {spell.components}</span>}
+            {spell.duration && <span><b>Duration:</b> {spell.duration}</span>}
+          </div>
+          <MarkdownContent texts={spell.texts ?? []} class="spell-detail-text" />
         </div>
       )}
     </div>

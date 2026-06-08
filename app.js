@@ -7266,14 +7266,10 @@ function renderListRow(item, type, opts = {}) {
     }
 
     row.innerHTML = `
+      <button class="${beastCycleClass}" title="${beastCycleTitle}">${beastCycleIcon}</button>
       <div class="cs-list-row-info">
         <div class="cs-list-row-name">${item.name}</div>
         ${sub ? `<div class="cs-list-row-sub">${sub}</div>` : ''}
-      </div>
-      <div class="cs-list-row-actions">
-        <button class="${beastCycleClass}" title="${beastCycleTitle}">${beastCycleIcon}</button>
-        ${syncBtn}
-        <button class="cs-list-row-btn danger btn-delete" title="Remove">${SVG_TRASH}</button>
       </div>
     `;
 
@@ -7324,23 +7320,25 @@ function renderListRow(item, type, opts = {}) {
     else saveCurrentCharacterAndRefresh();
   };
   }
-  if (item.compendiumId || item.isOverview) {
-    row.querySelector('.btn-sync').onclick = (e) => {
+  if (type !== 'beast') {
+    if (item.compendiumId || item.isOverview) {
+      row.querySelector('.btn-sync').onclick = (e) => {
+        e.stopPropagation();
+        if (item.isOverview && item.classData) {
+          const className = item.classData.parentClass || item.classData.name;
+          resyncClassFeatures(className);
+        } else {
+          const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
+          syncLocalEntityWithCompendium(item, catMap[type]);
+        }
+      };
+    }
+    row.querySelector('.btn-delete').onclick = (e) => {
       e.stopPropagation();
-      if (item.isOverview && item.classData) {
-        const className = item.classData.parentClass || item.classData.name;
-        resyncClassFeatures(className);
-      } else {
-        const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
-        syncLocalEntityWithCompendium(item, catMap[type]);
-      }
+      if (opts.onDelete) opts.onDelete(item);
+      else saveCurrentCharacterAndRefresh();
     };
   }
-  row.querySelector('.btn-delete').onclick = (e) => {
-    e.stopPropagation();
-    if (opts.onDelete) opts.onDelete(item);
-    else saveCurrentCharacterAndRefresh();
-  };
 
   return row;
 }
@@ -7352,8 +7350,8 @@ let detailModalType = '';
 function openItemDetailModal(item, type) {
   detailModalItem = item;
   detailModalType = type;
-  const modal  = document.getElementById('cs-detail-modal');
-  const title  = document.getElementById('cs-detail-title');
+  const modal   = document.getElementById('cs-detail-modal');
+  const title   = document.getElementById('cs-detail-title');
   const content = document.getElementById('cs-detail-content');
 
   title.textContent = item.name;
@@ -7361,7 +7359,15 @@ function openItemDetailModal(item, type) {
   const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
   content.innerHTML = getDetailHTML(item, catMap[type] || 'feats');
 
-  // Show sync button only if it came from compendium
+  // Edit button — shown for beasts
+  const editBtn = document.getElementById('cs-detail-btn-edit');
+  editBtn.style.display = type === 'beast' ? 'inline-flex' : 'none';
+
+  // Delete button — shown for beasts
+  const deleteBtn = document.getElementById('cs-detail-btn-delete');
+  deleteBtn.style.display = type === 'beast' ? 'inline-flex' : 'none';
+
+  // Sync button — shown if item came from compendium
   const syncBtn = document.getElementById('cs-detail-btn-sync');
   syncBtn.style.display = item.compendiumId ? 'inline-flex' : 'none';
 
@@ -8263,16 +8269,24 @@ function renderCharacterSheetUI() {
       .replace(/\n/g, '<br>');
     card.innerHTML = `
       <div class="cs-note-header">
-        <span class="cs-note-title">${note.title || 'Note'}</span>
-        <div style="display:flex;gap:6px">
-          <button class="cs-list-row-btn btn-edit-note" title="Edit">${SVG_COG}</button>
-          <button class="cs-list-row-btn danger btn-del-note" title="Delete">${SVG_TRASH}</button>
-        </div>
+        <span class="cs-note-title">${escapeHtml(note.title || 'Note')}</span>
       </div>
-      <div class="cs-note-content">${rendered}</div>
+      <div class="cs-note-expanded">
+        <div class="cs-note-actions-row">
+          <button class="cs-btn-small btn-edit-note" title="Edit">
+            <span class="material-icons-outlined" style="font-size:11px;">edit</span> Edit
+          </button>
+          <button class="cs-btn-small danger btn-del-note" title="Delete">
+            <span class="material-icons-outlined" style="font-size:11px;">delete</span> Delete
+          </button>
+        </div>
+        <div class="cs-note-content">${rendered}</div>
+      </div>
     `;
-    card.querySelector('.btn-edit-note').onclick = () => openNoteModal(note, idx);
-    card.querySelector('.btn-del-note').onclick  = () => {
+    card.querySelector('.cs-note-header').onclick = () => card.classList.toggle('expanded');
+    card.querySelector('.btn-edit-note').onclick = (e) => { e.stopPropagation(); openNoteModal(note, idx); };
+    card.querySelector('.btn-del-note').onclick  = (e) => {
+      e.stopPropagation();
       freeNotes.splice(idx, 1);
       saveCurrentCharacterAndRefresh();
     };
@@ -8406,6 +8420,20 @@ function setupCharacterSheetEvents() {
     if (detailModalItem) {
       const catMap = { feature: 'feats', item: 'items', spell: 'spells', beast: 'monsters' };
       syncLocalEntityWithCompendium(detailModalItem, catMap[detailModalType]);
+    }
+  };
+  document.getElementById('cs-detail-btn-edit').onclick = () => {
+    if (detailModalItem && detailModalType === 'beast') {
+      document.getElementById('cs-detail-modal').style.display = 'none';
+      openCustomElementDialog('monsters', detailModalItem);
+    }
+  };
+  document.getElementById('cs-detail-btn-delete').onclick = () => {
+    if (detailModalItem && detailModalType === 'beast') {
+      if (!window.confirm(`Remove "${detailModalItem.name}" from bestiary?`)) return;
+      document.getElementById('cs-detail-modal').style.display = 'none';
+      currentCharacter.bestiary = (currentCharacter.bestiary || []).filter(b => b !== detailModalItem);
+      saveCurrentCharacterAndRefresh();
     }
   };
 
