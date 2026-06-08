@@ -2,6 +2,16 @@ import { signal, computed } from '@preact/signals';
 import { calculateCharacterState } from '../engine/engine.js';
 import type { Character, CharacterState, CompendiumRecord } from '../data/types.js';
 
+// ─── JSON editor (global overlay, callable from any tab or legacy JS) ─────────
+
+export interface JsonEditorEntry {
+  title: string;
+  value: object;
+  onSave: (updated: object) => void;
+}
+
+export const jsonEditorState = signal<JsonEditorEntry | null>(null);
+
 // ─── Core character state ─────────────────────────────────────────────────────
 
 export const currentCharacter = signal<Character | null>(null);

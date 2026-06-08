@@ -1,9 +1,8 @@
 import { useState, useMemo, useRef } from 'preact/hooks';
-import { currentCharacter, charState, patchCharacter } from '../../state/stores.js';
+import { currentCharacter, charState, patchCharacter, jsonEditorState } from '../../state/stores.js';
 import { BreakdownPopup } from '../shared/BreakdownPopup.js';
 import { SpellSlotsTracker } from './SpellSlotsTracker.js';
 import { SpellRow } from './SpellRow.js';
-import { CustomSpellModal } from './CustomSpellModal.js';
 import type { CharacterSpell, SpellList, Breakdown } from '../../data/types.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -119,9 +118,6 @@ export function SpellsTab() {
   const [query, setQuery] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('');
   const [stateFilter, setStateFilter] = useState<'all' | 'prepared'>('all');
-  const [showCustomModal, setShowCustomModal] = useState(false);
-  const [customModalListId, setCustomModalListId] = useState<string | undefined>();
-  const [editingSpell, setEditingSpell] = useState<CharacterSpell | undefined>();
   const [dragOverListId, setDragOverListId] = useState<string | null>(null);
   const draggingListId = useRef<string | null>(null);
 
@@ -163,21 +159,38 @@ export function SpellsTab() {
   }
 
   function handleEdit(spell: CharacterSpell) {
-    setEditingSpell(spell);
-    setCustomModalListId(spell.listId);
-    setShowCustomModal(true);
+    jsonEditorState.value = {
+      title: `Edit: ${spell.name}`,
+      value: spell,
+      onSave: (updated) => {
+        setSpells(spells.map(s => s === spell ? { ...spell, ...(updated as CharacterSpell) } : s));
+      },
+    };
   }
 
-  function handleSaveSpell(spell: CharacterSpell) {
-    let updated: CharacterSpell[];
-    if (editingSpell) {
-      updated = spells.map(s => s === editingSpell ? spell : s);
-    } else {
-      updated = [...spells, spell];
-    }
-    setSpells(updated);
-    setShowCustomModal(false);
-    setEditingSpell(undefined);
+  function handleAddCustomSpell(listId?: string) {
+    const defaultListId = listId ?? spellLists[0]?.id;
+    const template: CharacterSpell = {
+      name: 'New Spell',
+      level: 1,
+      school: 'evocation',
+      time: '1 action',
+      range: 'Self',
+      duration: 'Instantaneous',
+      components: 'V, S',
+      texts: ['Spell description.'],
+      selected: false,
+      active: false,
+      listId: defaultListId,
+      source: 'Custom',
+    } as CharacterSpell;
+    jsonEditorState.value = {
+      title: 'Add Custom Spell',
+      value: template,
+      onSave: (updated) => {
+        setSpells([...spells, updated as CharacterSpell]);
+      },
+    };
   }
 
   function handleChangeListAbility(listId: string, ability: string) {
@@ -324,27 +337,10 @@ export function SpellsTab() {
         <button class="cs-btn-small" onClick={() => (window as any).__legacyAddSpellList?.()}>
           + Spell List
         </button>
-        <button class="cs-btn-small" onClick={() => {
-          setEditingSpell(undefined);
-          setCustomModalListId(spellLists[0]?.id);
-          setShowCustomModal(true);
-        }}>
+        <button class="cs-btn-small" onClick={() => handleAddCustomSpell()}>
           + Custom Spell
         </button>
       </div>
-
-      {showCustomModal && (
-        <CustomSpellModal
-          spellLists={spellLists}
-          defaultListId={customModalListId}
-          editSpell={editingSpell}
-          onSave={handleSaveSpell}
-          onClose={() => {
-            setShowCustomModal(false);
-            setEditingSpell(undefined);
-          }}
-        />
-      )}
     </div>
   );
 }

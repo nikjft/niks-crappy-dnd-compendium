@@ -3361,3 +3361,74 @@ a:hover { color: var(--accent-hover); }
   .cs-wizard-asi-grid { grid-template-columns: repeat(2, 1fr); }
   .cs-wizard-footer { padding: 12px 16px; }
 }
+
+/* ─── JSON Editor Modal ──────────────────────────────────────────────────────── */
+.json-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.json-editor-box {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.json-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.json-editor-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-header);
+}
+.json-editor-textarea {
+  flex: 1;
+  min-height: 380px;
+  padding: 16px;
+  background: var(--bg-color);
+  color: var(--text-primary);
+  border: none;
+  resize: none;
+  font-family: 'Courier New', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  overflow-y: auto;
+}
+.json-editor-error {
+  margin: 0;
+  padding: 8px 20px;
+  font-size: var(--fs-sm);
+  color: var(--error-color, #e53e3e);
+  background: rgba(229, 62, 62, 0.08);
+  flex-shrink: 0;
+}
+.json-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+.json-editor-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}

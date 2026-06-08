@@ -1,7 +1,8 @@
 import { render } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { currentCharacter, patchCharacter } from './state/stores.js';
+import { currentCharacter, patchCharacter, jsonEditorState } from './state/stores.js';
 import { startPersistenceEffect } from './state/persistence.js';
+import { JsonEditorModal } from './components/shared/JsonEditorModal.js';
 import { CombatTab } from './components/combat/CombatTab.js';
 import { StatsTab } from './components/stats/StatsTab.js';
 import { InventoryTab } from './components/inventory/InventoryTab.js';
@@ -69,6 +70,34 @@ const qlRoot = document.getElementById('quick-lookup-root');
 if (qlRoot) {
   render(<QuickLookupRoot />, qlRoot);
 }
+
+// ── Global JSON editor (callable from any tab or legacy app.js) ───────────────
+
+function JsonEditorRoot() {
+  const state = jsonEditorState.value;
+  if (!state) return null;
+  return (
+    <JsonEditorModal
+      title={state.title}
+      value={state.value}
+      onSave={(updated) => {
+        state.onSave(updated);
+        jsonEditorState.value = null;
+      }}
+      onClose={() => { jsonEditorState.value = null; }}
+    />
+  );
+}
+
+const jsonEditorRoot = document.getElementById('json-editor-root');
+if (jsonEditorRoot) {
+  render(<JsonEditorRoot />, jsonEditorRoot);
+}
+
+// Bridge for legacy app.js: window.__openJsonEditor(value, title, onSave)
+(window as any).__openJsonEditor = (value: object, title: string, onSave: (updated: object) => void) => {
+  jsonEditorState.value = { title, value, onSave };
+};
 
 // Start debounced persistence
 startPersistenceEffect();

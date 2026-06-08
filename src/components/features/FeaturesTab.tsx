@@ -1,6 +1,5 @@
 import { useState, useRef } from 'preact/hooks';
-import { currentCharacter, patchCharacter } from '../../state/stores.js';
-import { CustomFeatureModal } from './CustomFeatureModal.js';
+import { currentCharacter, patchCharacter, jsonEditorState } from '../../state/stores.js';
 import { LevelHistorySection } from './LevelHistorySection.js';
 import { StartingEquipmentSection } from './StartingEquipmentSection.js';
 import { ClassInfoSection } from './ClassInfoSection.js';
@@ -181,9 +180,6 @@ function FeatureListSection({
 
 export function FeaturesTab() {
   const character = currentCharacter.value;
-  const [showCustomModal, setShowCustomModal] = useState(false);
-  const [customModalListId, setCustomModalListId] = useState<string | undefined>();
-  const [editingFeature, setEditingFeature] = useState<CharacterFeature | undefined>();
   const [dragOverListId, setDragOverListId] = useState<string | null>(null);
   const draggingListId = useRef<string | null>(null);
 
@@ -225,30 +221,42 @@ export function FeaturesTab() {
     patchCharacter({ features: updated });
   }
 
+  function generateId() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36); }
+
   function handleEdit(feature: CharacterFeature) {
-    setEditingFeature(feature);
-    setCustomModalListId(feature.listId);
-    setShowCustomModal(true);
+    jsonEditorState.value = {
+      title: `Edit: ${feature.name}`,
+      value: feature,
+      onSave: (updated) => {
+        patchCharacter({
+          features: features.map(f =>
+            (f.id ? f.id === feature.id : f === feature)
+              ? { ...feature, ...(updated as CharacterFeature) }
+              : f
+          ),
+        });
+      },
+    };
   }
 
   function handleAddCustom(listId: string) {
-    setEditingFeature(undefined);
-    setCustomModalListId(listId);
-    setShowCustomModal(true);
-  }
-
-  function handleSaveCustomFeature(feature: CharacterFeature) {
-    let updated: CharacterFeature[];
-    if (editingFeature) {
-      updated = features.map(f =>
-        (f.id && f.id === editingFeature.id) ? feature : f
-      );
-    } else {
-      updated = [...features, feature];
-    }
-    patchCharacter({ features: updated });
-    setShowCustomModal(false);
-    setEditingFeature(undefined);
+    const template: CharacterFeature = {
+      id: generateId(),
+      name: 'New Feature',
+      category: '',
+      texts: ['Feature description.'],
+      listId,
+      active: false,
+      modifiers: [],
+      source: 'Custom',
+    } as CharacterFeature;
+    jsonEditorState.value = {
+      title: 'Add Custom Feature',
+      value: template,
+      onSave: (updated) => {
+        patchCharacter({ features: [...features, updated as CharacterFeature] });
+      },
+    };
   }
 
   return (
@@ -347,28 +355,11 @@ export function FeaturesTab() {
         </button>
         <button
           class="cs-btn-small"
-          onClick={() => {
-            setEditingFeature(undefined);
-            setCustomModalListId(featureLists[0]?.id);
-            setShowCustomModal(true);
-          }}
+          onClick={() => handleAddCustom(featureLists[0]?.id ?? '')}
         >
           + Custom Feature
         </button>
       </div>
-
-      {showCustomModal && (
-        <CustomFeatureModal
-          featureLists={featureLists}
-          defaultListId={customModalListId}
-          editFeature={editingFeature}
-          onSave={handleSaveCustomFeature}
-          onClose={() => {
-            setShowCustomModal(false);
-            setEditingFeature(undefined);
-          }}
-        />
-      )}
     </div>
   );
 }

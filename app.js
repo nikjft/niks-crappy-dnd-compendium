@@ -8526,7 +8526,18 @@ function setupCharacterSheetEvents() {
   document.getElementById('cs-detail-btn-edit').onclick = () => {
     if (detailModalItem && detailModalType === 'beast') {
       document.getElementById('cs-detail-modal').style.display = 'none';
-      openCustomElementDialog('monsters', detailModalItem);
+      if (typeof window.__openJsonEditor === 'function') {
+        window.__openJsonEditor(
+          detailModalItem,
+          `Edit: ${detailModalItem.name}`,
+          (updated) => {
+            const idx = (currentCharacter.bestiary || []).indexOf(detailModalItem);
+            if (idx >= 0) currentCharacter.bestiary[idx] = { ...detailModalItem, ...updated };
+            else currentCharacter.bestiary = [...(currentCharacter.bestiary || []), updated];
+            saveCurrentCharacterAndRefresh();
+          }
+        );
+      }
     }
   };
   document.getElementById('cs-detail-btn-delete').onclick = () => {

@@ -1,23 +1,11 @@
 import { useState, useRef } from 'preact/hooks';
-import { currentCharacter, charState, expandedRowId, patchCharacter } from '../../state/stores.js';
+import { currentCharacter, charState, expandedRowId, patchCharacter, jsonEditorState } from '../../state/stores.js';
 import { CurrencyEditor } from './CurrencyEditor.js';
-import type { Character, EquipmentItem, Modifier } from '../../data/types.js';
+import type { Character, EquipmentItem } from '../../data/types.js';
 import '../../inventory.css';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-// ─── Weapon / armor / modifier types used by custom creator ──────────────────
-const DAMAGE_TYPES = ['bludgeoning', 'piercing', 'slashing', 'fire', 'cold', 'lightning',
-  'poison', 'acid', 'necrotic', 'radiant', 'psychic', 'thunder', 'force'];
-const DAMAGE_DICE = ['1d4', '1d6', '1d8', '1d10', '1d12', '2d6', '2d8', '2d12'];
-const STAT_OPTIONS = [
-  { key: 'str.score', label: 'STR Score' }, { key: 'dex.score', label: 'DEX Score' },
-  { key: 'con.score', label: 'CON Score' }, { key: 'int.score', label: 'INT Score' },
-  { key: 'wis.score', label: 'WIS Score' }, { key: 'cha.score', label: 'CHA Score' },
-  { key: 'hp.max', label: 'HP Max' }, { key: 'ac', label: 'Armor Class' },
-  { key: 'speed', label: 'Speed' }, { key: 'prof_bonus', label: 'Prof. Bonus' },
-  { key: 'initiative', label: 'Initiative' },
-];
 
 // ─── Single item row ──────────────────────────────────────────────────────────
 
@@ -40,8 +28,6 @@ function ItemRow({
   onCycleState, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync
 }: ItemRowProps) {
   const isExpanded = expandedRowId.value === item.id;
-  const [isEditing, setIsEditing] = useState(false);
-  const [editFields, setEditFields] = useState<Partial<EquipmentItem> | null>(null);
 
   const isAttunedRequired = !!item.requiresAttunement;
   const isWeapon = !!(item.weapon || (item.type && item.type.includes('Weapon')) || item.dmg1);
@@ -57,60 +43,14 @@ function ItemRow({
     return `<p>${item.texts?.join('<br>') ?? 'No description.'}</p>`;
   }
 
-  function addMod() {
-    if (!editFields) return;
-    const currentMods = editFields.modifiers ?? [];
-    setEditFields({
-      ...editFields,
-      modifiers: [...currentMods, { target: 'str.score', type: 'add', value: 0 }]
-    });
-  }
-
-  function updateMod(idx: number, field: string, val: any) {
-    if (!editFields) return;
-    const currentMods = editFields.modifiers ?? [];
-    const updatedMods = currentMods.map((m, i) => i === idx ? { ...m, [field]: val } : m);
-    setEditFields({
-      ...editFields,
-      modifiers: updatedMods
-    });
-  }
-
-  function removeMod(idx: number) {
-    if (!editFields) return;
-    const currentMods = editFields.modifiers ?? [];
-    const updatedMods = currentMods.filter((_, i) => i !== idx);
-    setEditFields({
-      ...editFields,
-      modifiers: updatedMods
-    });
-  }
-
-  function handleSaveProperties() {
-    if (!editFields) return;
-    const isWeapon = editFields.type === 'Weapon';
-    const isArmor  = editFields.type === 'Armor';
-    const isShield = editFields.type === 'Shield';
-
-    // Clean up properties depending on type
-    const cleanedFields = { ...editFields };
-    if (!isWeapon) {
-      delete cleanedFields.dmg1;
-      delete cleanedFields.dmg2;
-      delete cleanedFields.dmgType;
-      delete cleanedFields.bonusWeapon;
-    }
-    if (!isArmor && !isShield) {
-      delete cleanedFields.ac;
-      delete cleanedFields.bonusAc;
-    }
-
-    const updated = equipment.map(i =>
-      i.id !== item.id ? i : { ...i, ...cleanedFields, weapon: isWeapon, armor: isArmor, shield: isShield }
-    );
-    patchCharacter({ equipment: updated });
-    setIsEditing(false);
-    setEditFields(null);
+  function openJsonEdit() {
+    jsonEditorState.value = {
+      title: `Edit: ${item.name}`,
+      value: item,
+      onSave: (updated) => {
+        patchCharacter({ equipment: equipment.map(i => i.id === item.id ? { ...i, ...(updated as EquipmentItem) } : i) });
+      },
+    };
   }
 
   function getItemSubtext() {
@@ -214,180 +154,24 @@ function ItemRow({
               </select>
             </div>
             <div class="item-actions-right">
-              {isEditing ? (
-                <>
-                  <button class="cs-btn-small" onClick={() => { setIsEditing(false); setEditFields(null); }}>Cancel</button>
-                  <button class="cs-btn-main" onClick={handleSaveProperties}>Save</button>
-                </>
-              ) : (
-                <>
-                  <button class="cs-btn-small" onClick={() => {
-                    setEditFields({
-                      name: item.name,
-                      weight: item.weight,
-                      type: item.type,
-                      requiresAttunement: item.requiresAttunement,
-                      ac: item.ac,
-                      bonusAc: item.bonusAc,
-                      dmg1: item.dmg1,
-                      dmg2: item.dmg2,
-                      dmgType: item.dmgType,
-                      bonusWeapon: item.bonusWeapon,
-                      modifiers: item.modifiers ? JSON.parse(JSON.stringify(item.modifiers)) : []
-                    });
-                    setIsEditing(true);
-                  }}>
-                    <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
-                  </button>
-                  {item.compendiumId && (
-                    <button class="cs-btn-small" onClick={() => onSync(item)}>
-                      <span class="material-icons-outlined" style="font-size: 11px;">sync</span> Sync
-                    </button>
-                  )}
-                  {(item.weapon || item.type === 'Consumable' || item.type === 'Gear') && (
-                    <button class={`cs-btn-small${isPinned ? ' active' : ''}`} onClick={() => onTogglePin(item)}>
-                      <span class="material-icons-outlined" style="font-size: 11px;">push_pin</span> {isPinned ? 'Pinned' : 'Pin'}
-                    </button>
-                  )}
-                  <button class="cs-btn-small danger" onClick={() => onDelete(item.id!)}>
-                    <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
-                  </button>
-                </>
+              <button class="cs-btn-small" onClick={openJsonEdit}>
+                <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
+              </button>
+              {item.compendiumId && (
+                <button class="cs-btn-small" onClick={() => onSync(item)}>
+                  <span class="material-icons-outlined" style="font-size: 11px;">sync</span> Sync
+                </button>
               )}
+              {(item.weapon || item.type === 'Consumable' || item.type === 'Gear') && (
+                <button class={`cs-btn-small${isPinned ? ' active' : ''}`} onClick={() => onTogglePin(item)}>
+                  <span class="material-icons-outlined" style="font-size: 11px;">push_pin</span> {isPinned ? 'Pinned' : 'Pin'}
+                </button>
+              )}
+              <button class="cs-btn-small danger" onClick={() => onDelete(item.id!)}>
+                <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
+              </button>
             </div>
           </div>
-
-          {isEditing && editFields && (
-            <div class="item-edit-form">
-              <div class="item-edit-row">
-                <div class="item-edit-field flex2">
-                  <label>Name</label>
-                  <input type="text" class="hp-modal-input" value={editFields.name ?? ''} style="width:100%;margin:0;"
-                    onInput={e => setEditFields({ ...editFields, name: (e.target as HTMLInputElement).value })} />
-                </div>
-                <div class="item-edit-field flex1">
-                  <label>Weight (lbs)</label>
-                  <input type="number" step="0.1" class="hp-modal-input" value={editFields.weight ?? 0} style="width:100%;margin:0;"
-                    onInput={e => setEditFields({ ...editFields, weight: parseFloat((e.target as HTMLInputElement).value) || 0 })} />
-                </div>
-                <div class="item-edit-field flex1">
-                  <label>Quantity</label>
-                  <div class="item-qty-adjuster">
-                    <button onClick={() => onUpdateQty(item.id!, (item.quantity ?? 1) - 1)}>-</button>
-                    <input type="number" value={item.quantity ?? 1}
-                      onChange={e => onUpdateQty(item.id!, parseInt((e.target as HTMLInputElement).value) || 1)} />
-                    <button onClick={() => onUpdateQty(item.id!, (item.quantity ?? 1) + 1)}>+</button>
-                  </div>
-                </div>
-              </div>
-              <div class="item-edit-row">
-                <div class="item-edit-field flex1">
-                  <label>Type</label>
-                  <select class="hp-modal-input" value={editFields.type ?? 'Gear'} style="width:100%;margin:0;"
-                    onChange={e => setEditFields({ ...editFields, type: (e.target as HTMLSelectElement).value })}>
-                    <option value="Gear">Gear</option>
-                    <option value="Weapon">Weapon</option>
-                    <option value="Armor">Armor</option>
-                    <option value="Shield">Shield</option>
-                    <option value="Consumable">Consumable</option>
-                  </select>
-                </div>
-                <div class="item-edit-field" style="justify-content:center; margin-top:14px;">
-                  <input type="checkbox" id={`attune-edit-${item.id}`} checked={editFields.requiresAttunement ?? false}
-                    onChange={e => setEditFields({ ...editFields, requiresAttunement: (e.target as HTMLInputElement).checked })} />
-                  <label for={`attune-edit-${item.id}`} style="font-size:11px; color:var(--text-secondary);">Requires Attunement</label>
-                </div>
-              </div>
-
-              {/* Weapon Specific Fields */}
-              {editFields.type === 'Weapon' && (
-                <div class="item-edit-row">
-                  <div class="item-edit-field flex1">
-                    <label>Weapon Bonus</label>
-                    <input type="text" class="hp-modal-input" value={editFields.bonusWeapon ?? ''} placeholder="e.g. +1" style="width:100%;margin:0;"
-                      onInput={e => setEditFields({ ...editFields, bonusWeapon: (e.target as HTMLInputElement).value })} />
-                  </div>
-                  <div class="item-edit-field flex1">
-                    <label>Damage 1</label>
-                    <input type="text" class="hp-modal-input" value={editFields.dmg1 ?? ''} placeholder="e.g. 1d8" style="width:100%;margin:0;"
-                      onInput={e => setEditFields({ ...editFields, dmg1: (e.target as HTMLInputElement).value })} />
-                  </div>
-                  <div class="item-edit-field flex1">
-                    <label>Damage 2</label>
-                    <input type="text" class="hp-modal-input" value={editFields.dmg2 ?? ''} placeholder="e.g. 1d10" style="width:100%;margin:0;"
-                      onInput={e => setEditFields({ ...editFields, dmg2: (e.target as HTMLInputElement).value })} />
-                  </div>
-                  <div class="item-edit-field flex1">
-                    <label>Damage Type</label>
-                    <input type="text" class="hp-modal-input" value={editFields.dmgType ?? ''} placeholder="e.g. slashing" style="width:100%;margin:0;"
-                      onInput={e => setEditFields({ ...editFields, dmgType: (e.target as HTMLInputElement).value })} />
-                  </div>
-                </div>
-              )}
-
-              {/* Armor / Shield Specific Fields */}
-              {(editFields.type === 'Armor' || editFields.type === 'Shield') && (
-                <div class="item-edit-row">
-                  <div class="item-edit-field flex1">
-                    <label>Base AC</label>
-                    <input type="number" class="hp-modal-input" value={editFields.ac ?? 0} style="width:100%;margin:0;"
-                      onInput={e => setEditFields({ ...editFields, ac: parseInt((e.target as HTMLInputElement).value) || 0 })} />
-                  </div>
-                  <div class="item-edit-field flex1">
-                    <label>AC Bonus</label>
-                    <input type="text" class="hp-modal-input" value={editFields.bonusAc ?? ''} placeholder="e.g. +2" style="width:100%;margin:0;"
-                      onInput={e => setEditFields({ ...editFields, bonusAc: (e.target as HTMLInputElement).value })} />
-                  </div>
-                </div>
-              )}
-
-              {/* Modifiers Section */}
-              <div class="feat-mods-section" style="margin-top:12px;">
-                <div class="feat-mods-header" style="display:flex; justify-content:space-between; align-items:center;">
-                  <span class="feat-mods-title" style="font-size:11px; font-weight:600; color:var(--text-secondary);">Modifiers (when equipped)</span>
-                  <button class="cs-btn-small secondary" onClick={addMod} style="font-size:10px; padding:2px 8px;">
-                    + Add Modifier
-                  </button>
-                </div>
-                {(editFields.modifiers ?? []).length === 0 && (
-                  <div style="font-size:11px; color:var(--text-muted); font-style:italic; padding:4px 0;">
-                    No modifiers. Click + Add Modifier to apply stat changes when equipped.
-                  </div>
-                )}
-                {(editFields.modifiers ?? []).map((mod: any, idx: number) => (
-                  <div key={idx} class="feat-mod-row" style="display:flex; gap:6px; margin-top:6px;">
-                    <select
-                      class="hp-modal-input"
-                      style="flex:2; margin:0;"
-                      value={mod.target}
-                      onChange={e => updateMod(idx, 'target', (e.target as HTMLSelectElement).value)}
-                    >
-                      {STAT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                    </select>
-                    <select
-                      class="hp-modal-input"
-                      style="flex:1.5; margin:0;"
-                      value={mod.type}
-                      onChange={e => updateMod(idx, 'type', (e.target as HTMLSelectElement).value)}
-                    >
-                      <option value="add">+/- (add)</option>
-                      <option value="set">= (set to)</option>
-                      <option value="min">min</option>
-                      <option value="max">max</option>
-                    </select>
-                    <input
-                      type="number"
-                      class="hp-modal-input"
-                      style="flex:1; margin:0; text-align:center;"
-                      value={mod.value}
-                      onInput={e => updateMod(idx, 'value', parseInt((e.target as HTMLInputElement).value) || 0)}
-                    />
-                    <button class="cs-btn-small danger" style="padding:2px 6px;" onClick={() => removeMod(idx)}>✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div class="inline-html-content" dangerouslySetInnerHTML={{ __html: getDetailHTMLContent(item) }} />
         </div>
