@@ -139,15 +139,9 @@ export function SpellsTab() {
 
 
   function handleCycleState(spell: CharacterSpell) {
-    // Cycle: unprepared → prepared → active → unprepared (leveled spells)
-    //        inactive → active → inactive (cantrips)
+    // Cycle: unprepared → prepared → active → unprepared (all spells including cantrips)
     setSpells(spells.map(s => {
       if (s !== spell) return s;
-      if (s.level === 0) {
-        // Cantrip: toggle active
-        return { ...s, active: !s.active };
-      }
-      // Leveled: unprepared → prepared → active → unprepared
       if (!s.selected && !s.active) return { ...s, selected: true, active: false };
       if (s.selected && !s.active)  return { ...s, selected: true, active: true };
       return { ...s, selected: false, active: false };

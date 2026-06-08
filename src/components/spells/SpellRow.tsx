@@ -15,39 +15,13 @@ const SCHOOL_ABBR: Record<string, string> = {
 };
 
 /**
- * Spell state cycle (non-cantrips):
+ * Spell state cycle (all spells including cantrips):
  *   unprepared (hollow)  →  prepared (filled)  →  active/concentrating (bolt)  →  unprepared
- * Cantrips are always known; they cycle:
- *   inactive (hollow)  →  active (bolt)  →  inactive
  */
 function StateButton({ spell, onCycle }: { spell: CharacterSpell; onCycle: () => void }) {
-  const isCantrip = spell.level === 0;
-  const isActive  = !!spell.active;
+  const isActive   = !!spell.active;
   const isPrepared = !!spell.selected;
 
-  if (isCantrip) {
-    // Cantrips: hollow ↔ active (bolt)
-    return isActive ? (
-      <button
-        class="spell-state-btn spell-state-active"
-        onClick={e => { e.stopPropagation(); onCycle(); }}
-        aria-label="Cantrip active — click to clear"
-        title="Active — click to clear"
-      >
-        <span class="material-icons-outlined" style="font-size: 14px;">bolt</span>
-      </button>
-    ) : (
-      <button
-        class="cs-prof-indicator"
-        onClick={e => { e.stopPropagation(); onCycle(); }}
-        aria-label="Cantrip — click to mark active"
-        title="Click to mark active"
-        style="margin-right: 8px;"
-      />
-    );
-  }
-
-  // Leveled spells: hollow → filled → bolt → hollow
   if (isActive) {
     return (
       <button
