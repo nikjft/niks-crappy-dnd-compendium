@@ -34,7 +34,7 @@
 - [x] *DONE* ENHANCEMENT: Eliminate "half proficiency" from proficiencies/skills list. Only options are proficient (empty circle), proficient (full circle), expert (filled circle with dot). (Preact SkillsList and ToolsList cycle 0→1→2 only; no user-settable 0.5)
 - [x] *DONE* ENHANCEMENT: Add test suite to test full UX with headless browser. Importing, clearing db, browsing compendium, adding and deleting characters, updating each tab, adding each type of entity, deleting each type of entity
 - [x] *DONE* Enhancement: Add character option for Weapon Masteries. Just category with an entry for each base weapon (Longsword, short sword, etc.). Each one should list the mastery property and effect for that weapon.
-- [ ] *BACKLOG - do not do* Enhancement: UX clean-up
+- [ ] Enhancement: UX clean-up
     - Default action button orange, otherwise gray
     - Make font sizes consistent
     - Make toggle buttons for active/inactive/equipped/etc. consistent in placement and general look (empty for not, filled for active, no other borders).
