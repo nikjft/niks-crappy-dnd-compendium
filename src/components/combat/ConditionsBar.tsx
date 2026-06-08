@@ -3,8 +3,9 @@ import { patchCharacter } from '../../state/stores.js';
 import type { Character, CharacterCondition } from '../../data/types.js';
 
 const STANDARD_CONDITIONS = [
-  'Blinded', 'Charmed', 'Deafened', 'Exhaustion', 'Frightened',
-  'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified',
+  'Blinded', 'Charmed', 'Concentrating', 'Deafened', 'Exhaustion',
+  'Exhaustion (Level 1)', 'Exhaustion (Level 2)', 'Exhaustion (Level 3)', 'Exhaustion (Level 4)', 'Exhaustion (Level 5)',
+  'Frightened', 'Grappled', 'Incapacitated', 'Invisible', 'Paralyzed', 'Petrified',
   'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious',
 ];
 
@@ -18,6 +19,11 @@ const CONDITION_EFFECTS: Record<string, string[]> = {
     "Can't attack the charmer or target them with damaging abilities or magical effects.",
     'Charmer has advantage on ability checks to interact with you socially.',
   ],
+  Concentrating: [
+    'You are focusing on maintaining a spell or effect.',
+    'Taking damage forces a Constitution saving throw (DC 10 or half the damage taken, whichever is higher) to maintain concentration.',
+    'Concentration is lost if you are Incapacitated, die, or cast another spell requiring concentration.',
+  ],
   Deafened: [
     "Can't hear; automatically fail any ability check requiring hearing.",
   ],
@@ -25,6 +31,31 @@ const CONDITION_EFFECTS: Record<string, string[]> = {
     'Cumulative levels (max 6). You die if you reach level 6.',
     'Each level: −2 to all d20 tests (attack rolls, ability checks, saving throws).',
     'Each level: Speed reduced by 5 ft.',
+    'Long Rest removes 1 level.',
+  ],
+  'Exhaustion (Level 1)': [
+    '−2 to all d20 tests (attack rolls, ability checks, saving throws).',
+    'Speed reduced by 5 ft.',
+    'Long Rest removes 1 level.',
+  ],
+  'Exhaustion (Level 2)': [
+    '−4 to all d20 tests (attack rolls, ability checks, saving throws).',
+    'Speed reduced by 10 ft.',
+    'Long Rest removes 1 level.',
+  ],
+  'Exhaustion (Level 3)': [
+    '−6 to all d20 tests (attack rolls, ability checks, saving throws).',
+    'Speed reduced by 15 ft.',
+    'Long Rest removes 1 level.',
+  ],
+  'Exhaustion (Level 4)': [
+    '−8 to all d20 tests (attack rolls, ability checks, saving throws).',
+    'Speed reduced by 20 ft.',
+    'Long Rest removes 1 level.',
+  ],
+  'Exhaustion (Level 5)': [
+    '−10 to all d20 tests (attack rolls, ability checks, saving throws).',
+    'Speed reduced by 25 ft.',
     'Long Rest removes 1 level.',
   ],
   Frightened: [

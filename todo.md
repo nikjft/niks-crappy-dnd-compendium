@@ -22,4 +22,21 @@
     - Features, be able to add description and modifiers
 - [x] *DONE* BUG: Bestiary in compendium should have its first facet be "By CR" and "By Type". Clicking on By Type provides a list of creature types. Clicking on a type finds matching creatures. By CR does the same with CR. Clicking on By CR will show CRs in the following groupings: < 1, 1, 2 - 5, 6 - 10, 11 - 16, 17 - 20, 21+. Clicking on a CR range will reveal a list of creatures within that range.
 - [x] *DONE* enhancement: Have URLs for individual characters and tabs so you can reload browser without losing state
+- [x] *DO NOT DO* BUG: Sometimes navigating between sections will cause the Characters list to disappear or individual characters to sometimes not show up. Unclear root cause. Also cannot delete characters.
+- [ ] Eliminate attunement slots tracker in inventory
+- [ ] Eliminate inventory search box
+- [x] *Done* Enhancement: Shield indicating equipped items should be filled in, not outline.
+- [ ] Enhancement: Eliminate the big add from compendium/add custom item buttons from equipment list. The + in each list is sufficient.
+- [ ] BUG: There are two icons indicating whether a spell is prepared. Replace with a single circle, empty by default, filled if clicked on. Similar to proficiencies. Eliminate "prepared" eliminate any code creating meaning from "active" spells.
+- [ ] Enhancement: Add "Concentrating" to condition list with appropriate description
+- [ ] Enhancement: Add exhaustion levels to considitions (1, 2, 3, 4, 5)
+- [ ] ENHANCEMENT: When adding spells/items/etc from compendium/picker view, replace cancel button with "OK". (Same effect - exit to sheet)
+- [ ] ENHANCEMENT: Eliminate "half proficiency" from proficiencies/skills list. Only options are proficient (empty circle), proficient (full circle), expert (filled circle with dot)
 - [ ] ENHANCEMENT: Add test suite to test full UX with headless browser. Importing, clearing db, browsing compendium, adding and deleting characters, updating each tab, adding each type of entity, deleting each type of entity
+- [ ] Enhancement: Add character option for Weapon Masteries. Just category with an entry for each base weapon (Longsowrd, short sword, etc.). Each one should list the mastery property and effect for that weapon.
+- [ ] *BACKLOG - do not do* Enhancement: UX clean-up. Fix odd sized buttons, varying text size, odd colors, just make consistent
+- [ ] Enhancement: Update equipping of weapons (and only weapons) to on-hand and off-hand. Must respect rules around two weapon fighting and related feats:
+    - Do not add your ability modifier (Typically STR, for finesse weapons it will be the greater of STR or DEX)to the off-hand attack's to hit or damage unless it is negative
+    - If you have the two weapon fighting style active, you can add your ability modifier
+- [ ] Enhancement: Update abilities view so that the score is larger than the bonus (swap position of bonus and score)
+- [ ] BUG: Attunement requirements not getting mapped to items. Suspect import parser.

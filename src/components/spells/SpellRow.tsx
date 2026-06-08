@@ -4,7 +4,6 @@ import type { CharacterSpell } from '../../data/types.js';
 
 interface Props {
   spell: CharacterSpell;
-  onToggleActive: (spell: CharacterSpell) => void;
   onTogglePrepared: (spell: CharacterSpell) => void;
   onEdit: (spell: CharacterSpell) => void;
   onDelete: (spell: CharacterSpell) => void;
@@ -15,26 +14,25 @@ const SCHOOL_ABBR: Record<string, string> = {
   evocation: 'Evo', illusion: 'Ill', necromancy: 'Nec', transmutation: 'Trs',
 };
 
-export function SpellRow({ spell, onToggleActive, onTogglePrepared, onEdit, onDelete }: Props) {
+export function SpellRow({ spell, onTogglePrepared, onEdit, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
   const isCantrip = spell.level === 0;
   const school = spell.school ? (SCHOOL_ABBR[spell.school.toLowerCase()] ?? spell.school.slice(0, 3)) : '';
 
   return (
-    <div class={`spell-row${spell.active ? ' spell-active' : ''}${spell.selected ? ' spell-prepared' : ''}`}>
+    <div class={`spell-row${spell.selected ? ' spell-prepared' : ''}`}>
       <div class="spell-row-main" onClick={() => setExpanded(v => !v)}>
         {/* Prepared indicator / cantrip star */}
         {isCantrip ? (
-          <span class="spell-prep-star" title="Cantrip">✦</span>
+          <span class="spell-prep-star" title="Cantrip" style="margin-right: 8px;">✦</span>
         ) : (
           <button
-            class={`spell-prep-btn${spell.selected ? ' checked' : ''}`}
+            class={`cs-prof-indicator${spell.selected ? ' prof' : ''}`}
             onClick={e => { e.stopPropagation(); onTogglePrepared(spell); }}
             aria-label={spell.selected ? 'Un-prepare spell' : 'Prepare spell'}
             title={spell.selected ? 'Prepared' : 'Not prepared'}
-          >
-            {spell.selected ? '☑' : '☐'}
-          </button>
+            style="margin-right: 8px;"
+          />
         )}
 
         <div class="spell-name-block">
@@ -48,14 +46,6 @@ export function SpellRow({ spell, onToggleActive, onTogglePrepared, onEdit, onDe
         </div>
 
         <div class="spell-row-actions" onClick={e => e.stopPropagation()}>
-          {/* Active/concentration toggle */}
-          <button
-            class={`spell-action-btn${spell.active ? ' spell-btn-active' : ''}`}
-            onClick={() => onToggleActive(spell)}
-            title={spell.active ? 'Deactivate' : 'Activate (concentration/effect)'}
-          >
-            <span class="material-icons-outlined" style="font-size: 14px;">bolt</span>
-          </button>
           {/* Edit spell */}
           <button
             class="spell-action-btn"

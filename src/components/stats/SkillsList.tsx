@@ -46,8 +46,7 @@ export function SkillsList({ character, state }: Props) {
     e.stopPropagation();
     const currentProf = parseFloat(String(skillsProf[skillName])) || 0;
     let nextProf = 0;
-    if (currentProf === 0) nextProf = 0.5;
-    else if (currentProf === 0.5) nextProf = 1;
+    if (currentProf === 0) nextProf = 1;
     else if (currentProf === 1) nextProf = 2;
     else if (currentProf === 2) nextProf = 0;
 
@@ -107,10 +106,7 @@ export function SkillsList({ character, state }: Props) {
 
             let profClass = '';
             let profTitle = 'Not Proficient';
-            if (prof === 0.5) {
-              profClass = 'half';
-              profTitle = 'Jack of All Trades';
-            } else if (prof === 1) {
+            if (prof === 1) {
               profClass = 'prof';
               profTitle = 'Proficient';
             } else if (prof === 2) {

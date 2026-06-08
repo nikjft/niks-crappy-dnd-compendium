@@ -8,7 +8,6 @@ describe('InventoryTab Component', () => {
   let char: Character;
 
   beforeEach(() => {
-    // Standard mock data for character
     char = {
       name: 'Test Fighter',
       level: 5,
@@ -88,7 +87,6 @@ describe('InventoryTab Component', () => {
     };
     currentCharacter.value = char;
 
-    // Mock window functions called by the component
     if (typeof window !== 'undefined') {
       (window as any).getDetailHTML = vi.fn().mockReturnValue('<div>Mock Item Details</div>');
       (window as any).syncLocalEntityWithCompendium = vi.fn();
@@ -98,10 +96,10 @@ describe('InventoryTab Component', () => {
 
   test('renders currencies correctly', () => {
     render(<InventoryTab />);
-    expect(screen.getByText('100')).toBeInTheDocument(); // GP
-    expect(screen.getByText('20')).toBeInTheDocument();  // SP
-    expect(screen.getByText('50')).toBeInTheDocument();  // CP
-    expect(screen.getByText('2')).toBeInTheDocument();   // PP
+    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
+    expect(screen.getByText('50')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   test('opens currency editor and updates currency', () => {
@@ -118,11 +116,8 @@ describe('InventoryTab Component', () => {
     expect(currentCharacter.value?.currency?.gp).toBe(150);
   });
 
-  test('renders load (weight) and attunement status correctly', () => {
+  test('renders attunement status correctly', () => {
     render(<InventoryTab />);
-    // Total weight should be: item-1 (3) + item-2 (6) + item-3 (10) + item-5 (0) = 19 lbs
-    // plate armor (item-4) is stored (active=false, selected=false), so its 65 lbs is ignored!
-    expect(screen.getByText(/Load:/)).toHaveTextContent('19.0 / 240 lbs');
     expect(screen.getByText(/Attuned:/)).toHaveTextContent('1 / 3');
   });
 
@@ -130,105 +125,21 @@ describe('InventoryTab Component', () => {
     render(<InventoryTab />);
     const item = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(item.active).toBe(false);
-    expect(item.selected).toBe(true); // initially carried
+    expect(item.selected).toBe(true);
 
-    // Click cycle btn once: Carried (●) → Equipped (🛡️)
     fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
     const equipped = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(equipped.active).toBe(true);
     expect(equipped.selected).toBe(true);
 
-    // Click cycle btn again: Equipped (🛡️) → Not Carried (○)
     fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
     const uncarried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(uncarried.active).toBe(false);
     expect(uncarried.selected).toBe(false);
 
-    // Click cycle btn again: Not Carried (○) → Carried (●)
     fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
     const carried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(carried.active).toBe(false);
     expect(carried.selected).toBe(true);
-  });
-
-  test('filters items using the search bar', () => {
-    render(<InventoryTab />);
-    expect(screen.getByText('Longsword +1')).toBeInTheDocument();
-    expect(screen.getByText('Rope, Hempen (50ft)')).toBeInTheDocument();
-
-    const searchInput = screen.getByPlaceholderText('Search inventory...');
-    fireEvent.input(searchInput, { target: { value: 'Sword' } });
-
-    expect(screen.getByText('Longsword +1')).toBeInTheDocument();
-    expect(screen.queryByText('Rope, Hempen (50ft)')).not.toBeInTheDocument();
-  });
-
-  test('toggles settings panel and updates weight tracking & attunement limit', () => {
-    render(<InventoryTab />);
-    const settingsBtn = screen.getByRole('button', { name: /Settings/i });
-    fireEvent.click(settingsBtn);
-
-    expect(screen.getByText('Inventory Settings')).toBeInTheDocument();
-
-    const checkbox = screen.getByLabelText('Toggle weight tracking') as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
-    fireEvent.click(checkbox);
-    expect(currentCharacter.value?.weightTrackingEnabled).toBe(false);
-
-    const attuneInput = screen.getByLabelText('Max attunement slots') as HTMLInputElement;
-    expect(attuneInput.value).toBe('3');
-    fireEvent.change(attuneInput, { target: { value: '4' } });
-    expect(currentCharacter.value?.attunementMax).toBe(4);
-  });
-
-  test('adds, renames and deletes custom gear lists/containers in settings', () => {
-    render(<InventoryTab />);
-    fireEvent.click(screen.getByRole('button', { name: /Settings/i }));
-
-    // Try adding a new list
-    const listInput = screen.getByPlaceholderText('New List Name (e.g. Bag of Holding)');
-    fireEvent.input(listInput, { target: { value: 'Haversack' } });
-    fireEvent.click(screen.getByText('Add List'));
-
-    expect(currentCharacter.value?.itemLists?.some((l: any) => l.name === 'Haversack')).toBe(true);
-
-    const haversack = currentCharacter.value?.itemLists?.find((l: any) => l.name === 'Haversack');
-
-    // Rename
-    const renameInput = screen.getByLabelText(`Rename list Haversack`) as HTMLInputElement;
-    fireEvent.change(renameInput, { target: { value: 'Handy Haversack' } });
-    expect(currentCharacter.value?.itemLists?.some((l: any) => l.name === 'Handy Haversack')).toBe(true);
-
-    // Delete Handy Haversack (it is empty, so it should succeed)
-    const delBtn = screen.getByLabelText(`Delete list Handy Haversack`);
-    fireEvent.click(delBtn);
-    expect(currentCharacter.value?.itemLists?.some((l: any) => l.name === 'Handy Haversack')).toBe(false);
-  });
-
-  test('creates custom items', () => {
-    render(<InventoryTab />);
-    const addCustomBtn = screen.getByText('+ Create Custom Item');
-    fireEvent.click(addCustomBtn);
-
-    const nameInput = screen.getByPlaceholderText('e.g. Iron Spike');
-    fireEvent.input(nameInput, { target: { value: 'Iron Spikes (10)' } });
-
-    const weightInput = screen.getByPlaceholderText('0.0');
-    fireEvent.input(weightInput, { target: { value: '5.0' } });
-
-    // Type select: first select after the name/weight/qty inputs
-    const selects = document.querySelectorAll('select');
-    const typeSelect = Array.from(selects).find(
-      s => Array.from(s.options).some(o => o.value === 'Weapon')
-    ) as HTMLSelectElement;
-    if (typeSelect) fireEvent.change(typeSelect, { target: { value: 'Gear' } });
-
-    fireEvent.click(screen.getByText('Create Item'));
-
-    expect(currentCharacter.value?.equipment?.some((e: any) => e.name === 'Iron Spikes (10)')).toBe(true);
-    const addedItem = currentCharacter.value?.equipment?.find((e: any) => e.name === 'Iron Spikes (10)') as any;
-    expect(addedItem.weight).toBe(5);
-    expect(addedItem.type).toBe('Gear');
-    expect(addedItem.selected).toBe(true); // starts carried
   });
 });

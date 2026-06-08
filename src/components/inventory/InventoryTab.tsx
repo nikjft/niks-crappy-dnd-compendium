@@ -1,7 +1,6 @@
 import { useState } from 'preact/hooks';
 import { currentCharacter, charState, expandedRowId, patchCharacter } from '../../state/stores.js';
 import { CurrencyEditor } from './CurrencyEditor.js';
-import { SettingsPanel } from './SettingsPanel.js';
 import type { Character, EquipmentItem, Modifier } from '../../data/types.js';
 import '../../inventory.css';
 
@@ -124,7 +123,7 @@ function ItemRow({
   function renderStateIcon() {
     if (isEquipped) {
       return (
-        <span class="material-icons-outlined state-icon" style="font-size: 14px; color: var(--accent-color);">
+        <span class="material-icons state-icon" style="font-size: 14px; color: var(--accent-color);">
           shield
         </span>
       );
@@ -454,52 +453,13 @@ export function InventoryTab() {
   const char = characterVal;
 
   const [showCurrencyEdit, setShowCurrencyEdit] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [showCustomCreator, setShowCustomCreator] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Custom Item Creator fields
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemWeight, setNewItemWeight] = useState(0);
-  const [newItemQty, setNewItemQty] = useState(1);
-  const [newItemType, setNewItemType] = useState('Gear');
-  const [newItemAttune, setNewItemAttune] = useState(false);
-  const [newItemListId, setNewItemListId] = useState(char.itemLists?.[0]?.id ?? 'default');
-  // Weapon fields
-  const [newItemDmg, setNewItemDmg] = useState('1d6');
-  const [newItemDmgType, setNewItemDmgType] = useState('piercing');
-  const [newItemProps, setNewItemProps] = useState('');
-  // Armor fields
-  const [newItemAC, setNewItemAC] = useState(10);
-  // Modifiers
-  const [newItemMods, setNewItemMods] = useState<Modifier[]>([]);
 
   const equipment = (char.equipment ?? []) as EquipmentItem[];
   const itemLists = char.itemLists ?? [];
   const weightEnabled = char.weightTrackingEnabled ?? false;
   const attuneMax = char.attunementMax ?? 3;
 
-  // Totals
-  let totalWeight = 0;
-  equipment.forEach(item => {
-    if (item.active || item.selected) {
-      totalWeight += (parseFloat(String(item.weight)) || 0) * (item.quantity ?? 1);
-    }
-  });
-
-  const strScore = state['str.score']?.total ?? char.baseStats.str;
-  const maxWeight = strScore * 15;
-  const isOverburdened = totalWeight > maxWeight;
   const attunedCount = equipment.filter(e => e.active && e.requiresAttunement).length;
-
-  // Filter by search query
-  const filteredEquipment = equipment.filter(item => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return (item.name ?? '').toLowerCase().includes(q)
-      || (item.type ?? '').toLowerCase().includes(q)
-      || (item.texts ?? []).some(t => t.toLowerCase().includes(q));
-  });
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
 
@@ -555,62 +515,7 @@ export function InventoryTab() {
     (window as any).__legacyOpenPicker?.('items', listId);
   }
 
-  function handleCreateCustomItem() {
-    const name = newItemName.trim();
-    if (!name) return;
 
-    const isWeapon = newItemType === 'Weapon';
-    const isArmor  = newItemType === 'Armor';
-    const isShield = newItemType === 'Shield';
-
-    const newItem: EquipmentItem = {
-      id: generateId(),
-      name,
-      weight: newItemWeight,
-      quantity: newItemQty,
-      type: newItemType,
-      requiresAttunement: newItemAttune,
-      listId: newItemListId,
-      active: false,
-      selected: true,
-      source: 'Custom',
-      texts: ['Custom item.'],
-      weapon: isWeapon,
-      armor: isArmor,
-      shield: isShield,
-      ...(isWeapon && newItemDmg ? { dmg1: newItemDmg, dmgType: newItemDmgType } : {}),
-      ...(isWeapon && newItemProps.trim() ? { properties: newItemProps.split(',').map(p => p.trim()).filter(Boolean) } : {}),
-      ...(isArmor || isShield ? { ac: newItemAC } : {}),
-      ...(newItemMods.length > 0 ? { modifiers: newItemMods } : {}),
-    };
-
-    patchCharacter({ equipment: [...equipment, newItem] });
-
-    // Reset
-    setNewItemName('');
-    setNewItemWeight(0);
-    setNewItemQty(1);
-    setNewItemType('Gear');
-    setNewItemAttune(false);
-    setNewItemDmg('1d6');
-    setNewItemDmgType('piercing');
-    setNewItemProps('');
-    setNewItemAC(10);
-    setNewItemMods([]);
-    setShowCustomCreator(false);
-  }
-
-  function addMod() {
-    setNewItemMods([...newItemMods, { target: 'str.score', type: 'add', value: 0 }]);
-  }
-
-  function updateMod(idx: number, field: keyof Modifier, val: any) {
-    setNewItemMods(newItemMods.map((m, i) => i === idx ? { ...m, [field]: val } : m));
-  }
-
-  function removeMod(idx: number) {
-    setNewItemMods(newItemMods.filter((_, i) => i !== idx));
-  }
 
   const currency = char.currency ?? { pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 };
 
@@ -634,40 +539,16 @@ export function InventoryTab() {
 
       {showCurrencyEdit && <CurrencyEditor character={char} />}
 
-      {/* ── Capacity & Attunement Bar ── */}
-      <div class="load-attune-row">
-        <div class={`load-display ${isOverburdened && weightEnabled ? 'overburdened' : ''}`}>
-          <span class="material-icons-outlined" style="font-size: 14px; margin-right: 4px;">scale</span> Load:{' '}
-          {weightEnabled
-            ? <>{totalWeight.toFixed(1)} / {maxWeight} lbs{isOverburdened && <span class="capacity-indicator">Overburdened</span>}</>
-            : 'Disabled'
-          }
-        </div>
-        <div class="attune-display">
+      {/* ── Attunement Bar ── */}
+      <div class="load-attune-row" style="justify-content: flex-start;">
+        <div class="attune-display" style="margin: 0;">
           Attuned: {attunedCount} / {attuneMax}
         </div>
-        <button class="btn-header-action" onClick={() => setShowSettings(!showSettings)} style="display: inline-flex; align-items: center; gap: 4px;">
-          <span class="material-icons-outlined" style="font-size: 14px;">{showSettings ? 'close' : 'settings'}</span> {showSettings ? 'Close Settings' : 'Settings'}
-        </button>
-      </div>
-
-      {showSettings && <SettingsPanel character={char} />}
-
-      {/* ── Search Bar ── */}
-      <div class="cs-search-row" style="margin: 0;">
-        <input
-          type="text"
-          class="cs-search-input"
-          placeholder="Search inventory..."
-          value={searchQuery}
-          onInput={e => setSearchQuery((e.target as HTMLInputElement).value)}
-          aria-label="Search inventory"
-        />
       </div>
 
       {/* ── Per-list sections ── */}
       {itemLists.map((listDef: any) => {
-        const listItems = filteredEquipment.filter(i =>
+        const listItems = equipment.filter(i =>
           i.listId === listDef.id || (!i.listId && listDef.id === (itemLists[0] as any)?.id)
         );
         return (
@@ -693,7 +574,7 @@ export function InventoryTab() {
       {/* Items with no matching list (safety net) */}
       {(() => {
         const validListIds = new Set(itemLists.map((l: any) => l.id));
-        const orphans = filteredEquipment.filter(i => i.listId && !validListIds.has(i.listId));
+        const orphans = equipment.filter(i => i.listId && !validListIds.has(i.listId));
         return orphans.length > 0 ? (
           <ItemListSection
             listDef={{ id: '__orphan__', name: 'Uncategorized' }}
@@ -713,140 +594,6 @@ export function InventoryTab() {
         ) : null;
       })()}
 
-      {/* ── Bottom Controls ── */}
-      <div class="inventory-bottom-controls">
-        <button class="cs-btn-main" onClick={() => handleAddFromCompendium(null)}>
-          + Add from Compendium
-        </button>
-        <button class="cs-btn-main" onClick={() => setShowCustomCreator(!showCustomCreator)}>
-          {showCustomCreator ? 'Cancel' : '+ Create Custom Item'}
-        </button>
-      </div>
-
-      {/* ── Custom Item Creator ── */}
-      {showCustomCreator && (
-        <div class="custom-item-creator">
-          <h4 style="margin: 0 0 8px; font-size: 13px; color: var(--text-primary);">Create Custom Item</h4>
-
-          {/* Basic fields */}
-          <div class="custom-item-form-grid">
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Item Name *</label>
-              <input type="text" class="hp-modal-input" style="width:100%;margin:0;" placeholder="e.g. Iron Spike"
-                value={newItemName} onInput={e => setNewItemName((e.target as HTMLInputElement).value)} autoFocus />
-            </div>
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Weight (lbs)</label>
-              <input type="number" step="0.1" class="hp-modal-input" style="width:100%;margin:0;" placeholder="0.0"
-                value={newItemWeight} onInput={e => setNewItemWeight(parseFloat((e.target as HTMLInputElement).value) || 0)} />
-            </div>
-            <div>
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Quantity</label>
-              <input type="number" min="1" class="hp-modal-input" style="width:100%;margin:0;" value={newItemQty}
-                onInput={e => setNewItemQty(parseInt((e.target as HTMLInputElement).value) || 1)} />
-            </div>
-          </div>
-
-          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin-top:8px;">
-            <div style="flex:1; min-width:120px;">
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Type</label>
-              <select class="hp-modal-input" style="width:100%;margin:0;" value={newItemType}
-                onChange={e => setNewItemType((e.target as HTMLSelectElement).value)}>
-                <option value="Gear">Gear</option>
-                <option value="Weapon">Weapon</option>
-                <option value="Armor">Armor</option>
-                <option value="Shield">Shield</option>
-                <option value="Consumable">Consumable</option>
-              </select>
-            </div>
-            <div style="flex:1; min-width:120px;">
-              <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 2px;">Assign to List</label>
-              <select class="hp-modal-input" style="width:100%;margin:0;" value={newItemListId}
-                onChange={e => setNewItemListId((e.target as HTMLSelectElement).value)}>
-                {itemLists.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-            </div>
-            <div style="display:flex; align-items:center; gap:6px; padding-bottom:4px;">
-              <input type="checkbox" id="new-item-attune" checked={newItemAttune}
-                onChange={e => setNewItemAttune((e.target as HTMLInputElement).checked)} />
-              <label for="new-item-attune" style="font-size:11px; color:var(--text-secondary);">Requires Attunement</label>
-            </div>
-          </div>
-
-          {/* Weapon-specific fields */}
-          {newItemType === 'Weapon' && (
-            <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.15); border-radius:6px;">
-              <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">Weapon Properties</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <div style="flex:1; min-width:90px;">
-                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">Damage Dice</label>
-                  <select class="hp-modal-input" style="width:100%;margin:0;" value={newItemDmg}
-                    onChange={e => setNewItemDmg((e.target as HTMLSelectElement).value)}>
-                    {DAMAGE_DICE.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div style="flex:1; min-width:110px;">
-                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">Damage Type</label>
-                  <select class="hp-modal-input" style="width:100%;margin:0;" value={newItemDmgType}
-                    onChange={e => setNewItemDmgType((e.target as HTMLSelectElement).value)}>
-                    {DAMAGE_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div style="flex:2; min-width:150px;">
-                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">Properties (comma-separated)</label>
-                  <input type="text" class="hp-modal-input" style="width:100%;margin:0;" placeholder="e.g. Finesse, Light"
-                    value={newItemProps} onInput={e => setNewItemProps((e.target as HTMLInputElement).value)} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Armor/Shield-specific fields */}
-          {(newItemType === 'Armor' || newItemType === 'Shield') && (
-            <div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.15); border-radius:6px;">
-              <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:6px;">Armor Properties</div>
-              <div style="display:flex; gap:8px;">
-                <div style="flex:1; min-width:80px;">
-                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:2px;">
-                    {newItemType === 'Shield' ? 'AC Bonus' : 'AC Base'}
-                  </label>
-                  <input type="number" min="0" max="30" class="hp-modal-input" style="width:100%;margin:0;"
-                    value={newItemAC} onInput={e => setNewItemAC(parseInt((e.target as HTMLInputElement).value) || 0)} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Modifiers section */}
-          <div style="margin-top:8px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-              <span style="font-size:11px; color:var(--text-muted); font-weight:600;">Modifiers (while equipped)</span>
-              <button class="cs-btn-small secondary" onClick={addMod} style="font-size:10px; padding:2px 8px;">+ Add Modifier</button>
-            </div>
-            {newItemMods.map((mod, idx) => (
-              <div key={idx} style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
-                <select class="hp-modal-input" style="flex:2; margin:0; font-size:11px;" value={mod.target}
-                  onChange={e => updateMod(idx, 'target', (e.target as HTMLSelectElement).value)}>
-                  {STAT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-                </select>
-                <select class="hp-modal-input" style="flex:1; margin:0; font-size:11px;" value={mod.type}
-                  onChange={e => updateMod(idx, 'type', (e.target as HTMLSelectElement).value as 'add' | 'set')}>
-                  <option value="add">+/- (add)</option>
-                  <option value="set">= (set to)</option>
-                </select>
-                <input type="number" class="hp-modal-input" style="flex:1; margin:0; font-size:11px;" value={mod.value as number}
-                  onInput={e => updateMod(idx, 'value', parseInt((e.target as HTMLInputElement).value) || 0)} />
-                <button class="cs-btn-small danger" style="padding:2px 6px;" onClick={() => removeMod(idx)}>✕</button>
-              </div>
-            ))}
-          </div>
-
-          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
-            <button class="cs-btn-small secondary" onClick={() => setShowCustomCreator(false)}>Cancel</button>
-            <button class="cs-btn-small" onClick={handleCreateCustomItem}>Create Item</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

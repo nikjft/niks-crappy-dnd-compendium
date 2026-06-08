@@ -115,7 +115,7 @@ export function SpellsTab() {
 
   const [query, setQuery] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('');
-  const [stateFilter, setStateFilter] = useState<'all' | 'prepared' | 'active'>('all');
+  const [stateFilter, setStateFilter] = useState<'all' | 'prepared'>('all');
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customModalListId, setCustomModalListId] = useState<string | undefined>();
   const [editingSpell, setEditingSpell] = useState<CharacterSpell | undefined>();
@@ -136,40 +136,7 @@ export function SpellsTab() {
     patchCharacter({ spells: updated });
   }
 
-  function handleToggleActive(spell: CharacterSpell) {
-    const becoming = !spell.active;
-    let updatedSpells = spells.map(s => s === spell ? { ...s, active: becoming } : s);
 
-    if (becoming && spell.isConcentration) {
-      // Find any other active concentration spell
-      const conflicting = spells.find(s => s !== spell && s.active && s.isConcentration);
-      if (conflicting) {
-        const confirmed = window.confirm(
-          `You are already concentrating on "${conflicting.name}". Stop concentrating on it?`
-        );
-        if (!confirmed) return;
-        // Drop concentration on the old spell
-        updatedSpells = updatedSpells.map(s =>
-          s === conflicting ? { ...s, active: false } : s
-        );
-      }
-
-      // Add/replace the Concentrating condition
-      const conditions = (char.conditions ?? []).filter(c => !c.isConcentration);
-      conditions.push({ name: 'Concentrating', isConcentration: true, spellName: spell.name });
-      patchCharacter({ spells: updatedSpells, conditions });
-      return;
-    }
-
-    if (!becoming && spell.isConcentration) {
-      // Remove the concentration condition
-      const conditions = (char.conditions ?? []).filter(c => !c.isConcentration);
-      patchCharacter({ spells: updatedSpells, conditions });
-      return;
-    }
-
-    setSpells(updatedSpells);
-  }
 
   function handleTogglePrepared(spell: CharacterSpell) {
     setSpells(spells.map(s => s === spell ? { ...s, selected: !s.selected } : s));
@@ -211,7 +178,6 @@ export function SpellsTab() {
     if (q && !s.name.toLowerCase().includes(q)) return false;
     if (schoolFilter && (s.school ?? '').toLowerCase() !== schoolFilter.toLowerCase()) return false;
     if (stateFilter === 'prepared' && !s.selected && s.level !== 0) return false;
-    if (stateFilter === 'active' && !s.active) return false;
     return true;
   }), [spells, q, schoolFilter, stateFilter]);
 
@@ -234,10 +200,9 @@ export function SpellsTab() {
           <option value="">All schools</option>
           {SCHOOLS.map(s => <option key={s} value={s.toLowerCase()}>{s}</option>)}
         </select>
-        <select class="spell-filter-select" value={stateFilter} onChange={e => setStateFilter((e.target as HTMLSelectElement).value as 'all' | 'prepared' | 'active')}>
+        <select class="spell-filter-select" value={stateFilter} onChange={e => setStateFilter((e.target as HTMLSelectElement).value as 'all' | 'prepared')}>
           <option value="all">All</option>
           <option value="prepared">Prepared</option>
-          <option value="active">Active</option>
         </select>
       </div>
 
@@ -284,7 +249,6 @@ export function SpellsTab() {
                       <SpellRow
                         key={`${spell.name}-${i}`}
                         spell={spell}
-                        onToggleActive={handleToggleActive}
                         onTogglePrepared={handleTogglePrepared}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
