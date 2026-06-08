@@ -50,8 +50,7 @@ function CounterRow({ counter, counters, character }: { counter: Counter; counte
 // not meaningful as pip-style usage counters on this screen.
 const COMBAT_COUNTER_BLOCKLIST = new Set([
   'spells', 'spell slots', 'spell level', 'slot level', 'cantrips',
-  'weapon mastery', 'unarmored movement',
-  'eldritch invocations', 'type=ei', // type=ei is a 5etools import artifact for Eldritch Invocations
+  'weapon mastery', 'unarmored movement', 'plans known', 'magic items', 'eldritch invocations', 'type=ei', // type=ei is a 5etools import artifact for Eldritch Invocations
 ]);
 
 export function CountersSection({ character }: Props) {

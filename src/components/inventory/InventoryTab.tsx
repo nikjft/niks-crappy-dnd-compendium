@@ -131,15 +131,9 @@ function ItemRow({
   function renderStateIcon() {
     if (isMainHand) {
       return (
-        <svg class="state-icon" viewBox="0 0 24 24" width="14" height="14" fill="none"
-          stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          {/* blade */}
-          <line x1="5" y1="19" x2="19" y2="5" />
-          {/* crossguard (perpendicular to blade) */}
-          <line x1="7" y1="11" x2="13" y2="17" />
-          {/* grip */}
-          <line x1="5" y1="19" x2="3" y2="21" />
-        </svg>
+        <span class="material-icons-outlined state-icon" style="font-size: 14px; color: var(--accent-color);">
+          swords
+        </span>
       );
     }
     if (isOffHand || (isEquipped && !isWeapon)) {
