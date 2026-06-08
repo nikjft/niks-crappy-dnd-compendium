@@ -64,7 +64,7 @@
 - [x] *DONE* Notes tab: In character profile, also add a field for "Appearance"
 - [x] *DONE* Notes tab: Character profile (alignment, height, weight, appearance) should be editable.
 - [x] *DONE* Combat: Quick actions - Clicking a pinned action should open a modal with the full description as though displayed in the compendium, not expand it.
-- [ ] Compendium and picker: When there is a hidden facet, clicking "< [category]" should keep current selections. e.g. If I am in Druid Spells Level 1, and on a spell detail, I only see a list of spells and the current spell description. Clicking the < back, should take me back up to "Spells" category, with Druid and Level 1 both selected. In mobile it should take me up 1 step, so I see list of leveled spells with druid level 1 spells selected.
+- [x] *DONE* Compendium and picker: When there is a hidden facet, clicking "< [category]" should keep current selections. e.g. If I am in Druid Spells Level 1, and on a spell detail, I only see a list of spells and the current spell description. Clicking the < back, should take me back up to "Spells" category, with Druid and Level 1 both selected. In mobile it should take me up 1 step, so I see list of leveled spells with druid level 1 spells selected.
 - [x] *DONE* Change text-muted text color to #bcbcd3
 - [x] *DONE* Change text-secondary to #dadadaff
 - [x] *Done* Add spell slots to Combat tab (keep on spells, sync both)

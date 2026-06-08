@@ -486,9 +486,37 @@ function setupEventListeners() {
   backFacet1.addEventListener('click', () => {
     // Left sidebar is always visible as icons on mobile
   });
-  backFacet2.addEventListener('click', () => window.history.back());
-  backList.addEventListener('click', () => window.history.back());
-  backDetail.addEventListener('click', () => window.history.back());
+
+  // On mobile, back buttons navigate panes while preserving the current facet
+  // selections (so Level 1 stays selected when going back from list to facet-2).
+  // On desktop, fall back to history navigation.
+  function isMobileLayout() {
+    return window.innerWidth < 900;
+  }
+
+  backFacet2.addEventListener('click', () => {
+    if (isMobileLayout()) {
+      showMobilePane('facet-1');
+    } else {
+      window.history.back();
+    }
+  });
+
+  backList.addEventListener('click', () => {
+    if (isMobileLayout()) {
+      showMobilePane(hasFacet2() ? 'facet-2' : 'facet-1');
+    } else {
+      window.history.back();
+    }
+  });
+
+  backDetail.addEventListener('click', () => {
+    if (isMobileLayout()) {
+      showMobilePane('list');
+    } else {
+      window.history.back();
+    }
+  });
 
   // History popstate navigation
   window.addEventListener('popstate', async (e) => {
