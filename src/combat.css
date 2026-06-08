@@ -507,9 +507,34 @@
   position: relative;
 }
 
+.attack-row.atk-offhand {
+  border-left: 2px solid var(--accent-color);
+  opacity: 0.9;
+}
+
+.atk-name-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .atk-name {
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.atk-hand-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent-muted);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
 }
 
 .atk-bonus-group {

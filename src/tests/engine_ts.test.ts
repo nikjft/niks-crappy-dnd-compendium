@@ -172,6 +172,52 @@ describe('calcWeaponAttack', () => {
     const result = calcWeaponAttack(sword, S);
     expect(result.atkBonus.total).toBe(4); // 2 prof + 0 STR + 2 magic
   });
+
+  it('main-hand weapon includes ability modifier in damage bonus', () => {
+    const char: Character = { ...BASE_CHAR, baseStats: { ...BASE_CHAR.baseStats, str: 16 } }; // +3
+    const S = calculateCharacterState(char);
+    const sword: EquipmentItem = {
+      name: 'Longsword', source: 'PHB', active: true, weapon: true,
+      rawType: 'M', dmg1: '1d8', dmgType: 'S',
+    };
+    const result = calcWeaponAttack(sword, S);
+    expect(result.damageBonus).toBe(3); // +3 STR mod
+    expect(result.isOffhand).toBeUndefined();
+  });
+
+  it('off-hand weapon excludes positive ability modifier from damage', () => {
+    const char: Character = { ...BASE_CHAR, baseStats: { ...BASE_CHAR.baseStats, str: 16 } }; // +3
+    const S = calculateCharacterState(char);
+    const dagger: EquipmentItem = {
+      name: 'Dagger', source: 'PHB', active: true, weapon: true,
+      rawType: 'M', dmg1: '1d4', dmgType: 'P', properties: ['F', 'L', 'T'],
+    };
+    const result = calcWeaponAttack(dagger, S, { isOffhand: true });
+    expect(result.damageBonus).toBe(0); // +3 STR excluded for off-hand
+    expect(result.isOffhand).toBe(true);
+  });
+
+  it('off-hand weapon still applies negative ability modifier to damage', () => {
+    const char: Character = { ...BASE_CHAR, baseStats: { ...BASE_CHAR.baseStats, str: 8 } }; // -1
+    const S = calculateCharacterState(char);
+    const dagger: EquipmentItem = {
+      name: 'Dagger', source: 'PHB', active: true, weapon: true,
+      rawType: 'M', dmg1: '1d4', dmgType: 'P', properties: ['L'],
+    };
+    const result = calcWeaponAttack(dagger, S, { isOffhand: true });
+    expect(result.damageBonus).toBe(-1); // negative mod still applies
+  });
+
+  it('off-hand with Two-Weapon Fighting style includes full ability modifier', () => {
+    const char: Character = { ...BASE_CHAR, baseStats: { ...BASE_CHAR.baseStats, str: 16 } }; // +3
+    const S = calculateCharacterState(char);
+    const dagger: EquipmentItem = {
+      name: 'Dagger', source: 'PHB', active: true, weapon: true,
+      rawType: 'M', dmg1: '1d4', dmgType: 'P',
+    };
+    const result = calcWeaponAttack(dagger, S, { isOffhand: true, hasTWF: true });
+    expect(result.damageBonus).toBe(3); // TWF grants full +3 STR
+  });
 });
 
 describe('breakdown structure', () => {

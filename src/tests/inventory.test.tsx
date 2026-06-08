@@ -129,17 +129,23 @@ describe('InventoryTab Component', () => {
     expect(item.active).toBe(false);
     expect(item.selected).toBe(true);
 
-    fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
+    // Initial state: carried → click → equipped
+    // The label includes state description; use role + name partial match
+    const getBtns = () => screen.getAllByRole('button').filter(
+      b => b.getAttribute('title')?.includes('Rope, Hempen')
+    );
+
+    fireEvent.click(getBtns()[0]);
     const equipped = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(equipped.active).toBe(true);
     expect(equipped.selected).toBe(true);
 
-    fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
+    fireEvent.click(getBtns()[0]);
     const uncarried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(uncarried.active).toBe(false);
     expect(uncarried.selected).toBe(false);
 
-    fireEvent.click(screen.getByLabelText('Cycle status for Rope, Hempen (50ft)'));
+    fireEvent.click(getBtns()[0]);
     const carried = (currentCharacter.value?.equipment as EquipmentItem[]).find(e => e.id === 'item-3')!;
     expect(carried.active).toBe(false);
     expect(carried.selected).toBe(true);

@@ -41,7 +41,7 @@
     - Fix odd sized buttons
     - Make text colors consistent, including visited and unvisited links
     - Edit, sync, etc. buttons are in varying locations, make consistent with actions and edits in the upper-right, buttons (save/etc.) on bottom-right.
-- [ ] Enhancement: Update equipping of weapons (and only weapons) to indicate on-hand and off-hand. Must respect rules around two weapon fighting and related feats:
+- [x] *DONE* Enhancement: Update equipping of weapons (and only weapons) to indicate on-hand and off-hand. Must respect rules around two weapon fighting and related feats:
     - Do not add your ability modifier (Typically STR, for finesse weapons it will be the greater of STR or DEX)to the off-hand attack's to hit or damage unless it is negative
     - If you have the two weapon fighting style active, you can add your ability modifier
     - Interface: Using toggle for carried/equipped, add an extra level just for weapons that is an off-hand equip. Use shield icon for that. For weapons that are normal-equipped use a sword icon.

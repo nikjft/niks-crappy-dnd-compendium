@@ -44,8 +44,11 @@ function ItemRow({
   const [editFields, setEditFields] = useState<Partial<EquipmentItem> | null>(null);
 
   const isAttunedRequired = !!item.requiresAttunement;
+  const isWeapon = !!(item.weapon || (item.type && item.type.includes('Weapon')) || item.dmg1);
   const isEquipped = !!item.active;
   const isCarried = !item.active && !!item.selected;
+  const isMainHand = isEquipped && isWeapon && item.equippedSlot !== 'off';
+  const isOffHand = isEquipped && isWeapon && item.equippedSlot === 'off';
 
   function getDetailHTMLContent(item: EquipmentItem) {
     if (typeof window !== 'undefined' && (window as any).getDetailHTML) {
@@ -119,9 +122,21 @@ function ItemRow({
     return parts.join(' · ');
   }
 
-  // Render the cycling icon: Empty circle for not carried, filled circle for carried, shield for equipped
+  // Render the cycling icon:
+  //   • Not carried  → empty circle (CSS only, no icon element needed)
+  //   • Carried      → filled circle (CSS only)
+  //   • Non-weapon equipped → shield (filled)
+  //   • Weapon main-hand   → sword icon
+  //   • Weapon off-hand    → shield icon
   function renderStateIcon() {
-    if (isEquipped) {
+    if (isMainHand) {
+      return (
+        <span class="material-icons state-icon" style="font-size: 14px; color: var(--accent-color);">
+          sword
+        </span>
+      );
+    }
+    if (isOffHand || (isEquipped && !isWeapon)) {
       return (
         <span class="material-icons state-icon" style="font-size: 14px; color: var(--accent-color);">
           shield
@@ -129,6 +144,15 @@ function ItemRow({
       );
     }
     return null;
+  }
+
+  // Title for the cycle button
+  function cycleBtnTitle() {
+    if (!isEquipped && !isCarried) return `${item.name}: not carried — click to carry`;
+    if (isCarried) return isWeapon ? `${item.name}: carried — click to equip main-hand` : `${item.name}: carried — click to equip`;
+    if (isMainHand) return `${item.name}: main-hand — click to equip off-hand`;
+    if (isOffHand) return `${item.name}: off-hand — click to uncarry`;
+    return `${item.name}: equipped — click to uncarry`;
   }
 
   return (
@@ -158,9 +182,10 @@ function ItemRow({
           )}
           <div class="col-state-icon" onClick={e => e.stopPropagation()}>
             <button
-              class={`item-cycle-btn ${isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
+              class={`item-cycle-btn ${isMainHand ? 'main-hand' : isOffHand ? 'off-hand' : isEquipped ? 'equipped' : isCarried ? 'carried' : 'uncarried'}`}
               onClick={() => onCycleState(item)}
-              aria-label={`Cycle status for ${item.name}`}
+              aria-label={cycleBtnTitle()}
+              title={cycleBtnTitle()}
             >
               {renderStateIcon()}
             </button>
@@ -463,19 +488,34 @@ export function InventoryTab() {
   function handleCycleState(item: EquipmentItem) {
     const updated = equipment.map(i => {
       if (i.id !== item.id) return i;
-      
-      const isEquipped = !!i.active;
-      const isCarried = !i.active && !!i.selected;
-      
-      if (!isEquipped && !isCarried) {
-        // Not Carried (○) -> Carried (●)
-        return { ...i, active: false, selected: true };
-      } else if (isCarried) {
-        // Carried (●) -> Equipped (🛡️)
-        return { ...i, active: true, selected: true };
+
+      const itemIsWeapon = !!(i.weapon || (i.type && i.type.includes('Weapon')) || i.dmg1);
+      const equipped = !!i.active;
+      const carried = !i.active && !!i.selected;
+      const mainHand = equipped && itemIsWeapon && i.equippedSlot !== 'off';
+      const offHand = equipped && itemIsWeapon && i.equippedSlot === 'off';
+
+      if (itemIsWeapon) {
+        // Weapons: Not Carried → Carried → Main-hand → Off-hand → Not Carried
+        if (!equipped && !carried) {
+          return { ...i, active: false, selected: true, equippedSlot: undefined };
+        } else if (carried) {
+          return { ...i, active: true, selected: true, equippedSlot: 'main' as const };
+        } else if (mainHand) {
+          return { ...i, active: true, selected: true, equippedSlot: 'off' as const };
+        } else {
+          // offHand → Not Carried
+          return { ...i, active: false, selected: false, equippedSlot: undefined };
+        }
       } else {
-        // Equipped (🛡️) -> Not Carried (○)
-        return { ...i, active: false, selected: false };
+        // Non-weapons: Not Carried → Carried → Equipped (shield) → Not Carried
+        if (!equipped && !carried) {
+          return { ...i, active: false, selected: true };
+        } else if (carried) {
+          return { ...i, active: true, selected: true };
+        } else {
+          return { ...i, active: false, selected: false };
+        }
       }
     });
     patchCharacter({ equipment: updated });

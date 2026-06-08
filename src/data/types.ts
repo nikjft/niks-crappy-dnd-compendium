@@ -37,6 +37,10 @@ export interface WeaponAttack {
   damageFormula: string;
   damageType: string;
   properties: string[];
+  /** Numeric bonus added to the damage roll (ability mod + magic). 0 if none. */
+  damageBonus: number;
+  /** True when this weapon is equipped in the off-hand slot */
+  isOffhand?: boolean;
 }
 
 // ─── Tool proficiency ─────────────────────────────────────────────────────────
@@ -281,6 +285,12 @@ export interface EquipmentItem extends CompendiumRecord {
   selected?: boolean;
   quantity?: number;
   listId?: string;
+  /**
+   * For weapons only: which hand slot the weapon is equipped in.
+   * 'main' = main hand, 'off' = off-hand.
+   * Non-weapons and unequipped weapons leave this undefined.
+   */
+  equippedSlot?: 'main' | 'off';
   /** Parsed armor type: LA = light, MA = medium, HA = heavy, S = shield */
   armorType?: 'LA' | 'MA' | 'HA' | 'S';
   /** Base AC value for armor (e.g. 13 for studded leather) */
