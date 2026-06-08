@@ -23,9 +23,17 @@ function WeaponRow({ weapon: _weapon, atk }: WeaponRowProps) {
   const openBd = (e: MouseEvent) => { e.stopPropagation(); setBdTarget('primary'); };
   const openAlt = (e: MouseEvent) => { e.stopPropagation(); setBdTarget('alt'); };
 
+  // Build the damage string: formula + bonus (if non-zero)
+  const dmgBonus = atk.damageBonus ?? 0;
+  const dmgSuffix = dmgBonus !== 0 ? ` ${sign(dmgBonus)}` : '';
+  const dmgLabel = `${atk.damageFormula}${dmgSuffix}${atk.damageType ? ` ${atk.damageType}` : ''}`;
+
   return (
-    <div class="attack-row">
-      <span class="atk-name">{atk.name}</span>
+    <div class={`attack-row${atk.isOffhand ? ' atk-offhand' : ''}`}>
+      <div class="atk-name-group">
+        <span class="atk-name">{atk.name}</span>
+        {atk.isOffhand && <span class="atk-hand-badge" title="Off-hand attack">off</span>}
+      </div>
       <div class="atk-bonus-group">
         <button class="atk-bonus-btn" onClick={openBd} aria-label={`${atk.name} attack bonus breakdown`}>
           {sign(atk.atkBonus.total)} atk
@@ -36,10 +44,7 @@ function WeaponRow({ weapon: _weapon, atk }: WeaponRowProps) {
           </button>
         )}
       </div>
-      <span class="atk-dmg">
-        {atk.damageFormula}
-        {atk.damageType ? ` ${atk.damageType}` : ''}
-      </span>
+      <span class="atk-dmg">{dmgLabel}</span>
       {atk.properties.length > 0 && (
         <span class="atk-props">{atk.properties.join(', ')}</span>
       )}
@@ -64,9 +69,18 @@ function WeaponRow({ weapon: _weapon, atk }: WeaponRowProps) {
   );
 }
 
+/** Check if the character has the Two-Weapon Fighting style active. */
+function hasTwoWeaponFighting(character: Character): boolean {
+  const features = (character.features ?? []) as Array<{ name?: string; active?: boolean }>;
+  return features.some(f =>
+    f.active && typeof f.name === 'string' &&
+    f.name.toLowerCase().includes('two-weapon fighting')
+  );
+}
+
 export function AttacksSection({ character, state }: Props) {
   const weapons = ((character.equipment ?? []) as EquipmentItem[]).filter(
-    e => e.active && e.weapon
+    e => e.active && (e.weapon || (e.type && e.type.includes('Weapon')) || e.dmg1)
   );
 
   if (weapons.length === 0) {
@@ -78,13 +92,22 @@ export function AttacksSection({ character, state }: Props) {
     );
   }
 
+  const hasTWF = hasTwoWeaponFighting(character);
+
   return (
     <div class="cs-combat-card">
       <div class="cs-card-header"><h3>Attacks</h3></div>
       <div class="attacks-list">
-        {weapons.map(w => (
-          <WeaponRow key={String(w.name)} weapon={w} atk={calcWeaponAttack(w, state)} />
-        ))}
+        {weapons.map(w => {
+          const isOffhand = w.equippedSlot === 'off';
+          return (
+            <WeaponRow
+              key={`${w.id ?? w.name}-${isOffhand ? 'off' : 'main'}`}
+              weapon={w}
+              atk={calcWeaponAttack(w, state, { isOffhand, hasTWF })}
+            />
+          );
+        })}
       </div>
     </div>
   );

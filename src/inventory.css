@@ -738,7 +738,7 @@
   border-color: var(--accent-hover);
 }
 
-/* Equipped: transparent action button size with shield emoji */
+/* Equipped (non-weapon): transparent action button size with shield icon */
 .item-cycle-btn.equipped {
   width: 28px;
   height: 28px;
@@ -749,6 +749,33 @@
 .item-cycle-btn.equipped:hover {
   border-color: var(--border-color);
   background: rgba(255, 255, 255, 0.05);
+}
+
+/* Weapon main-hand: sword icon */
+.item-cycle-btn.main-hand {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.item-cycle-btn.main-hand:hover {
+  border-color: var(--border-color);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Weapon off-hand: shield icon (same visual weight, different meaning) */
+.item-cycle-btn.off-hand {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-color);
+  background: rgba(var(--accent-rgb, 230,126,34), 0.08);
+}
+
+.item-cycle-btn.off-hand:hover {
+  border-color: var(--accent-hover);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .item-cycle-btn .state-icon {

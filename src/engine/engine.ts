@@ -377,11 +377,16 @@ export function calculateCharacterState(character: Character): CharacterState {
 /**
  * Derive the attack bonus breakdown for a single equipped weapon.
  * Handles finesse weapons (use the higher of STR/DEX).
+ *
+ * @param opts.isOffhand  - True when this weapon is in the off-hand slot
+ * @param opts.hasTWF     - True when the character has Two-Weapon Fighting style active
  */
 export function calcWeaponAttack(
   item: EquipmentItem,
   state: CharacterState,
+  opts: { isOffhand?: boolean; hasTWF?: boolean } = {},
 ): WeaponAttack {
+  const { isOffhand = false, hasTWF = false } = opts;
   const flat: Record<string, number> = Object.fromEntries(
     Object.entries(state).map(([k, v]) => [k, v.total])
   );
@@ -447,6 +452,14 @@ export function calcWeaponAttack(
     };
   }
 
+  // Damage bonus: ability modifier + magic bonus.
+  // Off-hand without Two-Weapon Fighting: only add the ability modifier if negative.
+  const rawDamageAbilityMod = primaryMod;
+  const damageAbilityMod = (isOffhand && !hasTWF)
+    ? Math.min(rawDamageAbilityMod, 0)
+    : rawDamageAbilityMod;
+  const damageBonus = damageAbilityMod + magicBonus;
+
   return {
     id: item.name ?? 'weapon',
     name: item.name ?? 'Weapon',
@@ -455,5 +468,7 @@ export function calcWeaponAttack(
     damageFormula: item.dmg1 ?? '',
     damageType: item.dmgType ?? '',
     properties: props,
+    damageBonus,
+    isOffhand: isOffhand || undefined,
   };
 }

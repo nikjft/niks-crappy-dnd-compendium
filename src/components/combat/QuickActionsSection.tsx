@@ -39,11 +39,19 @@ interface WeaponCardProps {
 
 function WeaponCard({ item, state, onUnpin }: WeaponCardProps) {
   const [bdOpen, setBdOpen] = useState(false);
-  const atk = calcWeaponAttack(item, state);
+  const isOffhand = item.equippedSlot === 'off';
+  const atk = calcWeaponAttack(item, state, { isOffhand });
+  const dmgBonus = atk.damageBonus ?? 0;
+  const dmgSuffix = dmgBonus !== 0 ? ` ${sign(dmgBonus)}` : '';
+  const dmgLabel = `${atk.damageFormula}${dmgSuffix}${atk.damageType ? ` ${atk.damageType}` : ''}`;
+
   return (
     <div class="qa-card">
       <div class="qa-card-header">
-        <span class="qa-card-name">{atk.name}</span>
+        <span class="qa-card-name">
+          {atk.name}
+          {isOffhand && <span class="atk-hand-badge" style="margin-left: 5px;" title="Off-hand">off</span>}
+        </span>
         <button class="qa-unpin-btn" onClick={onUnpin} aria-label={`Unpin ${atk.name}`} title="Remove from Quick Actions">×</button>
       </div>
       <div class="qa-card-stats">
@@ -58,7 +66,7 @@ function WeaponCard({ item, state, onUnpin }: WeaponCardProps) {
         <div class="qa-stat-divider" />
         <div class="qa-stat">
           <span class="qa-stat-label">DMG</span>
-          <span class="qa-stat-val">{atk.damageFormula}{atk.damageType ? ` ${atk.damageType}` : ''}</span>
+          <span class="qa-stat-val">{dmgLabel}</span>
         </div>
       </div>
       {atk.properties.length > 0 && (
@@ -68,7 +76,7 @@ function WeaponCard({ item, state, onUnpin }: WeaponCardProps) {
         <BreakdownPopup
           label={`${atk.name} Attack`}
           breakdown={atk.atkBonus}
-          extras={[{ label: 'Damage', value: `${atk.damageFormula}${atk.damageType ? ` ${atk.damageType}` : ''}` }]}
+          extras={[{ label: 'Damage', value: dmgLabel }]}
           onClose={() => setBdOpen(false)}
         />
       )}
