@@ -405,6 +405,8 @@ interface ItemListSectionProps {
   allLists: any[];
   weightEnabled: boolean;
   pinnedActions: any[];
+  collapsed: boolean;
+  onToggleCollapse: () => void;
   onCycleState: (item: EquipmentItem) => void;
   onUpdateQty: (id: string, qty: number) => void;
   onMoveToList: (id: string, listId: string) => void;
@@ -412,13 +414,15 @@ interface ItemListSectionProps {
   onTogglePin: (item: EquipmentItem) => void;
   onSync: (item: EquipmentItem) => void;
   onAddFromCompendium: (listId: string) => void;
+  onConfigList?: (listDef: any) => void;
 }
 
 function ItemListSection({
   listDef, items, allEquipment, allLists, weightEnabled, pinnedActions,
-  onCycleState, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync, onAddFromCompendium
+  collapsed, onToggleCollapse,
+  onCycleState, onUpdateQty, onMoveToList, onDelete, onTogglePin, onSync,
+  onAddFromCompendium, onConfigList
 }: ItemListSectionProps) {
-  const [collapsed, setCollapsed] = useState(false);
 
   const totalWeight = items.reduce((acc, i) => acc + (parseFloat(String(i.weight)) || 0) * (i.quantity ?? 1), 0);
   const equippedCount = items.filter(i => i.active).length;
@@ -431,7 +435,7 @@ function ItemListSection({
 
   return (
     <div class="item-list-section">
-      <div class="item-list-section-header" onClick={() => setCollapsed(c => !c)}>
+      <div class="item-list-section-header" onClick={onToggleCollapse}>
         <span class="item-list-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
         <h3 class="item-list-name">{listDef.name}</h3>
         <span class="item-list-meta">{meta}</span>
@@ -443,6 +447,16 @@ function ItemListSection({
         >
           + Add
         </button>
+        {onConfigList && listDef.id !== '__orphan__' && (
+          <button
+            class="cs-btn-small secondary"
+            style="font-size: 11px; padding: 2px 8px;"
+            onClick={e => { e.stopPropagation(); onConfigList(listDef); }}
+            title="Rename or delete this list"
+          >
+            ⚙
+          </button>
+        )}
       </div>
 
       {!collapsed && (
@@ -492,6 +506,11 @@ export function InventoryTab() {
   const equipment = (char.equipment ?? []) as EquipmentItem[];
   const itemLists = char.itemLists ?? [];
   const weightEnabled = char.weightTrackingEnabled ?? false;
+  const collapsedLists: Record<string, boolean> = (char as any).collapsedLists ?? {};
+
+  function toggleItemListCollapse(listId: string) {
+    patchCharacter({ collapsedLists: { ...collapsedLists, [listId]: !collapsedLists[listId] } });
+  }
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
 
@@ -562,6 +581,14 @@ export function InventoryTab() {
     (window as any).__legacyOpenPicker?.('items', listId);
   }
 
+  function handleConfigList(listDef: any) {
+    (window as any).__legacyOpenListConfig?.(listDef, 'item');
+  }
+
+  function handleAddList() {
+    (window as any).__legacyAddItemList?.();
+  }
+
 
 
   const currency = char.currency ?? { pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 };
@@ -628,6 +655,8 @@ export function InventoryTab() {
               allLists={itemLists}
               weightEnabled={weightEnabled}
               pinnedActions={char.pinnedActions ?? []}
+              collapsed={!!collapsedLists[listDef.id]}
+              onToggleCollapse={() => toggleItemListCollapse(listDef.id)}
               onCycleState={handleCycleState}
               onUpdateQty={handleUpdateQty}
               onMoveToList={handleMoveToList}
@@ -635,6 +664,7 @@ export function InventoryTab() {
               onTogglePin={handleTogglePin}
               onSync={handleSync}
               onAddFromCompendium={handleAddFromCompendium}
+              onConfigList={handleConfigList}
             />
           </div>
         );
@@ -652,6 +682,8 @@ export function InventoryTab() {
             allLists={itemLists}
             weightEnabled={weightEnabled}
             pinnedActions={char.pinnedActions ?? []}
+            collapsed={!!collapsedLists['__orphan__']}
+            onToggleCollapse={() => toggleItemListCollapse('__orphan__')}
             onCycleState={handleCycleState}
             onUpdateQty={handleUpdateQty}
             onMoveToList={handleMoveToList}
@@ -662,6 +694,11 @@ export function InventoryTab() {
           />
         ) : null;
       })()}
+
+      {/* Bottom controls */}
+      <div class="inventory-bottom-controls">
+        <button class="cs-btn-small" onClick={handleAddList}>+ Add List</button>
+      </div>
 
     </div>
   );

@@ -43,10 +43,12 @@ interface ListHeaderProps {
   listDef: SpellList;
   profBonus: number;
   flatState: Record<string, number>;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
   onChangeAbility: (listId: string, ability: string) => void;
 }
 
-function ListHeader({ listDef, profBonus, flatState, onChangeAbility }: ListHeaderProps) {
+function ListHeader({ listDef, profBonus, flatState, collapsed, onToggleCollapse, onChangeAbility }: ListHeaderProps) {
   const [dcBd, setDcBd] = useState(false);
   const [atkBd, setAtkBd] = useState(false);
   const [editingAbility, setEditingAbility] = useState(false);
@@ -60,9 +62,10 @@ function ListHeader({ listDef, profBonus, flatState, onChangeAbility }: ListHead
   const atkBreakdown = makeSpellAtkBreakdown(abilityMod, profBonus, ab, globalAtkExtra);
 
   return (
-    <div class="spell-list-header">
+    <div class="spell-list-header" onClick={onToggleCollapse} style="cursor: pointer;">
+      <span class="spell-list-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
       <span class="spell-list-name">{listDef.name}</span>
-      <div class="spell-list-stats">
+      <div class="spell-list-stats" onClick={e => e.stopPropagation()}>
         {editingAbility ? (
           <span style="display:flex;align-items:center;gap:4px;">
             <select
@@ -129,8 +132,13 @@ export function SpellsTab() {
   const char = character; // narrowed non-null reference for use in closures
   const spells: CharacterSpell[] = (char.spells as CharacterSpell[]) ?? [];
   const spellLists: SpellList[] = (character.spellLists as SpellList[]) ?? [];
+  const collapsedLists: Record<string, boolean> = (char as any).collapsedLists ?? {};
   const profBonus = state['prof_bonus']?.total ?? 2;
   const flatState = Object.fromEntries(Object.entries(state).map(([k, v]) => [k, v.total]));
+
+  function toggleSpellListCollapse(listId: string) {
+    patchCharacter({ collapsedLists: { ...collapsedLists, [listId]: !collapsedLists[listId] } });
+  }
 
   // ── Spell mutation helpers ────────────────────────────────────────────────
 
@@ -272,31 +280,40 @@ export function SpellsTab() {
                 draggingListId.current = null;
               }}
             >
-              <ListHeader listDef={listDef} profBonus={profBonus} flatState={flatState} onChangeAbility={handleChangeListAbility} />
+              <ListHeader
+                listDef={listDef}
+                profBonus={profBonus}
+                flatState={flatState}
+                collapsed={!!collapsedLists[listDef.id]}
+                onToggleCollapse={() => toggleSpellListCollapse(listDef.id)}
+                onChangeAbility={handleChangeListAbility}
+              />
 
-              {/* Group by level */}
-              {([0,1,2,3,4,5,6,7,8,9] as const).map(level => {
-                const levelSpells = listSpells.filter(s => s.level === level);
-                if (levelSpells.length === 0) return null;
-                return (
-                  <div key={level} id={`spell-level-${level}`} class="spell-level-group">
-                    <div class="spell-level-header">{levelLabel(level)}</div>
-                    {levelSpells.map((spell, i) => (
-                      <SpellRow
-                        key={`${spell.name}-${i}`}
-                        spell={spell}
-                        onCycleState={handleCycleState}
-                        onEdit={handleEdit}
-                        onDelete={handleDelete}
-                      />
-                    ))}
-                  </div>
-                );
-              })}
+              {!collapsedLists[listDef.id] && (<>
+                {/* Group by level */}
+                {([0,1,2,3,4,5,6,7,8,9] as const).map(level => {
+                  const levelSpells = listSpells.filter(s => s.level === level);
+                  if (levelSpells.length === 0) return null;
+                  return (
+                    <div key={level} id={`spell-level-${level}`} class="spell-level-group">
+                      <div class="spell-level-header">{levelLabel(level)}</div>
+                      {levelSpells.map((spell, i) => (
+                        <SpellRow
+                          key={`${spell.name}-${i}`}
+                          spell={spell}
+                          onCycleState={handleCycleState}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
 
-              {listSpells.length === 0 && (
-                <p class="empty-hint">No spells match filters.</p>
-              )}
+                {listSpells.length === 0 && (
+                  <p class="empty-hint">No spells match filters.</p>
+                )}
+              </>)}
             </div>
           );
         })

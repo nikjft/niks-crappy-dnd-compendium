@@ -7451,8 +7451,11 @@ function renderListSection(container, listDef, items, type, state, opts = {}) {
     headerMeta = `${wt.toFixed(1)} lbs carried · ${items.length} items`;
   }
 
+  const isCollapsed = !!(currentCharacter.collapsedLists && currentCharacter.collapsedLists[listDef.id]);
+
   section.innerHTML = `
-    <div class="cs-list-section-header" data-list-id="${listDef.id}">
+    <div class="cs-list-section-header" data-list-id="${listDef.id}" style="cursor:pointer;">
+      <span class="cs-list-collapse-arrow" style="margin-right:6px;font-size:10px;color:var(--text-muted);">${isCollapsed ? '▶' : '▼'}</span>
       <h3>${listDef.name}</h3>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="cs-list-section-header-meta">${headerMeta}</span>
@@ -7460,8 +7463,20 @@ function renderListSection(container, listDef, items, type, state, opts = {}) {
         <button class="cs-list-row-btn btn-config-list" title="Configure List" data-list-id="${listDef.id}">${SVG_COG}</button>
       </div>
     </div>
-    <div class="cs-list-section-body"></div>
+    <div class="cs-list-section-body"${isCollapsed ? ' style="display:none;"' : ''}></div>
   `;
+
+  const header = section.querySelector('.cs-list-section-header');
+  header.addEventListener('click', () => {
+    if (!currentCharacter.collapsedLists) currentCharacter.collapsedLists = {};
+    const nowCollapsed = !currentCharacter.collapsedLists[listDef.id];
+    currentCharacter.collapsedLists[listDef.id] = nowCollapsed;
+    const arrow = header.querySelector('.cs-list-collapse-arrow');
+    if (arrow) arrow.textContent = nowCollapsed ? '▶' : '▼';
+    const body = section.querySelector('.cs-list-section-body');
+    if (body) body.style.display = nowCollapsed ? 'none' : '';
+    saveCurrentCharacter();
+  });
 
   section.querySelector('.btn-add-to-list').onclick = (e) => {
     e.stopPropagation();
@@ -8648,6 +8663,17 @@ if (typeof window !== 'undefined') {
     if (!currentCharacter.featureLists) currentCharacter.featureLists = [];
     currentCharacter.featureLists.push({ id: generateId(), name });
     saveCurrentCharacterAndRefresh();
+  };
+
+  window.__legacyAddItemList = () => {
+    if (!currentCharacter) return;
+    ensureCharacterLists(currentCharacter);
+    openListConfigModal({ id: generateId(), name: 'New Gear List' }, 'item', true);
+  };
+
+  window.__legacyOpenListConfig = (listDef, type) => {
+    if (!currentCharacter) return;
+    openListConfigModal(listDef, type, false);
   };
 
   window.__legacyOpenFeatureDetail = (feature) => {
