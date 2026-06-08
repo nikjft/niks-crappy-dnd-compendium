@@ -195,6 +195,12 @@
         </div>
         <div id="pane-detail-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-color); background-color: var(--panel-bg); display: none; justify-content: flex-end; align-items: center; flex-shrink: 0; gap: 12px;">
           <div id="pane-detail-status" style="margin-right: auto; font-size: 13px; color: var(--text-secondary);"></div>
+          <div id="pane-qty-field" style="display:none; align-items:center; gap:6px;">
+            <label for="pane-qty-input" style="font-size:13px; color:var(--text-secondary);">Qty</label>
+            <input type="number" id="pane-qty-input" min="1" max="999" value="1"
+              style="width:56px; padding:4px 8px; border:1px solid var(--border-color); border-radius:6px; background:var(--panel-bg-hover); color:var(--text-primary); font-size:13px; text-align:center;" />
+          </div>
+          <button id="pane-detail-btn-buy" class="settings-action-btn" style="width: auto; padding: 8px 24px; margin: 0; font-size: 14px; display:none;">Buy</button>
           <button id="pane-detail-btn-add" class="settings-action-btn" style="width: auto; padding: 8px 24px; margin: 0; font-size: 14px;">Add to Character</button>
           <button id="pane-detail-btn-custom" class="settings-action-btn secondary-btn" style="width: auto; padding: 8px 24px; margin: 0; font-size: 14px; background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Create Custom</button>
           <button id="pane-detail-btn-cancel" class="settings-action-btn secondary-btn" style="width: auto; padding: 8px 24px; margin: 0; font-size: 14px; background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">OK</button>

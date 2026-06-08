@@ -7606,12 +7606,40 @@ function closePickerAndReturn() {
 function updateDetailFooterUI() {
   const footer = document.getElementById('pane-detail-footer');
   const addBtn = document.getElementById('pane-detail-btn-add');
+  const buyBtn = document.getElementById('pane-detail-btn-buy');
   const statusDiv = document.getElementById('pane-detail-status');
+  const qtyField = document.getElementById('pane-qty-field');
 
   if (!footer) return;
 
   if (pickerActive && selectedItem && currentCharacter && isItemRelevantForPicker(selectedItem)) {
     footer.style.display = 'flex';
+
+    // Show quantity field only for items picker
+    if (qtyField) qtyField.style.display = pickerCategory === 'items' ? 'flex' : 'none';
+
+    // Buy button: visible for items with a cost
+    if (buyBtn) {
+      const isItemsPicker = pickerCategory === 'items';
+      const itemCostGp = parseFloat(selectedItem.value) || 0;
+      if (isItemsPicker && itemCostGp > 0) {
+        buyBtn.style.display = 'block';
+        const qtyInput = document.getElementById('pane-qty-input');
+        const qty = qtyInput ? Math.max(1, parseInt(qtyInput.value) || 1) : 1;
+        const costCp = Math.round(itemCostGp * qty * 100);
+        const wealthCp = getWealthInCp(currentCharacter.currency);
+        const canAfford = wealthCp >= costCp;
+        buyBtn.disabled = !canAfford;
+        buyBtn.title = canAfford
+          ? `Buy ${qty > 1 ? `${qty}× ` : ''}${selectedItem.name} for ${(itemCostGp * qty).toFixed(2).replace(/\.?0+$/, '')} gp`
+          : `Insufficient funds (need ${(itemCostGp * qty).toFixed(2).replace(/\.?0+$/, '')} gp)`;
+        buyBtn.textContent = canAfford ? `Buy (${formatGp(itemCostGp * qty)})` : `Buy (${formatGp(itemCostGp * qty)} — insufficient)`;
+        buyBtn.style.opacity = canAfford ? '1' : '0.5';
+        buyBtn.style.cursor = canAfford ? 'pointer' : 'not-allowed';
+      } else {
+        buyBtn.style.display = 'none';
+      }
+    }
 
     // Status on character: Active/Carried/Stored
     const getItemState = (rec, category) => {
@@ -7659,6 +7687,8 @@ function updateDetailFooterUI() {
     }
   } else {
     footer.style.display = 'none';
+    if (qtyField) qtyField.style.display = 'none';
+    if (buyBtn) buyBtn.style.display = 'none';
   }
 }
 
@@ -7679,6 +7709,79 @@ function addSelectedItemToCharacter() {
   updateDetailFooterUI();
 }
 
+// ─── Wealth / Buy helpers ──────────────────────────────────────────────────────
+
+/** D&D 5e exchange rates to copper pieces */
+function getWealthInCp(currency) {
+  if (!currency) return 0;
+  return (currency.pp || 0) * 1000
+       + (currency.gp || 0) * 100
+       + (currency.ep || 0) * 50
+       + (currency.sp || 0) * 10
+       + (currency.cp || 0);
+}
+
+/** Convert cp back to {pp,gp,ep,sp,cp} greedily */
+function cpToCurrency(totalCp) {
+  let rem = Math.max(0, Math.floor(totalCp));
+  const pp = Math.floor(rem / 1000); rem %= 1000;
+  const gp = Math.floor(rem / 100);  rem %= 100;
+  const ep = Math.floor(rem / 50);   rem %= 50;
+  const sp = Math.floor(rem / 10);   rem %= 10;
+  const cp = rem;
+  return { pp, gp, ep, sp, cp };
+}
+
+/** Format a gp value for display */
+function formatGp(gpValue) {
+  const cp = Math.round(gpValue * 100);
+  if (cp % 100 === 0) return `${cp / 100} gp`;
+  if (cp % 10  === 0) return `${cp / 10} sp`;
+  return `${cp} cp`;
+}
+
+function buyItemFromPicker() {
+  if (!selectedItem || !currentCharacter) return;
+  const itemCostGp = parseFloat(selectedItem.value) || 0;
+  if (itemCostGp <= 0) return;
+
+  const qtyInput = document.getElementById('pane-qty-input');
+  const qty = qtyInput ? Math.max(1, parseInt(qtyInput.value) || 1) : 1;
+  const costCp = Math.round(itemCostGp * qty * 100);
+  const currency = currentCharacter.currency || { pp: 0, gp: 0, ep: 0, sp: 0, cp: 0 };
+  const wealthCp = getWealthInCp(currency);
+
+  if (wealthCp < costCp) {
+    alert(`Insufficient funds. You need ${formatGp(itemCostGp * qty)} but only have ${formatGp(wealthCp / 100)}.`);
+    return;
+  }
+
+  // Debit the cost
+  currentCharacter.currency = cpToCurrency(wealthCp - costCp);
+
+  // Then add the item (reuses quantity from input)
+  const listId = pickerTargetListId || currentCharacter.itemLists?.[0]?.id;
+  const clone = JSON.parse(JSON.stringify(selectedItem));
+  clone.compendiumId = selectedItem.name;
+  clone.favorite = false;
+  clone.selected = true;
+  clone.active = false;
+  clone.id = generateId();
+  clone.quantity = qty;
+  clone.listId = listId;
+  ensureCharacterLists(currentCharacter);
+  currentCharacter.equipment.push(clone);
+  if (qtyInput) qtyInput.value = '1';
+
+  // Sync Preact signal
+  if (window.__dndStore?.currentCharacter) {
+    window.__dndStore.currentCharacter.value = JSON.parse(JSON.stringify(currentCharacter));
+  }
+
+  saveCurrentCharacterAndRefresh();
+  updateDetailFooterUI();
+}
+
 function addCompendiumEntityToCharacter(record, category) {
   const clone = JSON.parse(JSON.stringify(record));
   clone.compendiumId = record.name;
@@ -7691,6 +7794,10 @@ function addCompendiumEntityToCharacter(record, category) {
 
   if (category === 'items') {
     const listId = pickerTargetListId || currentCharacter.itemLists[0]?.id;
+    const qtyInput = document.getElementById('pane-qty-input');
+    const qty = qtyInput ? Math.max(1, parseInt(qtyInput.value) || 1) : 1;
+    clone.quantity = qty;
+    if (qtyInput) qtyInput.value = '1'; // reset after add
     clone.listId = listId;
     currentCharacter.equipment.push(clone);
   } else if (category === 'spells') {
@@ -8212,6 +8319,16 @@ function setupCharacterSheetEvents() {
     paneDetailBtnAdd.onclick = () => {
       addSelectedItemToCharacter();
     };
+  }
+  const paneDetailBtnBuy = document.getElementById('pane-detail-btn-buy');
+  if (paneDetailBtnBuy) {
+    paneDetailBtnBuy.onclick = () => {
+      buyItemFromPicker();
+    };
+  }
+  const paneQtyInput = document.getElementById('pane-qty-input');
+  if (paneQtyInput) {
+    paneQtyInput.addEventListener('input', () => updateDetailFooterUI());
   }
   const paneDetailBtnCancel = document.getElementById('pane-detail-btn-cancel');
   if (paneDetailBtnCancel) {

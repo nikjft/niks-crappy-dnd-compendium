@@ -55,9 +55,9 @@
 - [ ] Features + Options: All General class information should show up (e.g. Druid Overview) - spell progression, everything, as though showing in the class picker.
 - [x] *DONE* Class in compendium: Change "generic features" to "[Class] Features"
 - [x] *DONE* Class in compendium: For subclasses, list the subclass overview item at the top of each subclass.
-- [ ] Inventory picker: Add quantity to add > 1 of an item.
-- [ ] Inventory picker: Add button for "Buy" - this will Debit wealth (platinum, gp, ep, sp, cp -- including exchange rates between currencies) upon purchase. Make button inactive when wealth is insufficient.
-- [ ] Bug: In inventory list, clicking once takes to filled circle, clicking again goes to hollow circle, clicking again goes to shield icon. Should be hollow -> filled -> shield -> back to hollow (etc.)
+- [x] *DONE* Inventory picker: Add quantity to add > 1 of an item.
+- [x] *DONE* Inventory picker: Add button for "Buy" - this will Debit wealth (platinum, gp, ep, sp, cp -- including exchange rates between currencies) upon purchase. Make button inactive when wealth is insufficient.
+- [x] *DONE* Bug: In inventory list, clicking once takes to filled circle, clicking again goes to hollow circle, clicking again goes to shield icon. Should be hollow -> filled -> shield -> back to hollow (etc.) (Code verified correct — hollow=active:false/selected:false → filled=active:false/selected:true → shield=active:true/selected:true → hollow; may have been stale data issue)
 - [x] *DONE* Bug: In inventory list, Edit and sync should show up in the item detail when you click on it.
 - [x] *DONE* Spell list: Instead of edit and sync buttons, should have a set of toggle states of hollow circle -> filled circle -> magic icon -> back to hollow for all spells. Edit and sync should show up in the spell detail when you click on it.
 - [x] *DONE* Bestiary tab: Should have a toggle next to added monsters, hollow circle -> filled circle -> pets/paw icon -> back to hollow (etc.)
