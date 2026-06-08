@@ -59,6 +59,25 @@ function evalFormula(formula: number | string | undefined, state: Record<string,
   }
 }
 
+// ─── Target key normalization ─────────────────────────────────────────────────
+
+/**
+ * Map UI-facing modifier target names to canonical engine state keys.
+ * Bare attribute names ('str', 'wis', etc.) are aliases for '<attr>.score'.
+ * Legacy underscore keys ('hp_max', 'passive_perception') map to their dot form.
+ */
+const BARE_ATTRS = new Set(['str', 'dex', 'con', 'int', 'wis', 'cha']);
+
+function normalizeTarget(t: string): string {
+  const s = t.trim();
+  if (BARE_ATTRS.has(s)) return `${s}.score`;
+  if (s === 'hp_max') return 'hp.max';
+  if (s === 'passive_perception') return 'passive.perception';
+  if (s === 'passive_investigation') return 'passive.investigation';
+  if (s === 'passive_insight') return 'passive.insight';
+  return s;
+}
+
 // ─── Modifier collection ──────────────────────────────────────────────────────
 
 type EntityType = 'equipment' | 'item' | 'feature' | 'features' | 'feats' | 'spells' | 'options' | 'modifiers';
@@ -206,9 +225,10 @@ export function calculateCharacterState(character: Character): CharacterState {
    * @param baseLabel - human-readable label for the base
    */
   function resolve(target: string, baseValue: number, baseLabel: string): Breakdown {
+    const normTarget = normalizeTarget(target);
     const relevant = activeMods.filter((m) => {
-      const t = m.target.trim();
-      return t === target || (target.startsWith('save.') && t === 'save.all');
+      const t = normalizeTarget(m.target);
+      return t === normTarget || (normTarget.startsWith('save.') && t === 'save.all');
     });
 
     const parts: BreakdownPart[] = [];
@@ -257,8 +277,10 @@ export function calculateCharacterState(character: Character): CharacterState {
     const scoreBreakdown = resolve(`${attr}.score`, base, `Base ${attr.toUpperCase()}`);
     set(`${attr}.score`, scoreBreakdown);
 
-    const mod = Math.floor((scoreBreakdown.total - 10) / 2);
-    set(`${attr}.mod`, bdFlat(mod, `${attr.toUpperCase()} Modifier`));
+    const rawMod = Math.floor((scoreBreakdown.total - 10) / 2);
+    // Run mod through resolve() so modifiers targeting e.g. 'str.mod' or 'wis.mod' apply
+    const modBreakdown = resolve(`${attr}.mod`, rawMod, `${attr.toUpperCase()} Modifier`);
+    set(`${attr}.mod`, modBreakdown);
   }
 
   // ── 4. Saving throws ─────────────────────────────────────────────────────────
@@ -412,22 +434,18 @@ export function calcWeaponAttack(
     return parts;
   };
 
-  // Determine primary/alt abilities.
-  // Finesse: primary = the higher of STR/DEX; alt = the other one (shown so user can choose).
-  // Ranged:  primary = DEX, no alt.
-  // Melee:   primary = STR, no alt.
+  // Determine primary ability.
+  // Finesse: use the higher of STR/DEX (best stat wins automatically).
+  // Ranged:  DEX.
+  // Melee:   STR.
   let primaryAttr: string;
   let primaryMod: number;
-  let altAttr: string | null = null;
-  let altMod: number | null = null;
 
   if (isFinesse) {
     if (strMod >= dexMod) {
       primaryAttr = 'STR'; primaryMod = strMod;
-      if (dexMod !== strMod) { altAttr = 'DEX'; altMod = dexMod; }
     } else {
       primaryAttr = 'DEX'; primaryMod = dexMod;
-      altAttr = 'STR'; altMod = strMod;
     }
   } else if (isRanged) {
     primaryAttr = 'DEX'; primaryMod = dexMod;
@@ -442,15 +460,7 @@ export function calcWeaponAttack(
     parts: makeParts(primaryMod, primaryAttr),
   };
 
-  let atkBonusAlt: WeaponAttack['atkBonusAlt'] | undefined;
-  if (altAttr !== null && altMod !== null) {
-    const altTotal = profBonus + altMod + magicBonus;
-    atkBonusAlt = {
-      total: altTotal,
-      base: { label: `Finesse: ${altAttr} Mod`, value: altMod },
-      parts: makeParts(altMod, altAttr),
-    };
-  }
+  const atkBonusAlt: WeaponAttack['atkBonusAlt'] = undefined;
 
   // Damage bonus: ability modifier + magic bonus.
   // Off-hand without Two-Weapon Fighting: only add the ability modifier if negative.
