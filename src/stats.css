@@ -53,14 +53,14 @@
   font-weight: 600;
 }
 
-.cs-attr-mod {
+.cs-attr-score-val {
   font-size: 28px;
   font-weight: 800;
   color: var(--text-color);
   margin: 4px 0;
 }
 
-.cs-attr-score-val {
+.cs-attr-mod {
   font-size: 12px;
   background: var(--bg-color);
   border: 1px solid var(--border-color);

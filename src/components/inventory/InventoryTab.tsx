@@ -457,9 +457,6 @@ export function InventoryTab() {
   const equipment = (char.equipment ?? []) as EquipmentItem[];
   const itemLists = char.itemLists ?? [];
   const weightEnabled = char.weightTrackingEnabled ?? false;
-  const attuneMax = char.attunementMax ?? 3;
-
-  const attunedCount = equipment.filter(e => e.active && e.requiresAttunement).length;
 
   // ── Mutation helpers ──────────────────────────────────────────────────────
 
@@ -538,13 +535,6 @@ export function InventoryTab() {
       </div>
 
       {showCurrencyEdit && <CurrencyEditor character={char} />}
-
-      {/* ── Attunement Bar ── */}
-      <div class="load-attune-row" style="justify-content: flex-start;">
-        <div class="attune-display" style="margin: 0;">
-          Attuned: {attunedCount} / {attuneMax}
-        </div>
-      </div>
 
       {/* ── Per-list sections ── */}
       {itemLists.map((listDef: any) => {

@@ -79,8 +79,8 @@ export function AbilityCard({ attr, character, state }: Props) {
         aria-label={`${ATTR_NAMES[attr]} details`}
       >
         <span class="cs-attr-label">{ATTR_NAMES[attr]}</span>
-        <span class="cs-attr-mod">{sign(mod)}</span>
         <span class="cs-attr-score-val">{score}</span>
+        <span class="cs-attr-mod">{sign(mod)}</span>
         <div class="cs-attr-save-row" onClick={e => e.stopPropagation()}>
           <button
             class={`cs-prof-indicator ${isSaveProf ? 'prof' : ''}`}
