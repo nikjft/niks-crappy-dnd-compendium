@@ -2377,7 +2377,9 @@ a:hover { color: var(--accent-hover); }
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1px solid var(--text-muted);
+  border: 1.5px solid var(--accent-color);
+  background: transparent;
+  padding: 0;
   cursor: pointer;
   flex-shrink: 0;
   display: flex;
