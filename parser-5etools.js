@@ -475,7 +475,9 @@ export function parse5etoolsItem(item, source) {
     // Armor type for AC calculation in the TypeScript engine
     armorType: ['LA', 'MA', 'HA', 'S'].includes(typeAbbrev) ? typeAbbrev : (item.armorType || null),
     // Structured weapon property abbreviations (e.g. ['F', 'L', 'T'])
-    properties
+    properties,
+    // 5etools uses reqAttune (true | string | undefined); map to internal boolean
+    requiresAttunement: !!(item.reqAttune)
   };
 
   // Copy other flags (like club, dagger, net, weaponCategory, etc.)

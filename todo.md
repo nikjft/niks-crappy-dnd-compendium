@@ -33,11 +33,11 @@
 - [x] *DONE* ENHANCEMENT: When adding spells/items/etc from compendium/picker view, replace cancel button with "OK". (Already "OK" in index.html)
 - [x] *DONE* ENHANCEMENT: Eliminate "half proficiency" from proficiencies/skills list. Only options are proficient (empty circle), proficient (full circle), expert (filled circle with dot). (Preact SkillsList and ToolsList cycle 0→1→2 only; no user-settable 0.5)
 - [x] *DONE* ENHANCEMENT: Add test suite to test full UX with headless browser. Importing, clearing db, browsing compendium, adding and deleting characters, updating each tab, adding each type of entity, deleting each type of entity
-- [ ] Enhancement: Add character option for Weapon Masteries. Just category with an entry for each base weapon (Longsword, short sword, etc.). Each one should list the mastery property and effect for that weapon.
+- [x] *DONE* Enhancement: Add character option for Weapon Masteries. Just category with an entry for each base weapon (Longsword, short sword, etc.). Each one should list the mastery property and effect for that weapon.
 - [ ] *BACKLOG - do not do* Enhancement: UX clean-up. Fix odd sized buttons, varying text size, odd colors, just make consistent
 - [ ] Enhancement: Update equipping of weapons (and only weapons) to on-hand and off-hand. Must respect rules around two weapon fighting and related feats:
     - Do not add your ability modifier (Typically STR, for finesse weapons it will be the greater of STR or DEX)to the off-hand attack's to hit or damage unless it is negative
     - If you have the two weapon fighting style active, you can add your ability modifier
 - [x] *DONE* Enhancement: Update abilities view so that the score is larger than the bonus (swap position of bonus and score)
-- [ ] BUG: Attunement requirements not getting mapped to items. Suspect import parser.
+- [x] *DONE* BUG: Attunement requirements not getting mapped to items. Suspect import parser. (parser-5etools.js now maps reqAttune → requiresAttunement)
 - [ ] Refactor: Eliminate legacy code, no longer required. No legacy content or characters.

@@ -3,6 +3,7 @@ import { currentCharacter, patchCharacter } from '../../state/stores.js';
 import { CustomFeatureModal } from './CustomFeatureModal.js';
 import { LevelHistorySection } from './LevelHistorySection.js';
 import { StartingEquipmentSection } from './StartingEquipmentSection.js';
+import { WeaponMasteriesSection } from './WeaponMasteriesSection.js';
 import { MarkdownContent } from '../shared/MarkdownContent.js';
 import type { FeatureList, CharacterFeature } from '../../data/types.js';
 
@@ -300,6 +301,9 @@ export function FeaturesTab() {
           ))}
         </div>
       )}
+
+      {/* Weapon Masteries */}
+      <WeaponMasteriesSection character={char} />
 
       {/* Starting Equipment */}
       <StartingEquipmentSection character={char} />

@@ -547,3 +547,121 @@
 .feat-mod-select { flex: 2; font-size: 11px; margin: 0 !important; }
 .feat-mod-type   { flex: 1; font-size: 11px; margin: 0 !important; }
 .feat-mod-value  { flex: 1; font-size: 11px; margin: 0 !important; min-width: 60px; }
+
+/* ─── Weapon Masteries Section ─────────────────────────────────────────────── */
+
+.mastery-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.mastery-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mastery-section-header:hover {
+  background: var(--panel-bg-hover);
+}
+
+.mastery-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.mastery-section-body {
+  padding: 4px 0;
+}
+
+/* Mastery rows */
+.mastery-row-group {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mastery-row-group:last-child {
+  border-bottom: none;
+}
+
+.mastery-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.mastery-row:hover {
+  background: var(--panel-bg-hover);
+}
+
+.mastery-weapon-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.mastery-weapon-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.mastery-property-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-color);
+  background: rgba(var(--accent-rgb, 212, 175, 55), 0.12);
+  border: 1px solid rgba(var(--accent-rgb, 212, 175, 55), 0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.mastery-row-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.mastery-detail {
+  padding: 8px 14px 12px;
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
+}
+
+.mastery-effect-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Picker */
+.mastery-picker {
+  max-width: 400px;
+}
+
+.mastery-picker-list {
+  max-height: 340px;
+}
+
+.mastery-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+}

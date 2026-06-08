@@ -163,6 +163,44 @@ describe('parse5etoolsItem', () => {
     expect(parsed.weight).toBe(2);
     expect(parsed.value).toBe(500); // 50000 cp → 500 gp
   });
+
+  it('maps reqAttune boolean to requiresAttunement', () => {
+    const raw = {
+      name: 'Ring of Protection',
+      source: 'DMG',
+      type: 'RG',
+      rarity: 'uncommon',
+      reqAttune: true,
+      entries: ['You gain a +1 bonus to AC and saving throws'],
+    };
+    const parsed = parse5etoolsItem(raw, 'DMG');
+    expect(parsed.requiresAttunement).toBe(true);
+  });
+
+  it('maps reqAttune string to requiresAttunement', () => {
+    const raw = {
+      name: 'Staff of the Magi',
+      source: 'DMG',
+      type: 'ST',
+      rarity: 'legendary',
+      reqAttune: 'by a sorcerer, warlock, or wizard',
+      entries: ['A potent magical staff'],
+    };
+    const parsed = parse5etoolsItem(raw, 'DMG');
+    expect(parsed.requiresAttunement).toBe(true);
+  });
+
+  it('sets requiresAttunement to false when reqAttune is absent', () => {
+    const raw = {
+      name: 'Bag of Holding',
+      source: 'DMG',
+      type: 'W',
+      rarity: 'uncommon',
+      entries: ['A bag with an extradimensional space'],
+    };
+    const parsed = parse5etoolsItem(raw, 'DMG');
+    expect(parsed.requiresAttunement).toBe(false);
+  });
 });
 
 describe('suffixDuplicateNames', () => {
