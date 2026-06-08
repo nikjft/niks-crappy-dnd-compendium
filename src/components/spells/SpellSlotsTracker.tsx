@@ -37,7 +37,7 @@ function SlotPips({
   );
 }
 
-export function SpellSlotsTracker({ character }: Props) {
+export function SpellSlotsTracker({ character, showHeader }: Props & { showHeader?: boolean }) {
   const slots = character.spellSlots ?? {};
   const pactSlots = character.pactSlots;
 
@@ -88,7 +88,7 @@ export function SpellSlotsTracker({ character }: Props) {
     return null; // Non-caster, show nothing
   }
 
-  return (
+  const inner = (
     <div class="slots-tracker">
       {/* Standard slots */}
       {slotLevels.length > 0 && (
@@ -127,4 +127,14 @@ export function SpellSlotsTracker({ character }: Props) {
       )}
     </div>
   );
+
+  if (showHeader) {
+    return (
+      <div class="cs-card">
+        <div class="cs-card-header"><h3>Spell Slots</h3></div>
+        {inner}
+      </div>
+    );
+  }
+  return inner;
 }

@@ -1,7 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { currentCharacter, charState } from '../../state/stores.js';
 import { StatCard } from './StatCard.js';
-import { HpSection } from './HpSection.js';
 import { ConditionsBar } from './ConditionsBar.js';
 import { AttacksSection } from './AttacksSection.js';
 import { CountersSection } from './CountersSection.js';
@@ -26,7 +25,6 @@ export function CombatTab() {
     return <div class="combat-placeholder">Open a character sheet to get started.</div>;
   }
 
-  const hpMax = state['hp.max']?.total ?? character.baseHpMax;
   const ac = state['ac']?.total ?? 10;
   const initiative = state['initiative']?.total ?? 0;
   const speed = state['speed']?.total ?? 30;
@@ -34,9 +32,6 @@ export function CombatTab() {
 
   return (
     <div class="combat-tab-root">
-      {/* HP Section */}
-      <HpSection character={character} hpMax={hpMax} />
-
       {/* Conditions */}
       <ConditionsBar character={character} />
 
@@ -55,7 +50,7 @@ export function CombatTab() {
       <div class="cs-combat-main-layout">
         <div class="cs-combat-left">
           <AttacksSection character={character} state={state} />
-          <SpellSlotsTracker character={character} />
+          <SpellSlotsTracker character={character} showHeader />
           <CountersSection character={character} />
         </div>
         <div class="cs-combat-right">
