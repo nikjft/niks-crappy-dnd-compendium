@@ -2390,6 +2390,8 @@ function renderFacet2() {
       label = val === 0 ? 'Cantrip' : `Level ${val}`;
     } else if (currentCategory === 'classes') {
       if (val === 'Generic Features') {
+        // Display as "[ClassName] Features" when a single class is selected, otherwise "Class Features"
+        label = selectedFacet1 !== 'All' ? `${selectedFacet1} Features` : 'Class Features';
         if (selectedFacet1 === 'All') {
           count = recordsFacet1.reduce((sum, c) => sum + (c.features ? c.features.filter(f => !f.subclass).length : 0), 0);
         } else if (recordsFacet1.length > 0) {
@@ -2577,15 +2579,30 @@ function applyFilters() {
 
   let itemsToRender = [];
   if (currentCategory === 'classes') {
+    const isSubclassView = selectedFacet2 !== 'All' && selectedFacet2 !== 'Generic Features';
     filteredRecords.forEach(cls => {
-      // Always include Class Overview in the list
-      itemsToRender.push({
-        name: `${cls.name} Overview`,
-        isOverview: true,
-        level: 0,
-        classData: cls,
-        categoryType: 'class-overview'
-      });
+      // When browsing a specific subclass, show the subclass overview instead of the class overview
+      if (isSubclassView) {
+        const subEntity = cls.subclassEntities?.find(s => s.name === selectedFacet2);
+        if (subEntity) {
+          itemsToRender.push({
+            name: `${selectedFacet2} Overview`,
+            isOverview: true,
+            level: 0,
+            classData: subEntity,
+            categoryType: 'class-overview'
+          });
+        }
+      } else {
+        // Always include Class Overview in the list when not in a subclass view
+        itemsToRender.push({
+          name: `${cls.name} Overview`,
+          isOverview: true,
+          level: 0,
+          classData: cls,
+          categoryType: 'class-overview'
+        });
+      }
       if (cls.features) {
         cls.features.forEach(feat => {
           if (selectedFacet2 !== 'All') {
@@ -7163,6 +7180,7 @@ const SVG_TRASH  = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" 
 const SVG_SYNC   = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"/></svg>`;
 const SVG_COG    = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 const SVG_PLUS   = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+const SVG_PAWS   = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="4.5" cy="9.5" r="2.5"/><circle cx="9" cy="5.5" r="2.5"/><circle cx="15" cy="5.5" r="2.5"/><circle cx="19.5" cy="9.5" r="2.5"/><path d="M17.34 14.86c-.87-1.02-1.6-1.89-2.48-2.91-.46-.54-1.05-1.08-1.75-1.32-.17-.06-.35-.09-.53-.09-.18 0-.36.03-.53.09-.7.24-1.28.78-1.75 1.32-.87 1.02-1.6 1.89-2.48 2.91-1.31 1.31-2.92 2.76-2.62 4.79.29 1.02 1.02 2 2.1 2.48.64.28 1.28.4 1.97.4.66 0 1.32-.14 1.97-.4.51-.21 1.21-.21 1.72 0 .65.26 1.31.4 1.97.4.69 0 1.33-.12 1.97-.4 1.08-.48 1.81-1.46 2.1-2.48.3-2.03-1.31-3.48-2.62-4.79z"/></svg>`;
 
 // ─── Single row renderer ───────────────────────────────────────────────────────
 /**
@@ -7204,6 +7222,50 @@ function renderListRow(item, type, opts = {}) {
   const shieldActive = isActive  ? 'active equip' : '';
   const packActive   = isCarried ? 'active'        : '';
 
+  if (type === 'beast') {
+    // Beasts use a 3-state cycle: hollow → filled → paw → hollow
+    // hollow = not tracked, filled = tracking, paw = active/deployed
+    let beastCycleIcon, beastCycleClass, beastCycleTitle;
+    if (isActive) {
+      beastCycleIcon = SVG_PAWS;
+      beastCycleClass = 'beast-cycle-btn state-active';
+      beastCycleTitle = 'Active/Deployed — click to remove';
+    } else if (isCarried) {
+      beastCycleIcon = '';
+      beastCycleClass = 'beast-cycle-btn state-tracking';
+      beastCycleTitle = 'Tracking — click to mark active';
+    } else {
+      beastCycleIcon = '';
+      beastCycleClass = 'beast-cycle-btn state-untracked';
+      beastCycleTitle = 'Not tracked — click to track';
+    }
+
+    row.innerHTML = `
+      <div class="cs-list-row-info">
+        <div class="cs-list-row-name">${item.name}</div>
+        ${sub ? `<div class="cs-list-row-sub">${sub}</div>` : ''}
+      </div>
+      <div class="cs-list-row-actions">
+        <button class="${beastCycleClass}" title="${beastCycleTitle}">${beastCycleIcon}</button>
+        ${syncBtn}
+        <button class="cs-list-row-btn danger btn-delete" title="Remove">${SVG_TRASH}</button>
+      </div>
+    `;
+
+    row.querySelector('.cs-list-row-info').onclick = () => openItemDetailModal(item, type);
+
+    row.querySelector('.beast-cycle-btn').onclick = (e) => {
+      e.stopPropagation();
+      if (!item.selected && !item.active) {
+        item.selected = true; item.active = false;
+      } else if (item.selected && !item.active) {
+        item.active = true;
+      } else {
+        item.selected = false; item.active = false;
+      }
+      saveCurrentCharacterAndRefresh();
+    };
+  } else {
   row.innerHTML = `
     <div class="cs-list-row-info">
       <div class="cs-list-row-name">${item.name}</div>
@@ -7236,6 +7298,7 @@ function renderListRow(item, type, opts = {}) {
     if (opts.onCarried) opts.onCarried(item);
     else saveCurrentCharacterAndRefresh();
   };
+  }
   if (item.compendiumId || item.isOverview) {
     row.querySelector('.btn-sync').onclick = (e) => {
       e.stopPropagation();
@@ -8038,7 +8101,7 @@ function renderCharacterSheetUI() {
   });
 
   // ── Tab 7: Notes & Profile ───────────────────────────────────────────────────
-  const profileFields = ['alignment', 'age', 'height', 'weight'];
+  const profileFields = ['alignment', 'age', 'height', 'weight', 'appearance'];
   profileFields.forEach(field => {
     const el = document.getElementById(`cs-profile-${field}`);
     if (el) {
@@ -8421,6 +8484,22 @@ if (typeof window !== 'undefined') {
       lines: (se.default || []).map(stripTags),
       goldAlt: se.goldAlternative ? stripTags(se.goldAlternative) : null,
       fromBackground: !!se.additionalFromBackground,
+    };
+  };
+
+  window.__legacyGetClassData = (className) => {
+    const cls = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === className.toLowerCase());
+    if (!cls) return null;
+    return {
+      name: cls.name,
+      hd: cls.hd,
+      proficiency: cls.proficiency || null,
+      armor: cls.armor || null,
+      weapons: cls.weapons || null,
+      tools: cls.tools || null,
+      savingThrows: cls.savingThrows || null,
+      skills: cls.skills || null,
+      spellAbility: cls.spellAbility || null,
     };
   };
 

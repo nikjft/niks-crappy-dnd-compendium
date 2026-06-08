@@ -403,44 +403,29 @@
 }
 
 /* ── Starting Equipment section ───────────────────────────────────────────── */
-.start-equip-section {
+/* ── Starting equipment inline line ──────────────────────────────────────── */
+.start-equip-inline {
+  border-top: 1px solid var(--border-color);
   font-size: var(--fs-base);
 }
 
-.start-equip-classes {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0 8px;
-}
-
-.start-equip-class {
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid var(--border-color);
-  margin: 0 4px;
-}
-
-.start-equip-class-header {
+.start-equip-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
   padding: 7px 12px;
   background: none;
   border: none;
   cursor: pointer;
   text-align: left;
-  color: var(--text-primary);
-  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  gap: 2px;
 }
 
-.start-equip-class-header:hover {
+.start-equip-toggle:hover {
   background: var(--panel-bg-hover);
-}
-
-.start-equip-class-name {
-  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .start-equip-body {
@@ -481,6 +466,47 @@
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-style: italic;
+}
+
+/* ── Class proficiency info inline cards ──────────────────────────────────── */
+.class-info-card {
+  border-top: 1px solid var(--border-color);
+  font-size: var(--fs-base);
+}
+
+.class-info-body {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border-color);
+  background: var(--panel-bg-hover);
+}
+
+.class-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.class-info-table tr + tr td {
+  padding-top: 4px;
+}
+
+.class-info-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding-right: 12px;
+  vertical-align: top;
+  width: 110px;
+}
+
+.class-info-value {
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.class-info-multiclass-note {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--fs-xs);
 }
 
 /* ── Custom Feature Modal — Modifier section ─────────────────────────────── */

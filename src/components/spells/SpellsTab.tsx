@@ -138,8 +138,20 @@ export function SpellsTab() {
 
 
 
-  function handleTogglePrepared(spell: CharacterSpell) {
-    setSpells(spells.map(s => s === spell ? { ...s, selected: !s.selected } : s));
+  function handleCycleState(spell: CharacterSpell) {
+    // Cycle: unprepared → prepared → active → unprepared (leveled spells)
+    //        inactive → active → inactive (cantrips)
+    setSpells(spells.map(s => {
+      if (s !== spell) return s;
+      if (s.level === 0) {
+        // Cantrip: toggle active
+        return { ...s, active: !s.active };
+      }
+      // Leveled: unprepared → prepared → active → unprepared
+      if (!s.selected && !s.active) return { ...s, selected: true, active: false };
+      if (s.selected && !s.active)  return { ...s, selected: true, active: true };
+      return { ...s, selected: false, active: false };
+    }));
   }
 
   function handleDelete(spell: CharacterSpell) {
@@ -249,7 +261,7 @@ export function SpellsTab() {
                       <SpellRow
                         key={`${spell.name}-${i}`}
                         spell={spell}
-                        onTogglePrepared={handleTogglePrepared}
+                        onCycleState={handleCycleState}
                         onEdit={handleEdit}
                         onDelete={handleDelete}
                       />

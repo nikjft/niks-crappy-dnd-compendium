@@ -961,6 +961,27 @@
   border-top: 1px solid var(--border-color);
 }
 
+/* ── Feature detail modal ─────────────────────────────────────────────────── */
+.qa-feature-modal {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: min(480px, 95vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qa-feature-modal-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+  font-size: var(--fs-base);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  flex: 1;
+}
+
 .qa-counter-row {
   display: flex;
   align-items: center;

@@ -11,9 +11,9 @@ interface Props {
   character: Character;
 }
 
-function ClassEquipment({ cls }: { cls: CharacterClass }) {
+function ClassEquipmentLine({ cls }: { cls: CharacterClass }) {
   const [data, setData] = useState<StartingEquipmentData | null>(null);
-  const [collapsed, setCollapsed] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const result = (window as any).__legacyGetStartingEquipment?.(cls.name);
@@ -23,17 +23,17 @@ function ClassEquipment({ cls }: { cls: CharacterClass }) {
   if (!data || data.lines.length === 0) return null;
 
   return (
-    <div class="start-equip-class">
+    <div class="start-equip-inline">
       <button
-        class="start-equip-class-header"
-        onClick={() => setCollapsed(c => !c)}
-        aria-expanded={!collapsed}
+        class="start-equip-toggle"
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
       >
-        <span class="start-equip-class-name">{cls.name}</span>
-        <span class="feat-collapse-icon">{collapsed ? '▸' : '▾'}</span>
+        <span class="material-icons-outlined" style="font-size: 13px; margin-right: 4px;">backpack</span>
+        <span>Starting Equipment — {cls.name}</span>
+        <span class="feat-collapse-icon" style="margin-left: auto;">{expanded ? '▾' : '▸'}</span>
       </button>
-
-      {!collapsed && (
+      {expanded && (
         <div class="start-equip-body">
           {data.fromBackground && (
             <p class="start-equip-note">+ Starting equipment from your Background.</p>
@@ -57,18 +57,10 @@ export function StartingEquipmentSection({ character }: Props) {
   if (classes.length === 0) return null;
 
   return (
-    <div class="start-equip-section cs-combat-card">
-      <div class="cs-card-header">
-        <h3>Starting Equipment</h3>
-      </div>
-      <div class="start-equip-classes">
-        {classes.map(cls => (
-          <ClassEquipment key={cls.name} cls={cls} />
-        ))}
-      </div>
-      <p class="start-equip-footer-note">
-        Reference only — equipment is managed in Inventory.
-      </p>
-    </div>
+    <>
+      {classes.map(cls => (
+        <ClassEquipmentLine key={cls.name} cls={cls} />
+      ))}
+    </>
   );
 }

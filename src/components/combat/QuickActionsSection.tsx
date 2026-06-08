@@ -127,25 +127,43 @@ interface FeatureCardProps {
 }
 
 function FeatureCard({ feature, onUnpin }: FeatureCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const desc = feature.texts?.[0];
+  const [modalOpen, setModalOpen] = useState(false);
   return (
-    <div class="qa-card">
-      <div class="qa-card-header">
-        <button class="qa-card-name qa-card-name-btn" onClick={() => setExpanded(e => !e)} title="Toggle description">
-          {feature.name}
-        </button>
-        <button class="qa-unpin-btn" onClick={onUnpin} aria-label={`Unpin ${feature.name}`} title="Remove from Quick Actions">×</button>
+    <>
+      <div class="qa-card">
+        <div class="qa-card-header">
+          <button class="qa-card-name qa-card-name-btn" onClick={() => setModalOpen(true)} title="View description">
+            {feature.name}
+          </button>
+          <button class="qa-unpin-btn" onClick={onUnpin} aria-label={`Unpin ${feature.name}`} title="Remove from Quick Actions">×</button>
+        </div>
+        {feature.category && (
+          <div class="qa-card-props">
+            <span class="qa-tag">{feature.category}</span>
+          </div>
+        )}
       </div>
-      {feature.category && (
-        <div class="qa-card-props">
-          <span class="qa-tag">{feature.category}</span>
+
+      {modalOpen && (
+        <div class="bd-overlay" onClick={() => setModalOpen(false)}>
+          <div class="qa-feature-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div class="bd-header">
+              <span class="bd-title">{feature.name}</span>
+              <button class="bd-close" onClick={() => setModalOpen(false)}>×</button>
+            </div>
+            {feature.category && (
+              <div style="padding: 0 16px 4px; font-size: var(--fs-sm); color: var(--text-muted);">{feature.category}</div>
+            )}
+            <div class="qa-feature-modal-body">
+              {feature.texts && feature.texts.length > 0
+                ? feature.texts.map((t, i) => <p key={i} style="margin: 0 0 8px; line-height: 1.5;">{t}</p>)
+                : <p style="color: var(--text-muted); font-style: italic;">No description available.</p>
+              }
+            </div>
+          </div>
         </div>
       )}
-      {expanded && desc && (
-        <p class="qa-card-desc">{desc}</p>
-      )}
-    </div>
+    </>
   );
 }
 

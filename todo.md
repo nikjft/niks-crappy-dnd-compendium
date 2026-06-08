@@ -50,22 +50,23 @@
 - [x] Refactor: Eliminate legacy code, no longer required. No legacy content or characters.
 - [x] *DONE* BUG: When adding spells to a spell list from a compendium, you need to reload the window before the spell appears. They should appear immediately after you close the compendium picker.
 - [x] *DONE* Bug: Lost ability to sync an edited spell to the compendium.
-- [ ] Armor and weapon proficiencies should be listed under class features. Note differences between multiclass and single class.
-- [ ] Features + Options tab: Class features shows starting equipment. Should just be a line in class features, not its section.
+- [x] *DONE* Armor and weapon proficiencies should be listed under class features. Note differences between multiclass and single class.
+- [x] *DONE* Features + Options tab: Class features shows starting equipment. Should just be a line in class features, not its section.
 - [ ] Features + Options: All General class information should show up (e.g. Druid Overview) - spell progression, everything, as though showing in the class picker.
-- [ ] Class in compendium: Change "generic features" to "[Class] Features"
-- [ ] Class in compendium: For subclasses, list the subclass overview item at the top of each subclass.
+- [x] *DONE* Class in compendium: Change "generic features" to "[Class] Features"
+- [x] *DONE* Class in compendium: For subclasses, list the subclass overview item at the top of each subclass.
 - [ ] Inventory picker: Add quantity to add > 1 of an item.
 - [ ] Inventory picker: Add button for "Buy" - this will Debit wealth (platinum, gp, ep, sp, cp -- including exchange rates between currencies) upon purchase. Make button inactive when wealth is insufficient.
 - [ ] Bug: In inventory list, clicking once takes to filled circle, clicking again goes to hollow circle, clicking again goes to shield icon. Should be hollow -> filled -> shield -> back to hollow (etc.)
-- [ ] Bug: In inventory list, Edit and sync should show up in the item detail when you click on it.
-- [ ] Spell list: Instead of edit and sync buttons, should have a set of toggle states of hollow circle -> filled circle -> magic icon -> back to hollow for all spells. Edit and sync should show up in the spell detail when you click on it.
-- [ ] Bestiary tab: Should have a toggle next to added monsters, hollow circle -> filled circle -> pets/paw icon -> back to hollow (etc.)
-- [ ] Notes tab: In character profile, also add a field for "Appearance"
-- [ ] Notes tab: Character profile (alignment, height, weight, appearance) should be editable.
-- [ ] Combat: Quick actions - Clicking a pinned action should open a modal with the full description as though displayed in the compendium, not expand it.
+- [x] *DONE* Bug: In inventory list, Edit and sync should show up in the item detail when you click on it.
+- [x] *DONE* Spell list: Instead of edit and sync buttons, should have a set of toggle states of hollow circle -> filled circle -> magic icon -> back to hollow for all spells. Edit and sync should show up in the spell detail when you click on it.
+- [x] *DONE* Bestiary tab: Should have a toggle next to added monsters, hollow circle -> filled circle -> pets/paw icon -> back to hollow (etc.)
+- [x] *DONE* Notes tab: In character profile, also add a field for "Appearance"
+- [x] *DONE* Notes tab: Character profile (alignment, height, weight, appearance) should be editable.
+- [x] *DONE* Combat: Quick actions - Clicking a pinned action should open a modal with the full description as though displayed in the compendium, not expand it.
 - [ ] Compendium and picker: When there is a hidden facet, clicking "< [category]" should keep current selections. e.g. If I am in Druid Spells Level 1, and on a spell detail, I only see a list of spells and the current spell description. Clicking the < back, should take me back up to "Spells" category, with Druid and Level 1 both selected. In mobile it should take me up 1 step, so I see list of leveled spells with druid level 1 spells selected.
-- [ ] Change text-muted text color to #bcbcd3
-- [ ] Change text-secondary to #dadadaff
+- [x] *DONE* Change text-muted text color to #bcbcd3
+- [x] *DONE* Change text-secondary to #dadadaff
 - [x] *Done* Add spell slots to Combat tab (keep on spells, sync both)
 - [ ] *Do not do yet* In compendium, editing a class or race just gives markdown and no sync with compendium. Not full editing. Should provide full editing experience.
+- [ ] In spell slot views, eliminate that calculateCharacterSlots merges pact slots into the standard pool at that level. Pact slots should only live on their own.
