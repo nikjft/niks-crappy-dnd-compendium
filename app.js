@@ -2281,7 +2281,7 @@ function renderFacet2() {
     } else {
       facetName = 'Type';
       const types = new Set();
-      recordsFacet1.forEach(m => { if (m.type) types.add(m.type.toLowerCase()); });
+      recordsFacet1.forEach(m => { if (m.type && typeof m.type === 'string') types.add(m.type.toLowerCase()); });
       values = Array.from(types).sort();
     }
   } else if (currentCategory === 'favorites') {
@@ -2385,7 +2385,7 @@ function renderFacet2() {
         count = recordsFacet1.filter(m => m.cr !== undefined && m.cr !== null && matchCRRange(m.cr, val)).length;
         label = `CR ${val}`;
       } else {
-        count = recordsFacet1.filter(m => m.type && m.type.toLowerCase() === val.toLowerCase()).length;
+        count = recordsFacet1.filter(m => m.type && typeof m.type === 'string' && m.type.toLowerCase() === val.toLowerCase()).length;
         label = val.charAt(0).toUpperCase() + val.slice(1);
       }
     } else if (currentCategory === 'favorites') {
@@ -2512,7 +2512,7 @@ function applyFilters() {
           };
           if (record.cr === undefined || record.cr === null || !matchCRRange(record.cr, selectedFacet2)) return false;
         } else {
-          if (!record.type || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
+          if (!record.type || typeof record.type !== 'string' || record.type.toLowerCase() !== selectedFacet2.toLowerCase()) return false;
         }
       } else if (currentCategory === 'favorites') {
         if (selectedFacet1 === 'spells') {
