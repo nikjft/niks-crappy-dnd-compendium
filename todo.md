@@ -69,4 +69,4 @@
 - [x] *DONE* Change text-secondary to #dadadaff
 - [x] *Done* Add spell slots to Combat tab (keep on spells, sync both)
 - [ ] *Do not do yet* In compendium, editing a class or race just gives markdown and no sync with compendium. Not full editing. Should provide full editing experience.
-- [ ] In spell slot views, eliminate that calculateCharacterSlots merges pact slots into the standard pool at that level. Pact slots should only live on their own.
+- [x] *DONE* In spell slot views, eliminate that calculateCharacterSlots merges pact slots into the standard pool at that level. Pact slots should only live on their own.

@@ -49,8 +49,8 @@ export function SpellSlotsTracker({ character }: Props) {
 
   // For a single-class Warlock every slot in spellSlots IS a pact slot — suppress
   // the pact level from the standard grid so it only shows under Pact Magic.
-  // For multiclass, calculateCharacterSlots merges pact slots into the standard pool
-  // at the same level, so we show the grid as-is to avoid hiding real class slots.
+  // For multiclass, calculateCharacterSlots no longer merges pact slots into the
+  // standard pool, so the grid shows real class slots correctly at every level.
   const classes = (character.classes as CharacterClass[] | undefined) ?? [];
   const isSingleClassWarlock = classes.length === 1 && warlockLevel > 0;
 

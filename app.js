@@ -6975,13 +6975,10 @@ function calculateCharacterSlots(char) {
     }
   }
 
-  // Separately determine Warlock Pact Magic slots
-  if (activeWarlock) {
-    const pact = WARLOCK_PACT_SLOTS[activeWarlock.level];
-    if (pact) {
-      slots[pact.level] = (slots[pact.level] || 0) + pact.count;
-    }
-  }
+  // Pact Magic slots are tracked separately in character.pactSlots and rendered
+  // by SpellSlotsTracker independently — do NOT merge them into the standard pool.
+  // (For single-class Warlock the early-return above already set slots[pact.level]
+  //  which SpellSlotsTracker filters out of the standard grid via isSingleClassWarlock.)
 
   return slots;
 }
@@ -7990,6 +7987,10 @@ function performLongRest() {
     const maxVal = calculatedSlots[l] || 0;
     currentCharacter.spellSlots[l] = { current: maxVal, max: maxVal };
   }
+  // Restore pact slots (Warlocks recover on short rest, which is included in long rest)
+  if (currentCharacter.pactSlots) {
+    currentCharacter.pactSlots = { ...currentCharacter.pactSlots, current: currentCharacter.pactSlots.max };
+  }
 
   saveCurrentCharacterAndRefresh();
   const btn = document.getElementById('cs-btn-long-rest');
@@ -8702,6 +8703,10 @@ if (typeof window !== 'undefined') {
     for (let l = 1; l <= 9; l++) {
       const maxVal = calculatedSlots[l] || 0;
       currentCharacter.spellSlots[l] = { current: maxVal, max: maxVal };
+    }
+    // Also restore pact slots (Warlocks recover on short rest)
+    if (currentCharacter.pactSlots) {
+      currentCharacter.pactSlots = { ...currentCharacter.pactSlots, current: currentCharacter.pactSlots.max };
     }
   };
 }
