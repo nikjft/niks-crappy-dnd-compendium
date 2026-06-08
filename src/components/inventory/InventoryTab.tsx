@@ -131,14 +131,16 @@ function ItemRow({
   function renderStateIcon() {
     if (isMainHand) {
       return (
-        <span class="material-icons-outlined state-icon" style="font-size: 14px; color: var(--accent-color);">
+        <span class="material-icons-outlined state-icon"
+          style="font-size: 14px; color: var(--accent-color); font-variation-settings: 'FILL' 1;">
           swords
         </span>
       );
     }
     if (isOffHand || (isEquipped && !isWeapon)) {
       return (
-        <span class="material-icons state-icon" style="font-size: 14px; color: var(--accent-color);">
+        <span class="material-icons-outlined state-icon"
+          style="font-size: 14px; color: var(--accent-color); font-variation-settings: 'FILL' 1;">
           shield
         </span>
       );
