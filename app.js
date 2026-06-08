@@ -7455,8 +7455,10 @@ function renderListSection(container, listDef, items, type, state, opts = {}) {
 
   section.innerHTML = `
     <div class="cs-list-section-header" data-list-id="${listDef.id}" style="cursor:pointer;">
-      <span class="cs-list-collapse-arrow" style="margin-right:6px;font-size:10px;color:var(--text-muted);">${isCollapsed ? '▶' : '▼'}</span>
-      <h3>${listDef.name}</h3>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="cs-list-collapse-arrow" style="font-size:10px;color:var(--text-muted);">${isCollapsed ? '▶' : '▼'}</span>
+        <h3>${listDef.name}</h3>
+      </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span class="cs-list-section-header-meta">${headerMeta}</span>
         <button class="cs-list-row-btn btn-add-to-list" title="Add to List" data-list-id="${listDef.id}">${SVG_PLUS}</button>
