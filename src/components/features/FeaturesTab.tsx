@@ -44,7 +44,7 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
             )}
           </div>
           <button
-            class="feat-action-btn"
+            class="icon-action-btn"
             title="Resync from compendium"
             onClick={e => {
               e.stopPropagation();
@@ -68,17 +68,16 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
           {feature.category && <span class="feat-category">{feature.category}</span>}
         </div>
         <div class="feat-row-actions" onClick={e => e.stopPropagation()}>
-          {/* Active toggle */}
+          {/* Active toggle — circle (empty = off, filled accent = on) */}
           <button
-            class={`feat-action-btn${feature.active ? ' feat-btn-active' : ''}`}
+            class={`cs-prof-indicator${feature.active ? ' prof' : ''}`}
             title={feature.active ? 'Deactivate' : 'Activate'}
+            aria-label={feature.active ? 'Deactivate feature' : 'Activate feature'}
             onClick={() => onToggleActive(feature)}
-          >
-            <span class="material-icons-outlined" style="font-size: 14px;">bolt</span>
-          </button>
+          />
           {/* Edit */}
           <button
-            class="feat-action-btn"
+            class="icon-action-btn"
             title="Edit"
             onClick={() => onEdit(feature)}
           >
@@ -86,7 +85,7 @@ function FeatureRow({ feature, onToggleActive, onEdit, onDelete }: FeatureRowPro
           </button>
           {/* Delete */}
           <button
-            class="feat-action-btn danger"
+            class="icon-action-btn danger"
             title="Remove"
             onClick={() => {
               if (window.confirm(`Remove "${feature.name}"?`)) onDelete(feature);

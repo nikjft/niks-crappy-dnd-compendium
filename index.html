@@ -296,12 +296,7 @@
       <!-- Tab 3: Features & Traits — rendered by Preact -->
       <section id="cs-tab-features" class="cs-tab-panel">
         <div id="features-root"></div>
-        <!-- Legacy anchors kept so app.js DOM queries don't throw -->
-        <span id="cs-summary-species" style="display:none"></span>
-        <span id="cs-summary-background" style="display:none"></span>
-        <span id="cs-summary-subclass" style="display:none"></span>
         <button id="cs-btn-add-feature-list" style="display:none"></button>
-        <div id="cs-features-lists-container" style="display:none"></div>
       </section>
 
       <!-- Tab 4: Inventory -->
@@ -452,62 +447,7 @@
     </div>
   </div>
 
-
-
-  <!-- Custom Modifier Modal -->
-  <div id="cs-modifier-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">
-    <div class="overlay-card cs-modal-card" style="text-align: left; max-width: 400px; padding: 24px;">
-      <h2 style="color: var(--text-primary); margin-bottom: 16px;">Add Custom Modifier</h2>
-      
-      <div class="cs-form-group">
-        <label for="cs-mod-name-input">Modifier Name</label>
-        <input type="text" id="cs-mod-name-input" class="settings-input" placeholder="e.g. Shield of Faith" required>
-      </div>
-
-      <div class="cs-form-group">
-        <label for="cs-mod-target-select">Target Stat</label>
-        <select id="cs-mod-target-select" class="filter-select">
-          <option value="ac">Armor Class (ac)</option>
-          <option value="hp.max">Max HP (hp.max)</option>
-          <option value="initiative">Initiative</option>
-          <option value="speed">Speed</option>
-          <option value="str.score">Strength Score</option>
-          <option value="dex.score">Dexterity Score</option>
-          <option value="con.score">Constitution Score</option>
-          <option value="int.score">Intelligence Score</option>
-          <option value="wis.score">Wisdom Score</option>
-          <option value="cha.score">Charisma Score</option>
-          <option value="save.all">All Saving Throws</option>
-          <option value="spell.dc">Spell Save DC</option>
-          <option value="spell.attack">Spell Attack Roll</option>
-          <option value="melee.attack">Melee Attack Roll</option>
-          <option value="melee.damage">Melee Damage</option>
-          <option value="ranged.attack">Ranged Attack Roll</option>
-          <option value="ranged.damage">Ranged Damage</option>
-        </select>
-      </div>
-
-      <div class="cs-form-group">
-        <label for="cs-mod-type-select">Modifier Type</label>
-        <select id="cs-mod-type-select" class="filter-select">
-          <option value="add">Add (+)</option>
-          <option value="set">Set (Override)</option>
-          <option value="max">Max Cap</option>
-          <option value="min">Min Floor</option>
-        </select>
-      </div>
-
-      <div class="cs-form-group">
-        <label for="cs-mod-value-input">Bonus Value / Formula</label>
-        <input type="text" id="cs-mod-value-input" class="settings-input" placeholder="e.g. +2 or 2 * {char.level}" required>
-      </div>
-
-      <div class="settings-btn-row" style="margin-top: 20px;">
-        <button id="cs-mod-btn-save" class="settings-action-btn">Add Modifier</button>
-        <button id="cs-mod-btn-cancel" class="settings-action-btn secondary-btn" style="background-color: var(--panel-bg-hover); color: var(--text-secondary); border: 1px solid var(--border-color);">Cancel</button>
-      </div>
-    </div>
-  </div>
+  <!-- cs-modifier-modal removed — W1 (Preact ModifierModal owns modifiers) -->
 
   <!-- Temp HP Modal -->
   <div id="cs-temp-hp-modal" class="overlay" style="display: none; justify-content: center; align-items: center;">

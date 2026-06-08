@@ -7779,20 +7779,7 @@ async function resyncClassFeatures(className) {
   await saveCurrentCharacterAndRefresh();
 }
 
-function saveCustomModifierModal() {
-  const name = document.getElementById('cs-mod-name-input').value.trim();
-  if (!name) { document.getElementById('cs-mod-name-input').style.borderColor = 'var(--error-color)'; return; }
-  const target = document.getElementById('cs-mod-target-select').value;
-  const type   = document.getElementById('cs-mod-type-select').value;
-  const value  = document.getElementById('cs-mod-value-input').value.trim();
-  if (!value) { document.getElementById('cs-mod-value-input').style.borderColor = 'var(--error-color)'; return; }
-
-  const mod = { name, active: true, favorite: false, selected: true, id: generateId(), modifiers: [{ target, type, value }] };
-  if (!currentCharacter.modifiers) currentCharacter.modifiers = [];
-  currentCharacter.modifiers.push(mod);
-  document.getElementById('cs-modifier-modal').style.display = 'none';
-  saveCurrentCharacterAndRefresh();
-}
+// saveCustomModifierModal removed — W1 (cs-modifier-modal is dead, Preact ModifierModal owns this)
 
 function saveCustomCounterModal() {
   const name = document.getElementById('cs-counter-name-input').value.trim();
@@ -7904,97 +7891,11 @@ function renderCharacterSheetUI() {
     }
   });
 
-  // ── Tab 1: Combat ───────────────────────────────────────────────────────────
-  const valAc = document.getElementById('cs-val-ac');
-  if (valAc) valAc.textContent = state['ac'];
-  const valInit = document.getElementById('cs-val-initiative');
-  if (valInit) valInit.textContent = formatModifier(state['initiative']);
-  const valSpeed = document.getElementById('cs-val-speed');
-  if (valSpeed) valSpeed.textContent = `${state['speed']} ft`;
-  const valProfBonus = document.getElementById('cs-val-prof-bonus');
-  if (valProfBonus) valProfBonus.textContent = formatModifier(state['prof_bonus']);
+  // ── Tab 1: Combat — rendered by Preact ──────────────────────────────────────
+  // cs-val-ac/initiative/speed/prof-bonus, cs-attacks-list, cs-modifiers-list
+  // all absent — Preact AttacksSection / QuickActionsSection / ModifiersSection own them.
 
-  // Attacks list
-  const attacksList = document.getElementById('cs-attacks-list');
-  if (attacksList) {
-    attacksList.innerHTML = '';
-    const activeEquipment = (currentCharacter.equipment || []).filter(e => e.active);
-    activeEquipment.forEach(item => {
-      const isWeapon = item.type && (item.type.includes('Weapon') || item.dmg1);
-      if (isWeapon) {
-        const isRanged = item.type && item.type.includes('Ranged');
-        const atkBonus = isRanged ? state['ranged.attack'] : state['melee.attack'];
-        const dmgBonus = isRanged ? state['ranged.damage'] : state['melee.damage'];
-        const row = document.createElement('div');
-        row.className = 'cs-list-row';
-        row.innerHTML = `
-          <div class="cs-list-row-info">
-            <div class="cs-list-row-name">${item.name}</div>
-            <div class="cs-list-row-sub">Attack: ${formatModifier(atkBonus)} · Dmg: ${item.dmg1 || '1d4'} ${dmgBonus >= 0 ? '+' + dmgBonus : dmgBonus} ${item.dmgType || ''}</div>
-          </div>
-        `;
-        attacksList.appendChild(row);
-      }
-    });
-    const activeSpells = (currentCharacter.spells || []).filter(s => s.active);
-    activeSpells.forEach(spell => {
-      if (spell.rolls && spell.rolls.length > 0) {
-        const row = document.createElement('div');
-        row.className = 'cs-list-row';
-        // Find which spell list this spell belongs to for per-list DC/attack
-        const spellList = currentCharacter.spellLists?.find(l => l.id === spell.listId);
-        const ab = spellList?.spellcastingAbility || currentCharacter.spellcastingAbility || 'wis';
-        const mod = state[`${ab}.mod`] || 0;
-        const pb  = state['prof_bonus'] || 2;
-        const spellAtk = pb + mod;
-        const spellDC  = 8 + pb + mod;
-        row.innerHTML = `
-          <div class="cs-list-row-info">
-            <div class="cs-list-row-name">${spell.name} (Spell)</div>
-            <div class="cs-list-row-sub">Atk: ${formatModifier(spellAtk)} · DC: ${spellDC} · ${spell.rolls.join(', ')}</div>
-          </div>
-        `;
-        attacksList.appendChild(row);
-      }
-    });
-    if (!attacksList.hasChildNodes()) {
-      attacksList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No active weapons or spells. Mark items active in Inventory/Spells tab.</div>';
-    }
-  }
-
-  // Custom Modifiers
-  const modifiersList = document.getElementById('cs-modifiers-list');
-  if (modifiersList) {
-    modifiersList.innerHTML = '';
-    const mods = currentCharacter.modifiers || [];
-    mods.forEach((mod, idx) => {
-      const row = document.createElement('div');
-      row.className = 'cs-list-row';
-      const mDetails = mod.modifiers ? mod.modifiers.map(m => `${m.target}: ${m.type} ${m.value}`).join(', ') : '';
-      row.innerHTML = `
-        <input type="checkbox" class="cs-list-row-checkbox" ${mod.active ? 'checked' : ''}>
-        <div class="cs-list-row-info">
-          <div class="cs-list-row-name">${mod.name}</div>
-          <div class="cs-list-row-sub">${mDetails}</div>
-        </div>
-        <div class="cs-list-row-actions">
-          <button class="cs-list-row-btn danger btn-del-mod" title="Delete">${SVG_TRASH}</button>
-        </div>
-      `;
-      row.querySelector('.cs-list-row-checkbox').onchange = (e) => {
-        mod.active = e.target.checked;
-        saveCurrentCharacterAndRefresh();
-      };
-      row.querySelector('.btn-del-mod').onclick = () => {
-        mods.splice(idx, 1);
-        saveCurrentCharacterAndRefresh();
-      };
-      modifiersList.appendChild(row);
-    });
-    if (!mods.length) modifiersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No custom modifiers.</div>';
-  }
-
-  // Dynamic counters synchronization and rendering
+  // Dynamic counters synchronization (live — syncs class-progression counters to character)
   if (!currentCharacter.counters) currentCharacter.counters = [];
 
   const dynamicCountersFound = new Set();
@@ -8101,289 +8002,19 @@ function renderCharacterSheetUI() {
     return true;
   });
 
-  // Usage Counters
-  const countersList = document.getElementById('cs-counters-list');
-  if (countersList) {
-    countersList.innerHTML = '';
-    const cnts = currentCharacter.counters || [];
-    cnts.forEach((cnt, idx) => {
-      const row = document.createElement('div');
-      row.className = 'cs-list-row';
-      row.innerHTML = `
-        <div class="cs-list-row-info">
-          <div class="cs-list-row-name">${cnt.name}</div>
-          <div class="cs-list-row-sub">Resets: ${cnt.reset_short ? 'Short' : ''}${cnt.reset_short && cnt.reset_long ? '/' : ''}${cnt.reset_long ? 'Long' : ''}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <button class="cs-btn-small btn-dec" style="font-size:14px;padding:2px 8px">−</button>
-          <span style="font-weight:bold;min-width:20px;text-align:center">${cnt.value}</span>
-          <button class="cs-btn-small btn-inc" style="font-size:14px;padding:2px 8px">+</button>
-          <span style="color:var(--text-muted);font-size:12px">/ ${cnt.max}</span>
-        </div>
-        <div class="cs-list-row-actions" style="margin-left:6px">
-          ${cnt.isDynamic ? '' : `<button class="cs-list-row-btn danger btn-del-cnt" title="Delete">${SVG_TRASH}</button>`}
-        </div>
-      `;
-      row.querySelector('.btn-dec').onclick = () => { cnt.value = Math.max(0, cnt.value - 1); saveCurrentCharacterAndRefresh(); };
-      row.querySelector('.btn-inc').onclick = () => { cnt.value = Math.min(cnt.max, cnt.value + 1); saveCurrentCharacterAndRefresh(); };
-      if (!cnt.isDynamic) {
-        row.querySelector('.btn-del-cnt').onclick = () => { cnts.splice(idx, 1); saveCurrentCharacterAndRefresh(); };
-      }
-      countersList.appendChild(row);
-    });
+  // cs-counters-list absent — Preact CountersSection owns rendering.
 
-    informativeStats.forEach(stat => {
-      const row = document.createElement('div');
-      row.className = 'cs-list-row';
-      row.innerHTML = `
-        <div class="cs-list-row-info">
-          <div class="cs-list-row-name">${stat.name}</div>
-          <div class="cs-list-row-sub">Class Progression Stat</div>
-        </div>
-        <div style="font-weight:bold;margin-right:12px">${stat.value}</div>
-      `;
-      countersList.appendChild(row);
-    });
+  // ── Tab 2: Stats & Skills — rendered by Preact ───────────────────────────────
+  // cs-score-*, cs-mod-*, cs-passive-*, cs-saves-list, cs-skills-list all absent.
 
-    if (!cnts.length && !informativeStats.length) {
-      countersList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text-muted);font-size:13px;">No counters.</div>';
-    }
-  }
+  // ── Tab 3: Features — rendered by Preact ────────────────────────────────────
+  // cs-summary-*, cs-features-lists-container all absent — FeaturesTab owns them.
 
-  // ── Tab 2: Stats & Skills ────────────────────────────────────────────────────
-  const scoreStrTest = document.getElementById('cs-score-str');
-  if (scoreStrTest) {
-    attributes.forEach(attr => {
-      const scoreEl = document.getElementById(`cs-score-${attr}`);
-      if (scoreEl) scoreEl.textContent = state[`${attr}.score`];
-      const modEl = document.getElementById(`cs-mod-${attr}`);
-      if (modEl) modEl.textContent   = formatModifier(state[`${attr}.mod`]);
-    });
-  }
+  // ── Tab 4: Inventory — rendered by Preact ───────────────────────────────────
+  // cs-coin-*, cs-inventory-weight, cs-inventory-lists-container all absent — InventoryTab owns them.
 
-  const passivePerceptionEl = document.getElementById('cs-passive-perception');
-  if (passivePerceptionEl) passivePerceptionEl.textContent = state['passive.perception'];
-  const passiveInvestigationEl = document.getElementById('cs-passive-investigation');
-  if (passiveInvestigationEl) passiveInvestigationEl.textContent = state['passive.investigation'];
-  const passiveInsightEl = document.getElementById('cs-passive-insight');
-  if (passiveInsightEl) passiveInsightEl.textContent = state['passive.insight'];
-
-  const savesList = document.getElementById('cs-saves-list');
-  if (savesList) {
-    savesList.innerHTML = '';
-    const attrNames = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
-    attributes.forEach(attr => {
-      const isProf = currentCharacter.savesProficiency[attr] ? 'prof' : '';
-      const row = document.createElement('div');
-      row.className = 'cs-item-prof-row';
-      row.innerHTML = `
-        <div class="cs-prof-indicator ${isProf}" title="Proficient?"></div>
-        <span class="cs-item-prof-label">${attrNames[attr]}</span>
-        <span class="cs-item-prof-val">${formatModifier(state[`save.${attr}`])}</span>
-      `;
-      row.querySelector('.cs-prof-indicator').onclick = () => {
-        currentCharacter.savesProficiency[attr] = currentCharacter.savesProficiency[attr] ? 0 : 1;
-        saveCurrentCharacterAndRefresh();
-      };
-      savesList.appendChild(row);
-    });
-  }
-
-  const skillsList = document.getElementById('cs-skills-list');
-  if (skillsList) {
-    skillsList.innerHTML = '';
-    const skillsProf          = currentCharacter.skillsProficiency || {};
-    const skillsAttrOverride  = currentCharacter.skillsAttributeOverride || {};
-    Object.keys(skillAttrs).forEach(skill => {
-      const defaultAttr    = skillAttrs[skill];
-      const overriddenAttr = skillsAttrOverride[skill] || defaultAttr;
-      const prof = parseFloat(skillsProf[skill]) || 0;
-      let profClass = '';
-      if (prof === 1) profClass = 'prof'; else if (prof === 2) profClass = 'double'; else if (prof === 0.5) profClass = 'half';
-      const skillName = skill.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      const row = document.createElement('div');
-      row.className = 'cs-item-prof-row';
-      row.innerHTML = `
-        <div class="cs-prof-indicator ${profClass}" title="Cycle Proficiency"></div>
-        <span class="cs-item-prof-label" style="cursor:pointer" title="Click to change attribute">${skillName} <span style="font-size:9px;color:var(--text-muted)">(${overriddenAttr.toUpperCase()})</span></span>
-        <span class="cs-item-prof-val">${formatModifier(state[`skill.${skill}`])}</span>
-      `;
-      row.querySelector('.cs-prof-indicator').onclick = () => {
-        let nextProf = 0;
-        if (prof === 0) nextProf = 1; else if (prof === 1) nextProf = 2; else if (prof === 2) nextProf = 0;
-        currentCharacter.skillsProficiency[skill] = nextProf;
-        saveCurrentCharacterAndRefresh();
-      };
-      row.querySelector('.cs-item-prof-label').onclick = () => {
-        const nextAttr = prompt(`Override attribute for ${skillName} (currently ${overriddenAttr.toUpperCase()}). Enter str/dex/con/int/wis/cha, or blank to reset:`);
-        if (nextAttr === '') { delete currentCharacter.skillsAttributeOverride[skill]; saveCurrentCharacterAndRefresh(); }
-        else if (nextAttr && attributes.includes(nextAttr.toLowerCase().trim())) {
-          currentCharacter.skillsAttributeOverride[skill] = nextAttr.toLowerCase().trim();
-          saveCurrentCharacterAndRefresh();
-        }
-      };
-      skillsList.appendChild(row);
-    });
-  }
-
-  // ── Tab 3: Features ──────────────────────────────────────────────────────────
-  document.getElementById('cs-summary-species').textContent    = currentCharacter.species    || '—';
-  document.getElementById('cs-summary-background').textContent = currentCharacter.background || '—';
-  document.getElementById('cs-summary-subclass').textContent   = currentCharacter.subclass   || '—';
-
-  const featuresContainer = document.getElementById('cs-features-lists-container');
-  featuresContainer.innerHTML = '';
-
-  if (!allRecordsCache['classes'] || allRecordsCache['classes'].length === 0) {
-    getAllRecords('classes').then(clsList => {
-      allRecordsCache['classes'] = clsList;
-    }).catch(err => console.error("Error loading classes for features list", err));
-  }
-
-  currentCharacter.featureLists.forEach(listDef => {
-    let items = getItemsForList(currentCharacter.features, listDef.id);
-    
-    // Inject level-based progression features if it's a Class feature list
-    if (listDef.name.startsWith('Class: ')) {
-      const clsName = listDef.name.substring(7).trim();
-      const charClass = currentCharacter.classes?.find(c => c.name.toLowerCase() === clsName.toLowerCase());
-      if (charClass) {
-        const matchingClass = allRecordsCache['classes']?.find(c => c.name.toLowerCase() === clsName.toLowerCase());
-        if (matchingClass) {
-          // Prepend class overview row
-          items.unshift({
-            id: `overview-${clsName}`,
-            name: `${clsName} Overview`,
-            texts: [`Click to view the complete progression table, proficiencies, and details of the ${clsName} class.`],
-            isOverview: true,
-            classData: matchingClass,
-            categoryType: 'class-overview'
-          });
-
-          if (matchingClass.classTableGroups) {
-            const customGroups = matchingClass.classTableGroups.filter(g => !g.title?.includes('Spell Slots') && !g.rowsSpellProgression);
-            customGroups.forEach(g => {
-              if (g.colLabels && g.rows) {
-                const lvlIdx = charClass.level - 1;
-                if (g.rows[lvlIdx]) {
-                  g.colLabels.forEach((label, idx) => {
-                    const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
-                    const val = formatTableCellValue(g.rows[lvlIdx][idx]);
-                    if (val && val !== '—') {
-                      // Create a read-only dynamic item
-                      items.push({
-                        id: `dynamic-${clsName}-${cleanLabel}`,
-                        name: `${cleanLabel}: ${val}`,
-                        texts: [`This value is determined by your Level ${charClass.level} ${charClass.name} class progression.`],
-                        isDynamic: true
-                      });
-                    }
-                  });
-                }
-              }
-            });
-          }
-        }
-      }
-    } else if (listDef.name.startsWith('Subclass: ')) {
-      const subclassName = listDef.name.substring(10).trim();
-      const charClass = currentCharacter.classes?.find(cc =>
-        cc.subclass && cc.subclass.toLowerCase() === subclassName.toLowerCase()
-      );
-      if (charClass && allRecordsCache['subclasses']) {
-        const subRecord = allRecordsCache['subclasses'].find(s =>
-          s.name.toLowerCase() === subclassName.toLowerCase() &&
-          s.parentClass.toLowerCase() === charClass.name.toLowerCase()
-        );
-        const parentClassRecord = allRecordsCache['classes']?.find(c =>
-          c.name.toLowerCase() === charClass.name.toLowerCase()
-        );
-        if (subRecord) {
-          items.unshift({
-            id: `overview-subclass-${subclassName}`,
-            name: `${subclassName} Overview`,
-            texts: [`Click to view the ${subclassName} subclass progression and features.`],
-            isOverview: true,
-            classData: {
-              name: subRecord.name,
-              parentClass: charClass.name,
-              hd: parentClassRecord?.hd || 8,
-              classTableGroups: subRecord.subclassTableGroups || [],
-              autolevels: subRecord.autolevels || [],
-              source: subRecord.source
-            },
-            categoryType: 'class-overview'
-          });
-
-          if (subRecord.subclassTableGroups) {
-            const customSubGroups = subRecord.subclassTableGroups.filter(g =>
-              !g.title?.includes('Spell Slots') && !g.rowsSpellProgression
-            );
-            customSubGroups.forEach(g => {
-              if (g.colLabels && g.rows) {
-                const lvlIdx = charClass.level - 1;
-                if (g.rows[lvlIdx]) {
-                  g.colLabels.forEach((label, idx) => {
-                    const cleanLabel = label.replace(/\{@[^}]+ ([^|}]+)(?:\|[^}]+)?\}/gi, '$1').trim();
-                    const val = formatTableCellValue(g.rows[lvlIdx][idx]);
-                    if (val && val !== '—') {
-                      items.push({
-                        id: `dynamic-subclass-${subclassName}-${cleanLabel}`,
-                        name: `${cleanLabel}: ${val}`,
-                        texts: [`This value is determined by your Level ${charClass.level} ${subclassName} subclass progression.`],
-                        isDynamic: true
-                      });
-                    }
-                  });
-                }
-              }
-            });
-          }
-        }
-      }
-    }
-
-    renderListSection(featuresContainer, listDef, items, 'feature', state);
-  });
-
-  // ── Tab 4: Inventory ─────────────────────────────────────────────────────────
-  const coins = ['gp', 'sp', 'cp', 'ep', 'pp'];
-  coins.forEach(c => {
-    const input = document.getElementById(`cs-coin-${c}`);
-    if (input) {
-      input.value = currentCharacter.currency[c] || 0;
-      input.onchange = () => {
-        currentCharacter.currency[c] = Math.max(0, parseInt(input.value) || 0);
-        saveCurrentCharacterAndRefresh();
-      };
-    }
-  });
-  let totalWeight = 0;
-  (currentCharacter.equipment || []).forEach(item => {
-    if (item.active || item.selected) totalWeight += (parseFloat(item.weight) || 0);
-  });
-  const maxWeight = state['str.score'] * 15;
-  
-  const elWeight = document.getElementById('cs-inventory-weight');
-  if (elWeight) elWeight.textContent = totalWeight.toFixed(1);
-  
-  const elMaxWeight = document.getElementById('cs-max-weight');
-  if (elMaxWeight) elMaxWeight.textContent = maxWeight;
-  
-  const elCarryCapacity = document.getElementById('cs-carry-capacity');
-  if (elCarryCapacity) elCarryCapacity.classList.toggle('overburdened', totalWeight > maxWeight);
-
-  const inventoryContainer = document.getElementById('cs-inventory-lists-container');
-  if (inventoryContainer) {
-    inventoryContainer.innerHTML = '';
-    currentCharacter.itemLists.forEach(listDef => {
-      const items = getItemsForList(currentCharacter.equipment, listDef.id);
-      renderListSection(inventoryContainer, listDef, items, 'item', state);
-    });
-  }
-
-  // ── Tab 5: Spells ────────────────────────────────────────────────────────────
-  // Slot data is kept current so Preact SpellsTab can read character.spellSlots
+  // ── Tab 5: Spells — Preact renders slot tracker and spell lists ──────────────
+  // Keep slot calculation: Preact SpellsTab reads character.spellSlots
   const calculatedSlots = calculateCharacterSlots(currentCharacter);
   if (!currentCharacter.spellSlots) currentCharacter.spellSlots = {};
   for (let _l = 1; _l <= 9; _l++) {
@@ -8393,14 +8024,10 @@ function renderCharacterSheetUI() {
     currentCharacter.spellSlots[_l].max = _maxVal;
     currentCharacter.spellSlots[_l].current = Math.min(currentCharacter.spellSlots[_l].current, _maxVal);
   }
-  // Sync updated slots to Preact signal (Preact renders the slot tracker)
+  // Sync updated slots to Preact signal
   if (window.__dndStore?.currentCharacter?.value) {
     window.__dndStore.currentCharacter.value = Object.assign({}, currentCharacter);
   }
-  // Legacy slot grid removed — SpellsTab Preact component renders slot tracker
-  // Legacy spell lists removed — SpellsTab Preact component renders them
-  const spellsContainer = document.getElementById('cs-spells-lists-container');
-  if (spellsContainer) spellsContainer.innerHTML = '';
 
   // ── Tab 6: Bestiary (Compendium Monster Picker) ───────────────────────────────
   const bestiaryContainer = document.getElementById('cs-bestiary-lists-container');
@@ -8585,19 +8212,7 @@ function setupCharacterSheetEvents() {
   document.getElementById('cs-note-btn-cancel').onclick = () => { document.getElementById('cs-note-modal').style.display = 'none'; };
   document.getElementById('cs-note-btn-save').onclick   = () => saveNote();
 
-  // Modifier modal
-  document.getElementById('cs-mod-btn-cancel').onclick = () => { document.getElementById('cs-modifier-modal').style.display = 'none'; };
-  document.getElementById('cs-mod-btn-save').onclick   = () => saveCustomModifierModal();
-  const btnAddModifier = document.getElementById('cs-btn-add-modifier');
-  if (btnAddModifier) {
-    btnAddModifier.onclick = () => {
-      document.getElementById('cs-mod-name-input').value  = '';
-      document.getElementById('cs-mod-value-input').value = '';
-      document.getElementById('cs-mod-name-input').style.borderColor  = '';
-      document.getElementById('cs-mod-value-input').style.borderColor = '';
-      document.getElementById('cs-modifier-modal').style.display = 'flex';
-    };
-  }
+  // Modifier modal removed — W1 (Preact ModifierModal owns modifiers; cs-modifier-modal DOM deleted)
 
   // Counter modal
   document.getElementById('cs-counter-btn-cancel').onclick = () => { document.getElementById('cs-counter-modal').style.display = 'none'; };
@@ -8685,13 +8300,7 @@ if (typeof window !== 'undefined') {
     document.getElementById('cs-counter-reset-long').checked  = true;
     modal.style.display = 'flex';
   };
-  window.__legacyOpenModifierModal = () => {
-    const modal = document.getElementById('cs-modifier-modal');
-    if (!modal) return;
-    document.getElementById('cs-mod-name-input').value  = '';
-    document.getElementById('cs-mod-value-input').value = '';
-    modal.style.display = 'flex';
-  };
+  // __legacyOpenModifierModal removed — W1 (Preact ModifierModal owns modifiers)
   // Expose picker and spell-list functions for Preact components
   window.__legacyOpenPicker = (category, targetListId) => {
     openPicker(category, targetListId);

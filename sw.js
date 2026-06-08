@@ -12,7 +12,6 @@ const ASSETS = [
   './ui-sync.js',
   './manifest.json',
   './icon.png',
-  './source-data/System_Reference_Document_5.5e.xml'
 ];
 
 self.addEventListener('install', (e) => {

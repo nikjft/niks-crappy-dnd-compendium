@@ -39,15 +39,13 @@ export function ModifiersSection({ character }: Props) {
         <div class="mods-list">
           {mods.map((m, i) => (
             <div key={m.id ?? i} class={`mod-row${m.active ? ' mod-row-active' : ''}`}>
-              {/* Active toggle checkbox */}
-              <label class="mod-toggle-label" title={m.active ? 'Deactivate' : 'Activate'}>
-                <input
-                  type="checkbox"
-                  class="mod-toggle-cb"
-                  checked={!!m.active}
-                  onChange={() => toggle(m)}
-                />
-              </label>
+              {/* Active toggle — circle (empty = off, filled accent = on) */}
+              <button
+                class={`cs-prof-indicator${m.active ? ' prof' : ''}`}
+                title={m.active ? 'Deactivate' : 'Activate'}
+                aria-label={m.active ? 'Deactivate modifier' : 'Activate modifier'}
+                onClick={() => toggle(m)}
+              />
               <div class="mod-row-body">
                 <span class="mod-name">{m.name}</span>
                 {(m.modifiers ?? []).map((sub, j) => (

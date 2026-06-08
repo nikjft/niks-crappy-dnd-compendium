@@ -46,8 +46,18 @@ function CounterRow({ counter, counters, character }: { counter: Counter; counte
   );
 }
 
+// Counters that are tracked elsewhere on the Combat tab (spell slots) or are
+// not meaningful as pip-style usage counters on this screen.
+const COMBAT_COUNTER_BLOCKLIST = new Set([
+  'spells', 'spell slots', 'spell level', 'slot level', 'cantrips',
+  'weapon mastery', 'unarmored movement',
+  'eldritch invocations', 'type=ei', // type=ei is a 5etools import artifact for Eldritch Invocations
+]);
+
 export function CountersSection({ character }: Props) {
-  const counters = ((character.counters ?? []) as Counter[]).filter(c => !c.id?.startsWith('_'));
+  const counters = ((character.counters ?? []) as Counter[])
+    .filter(c => !c.id?.startsWith('_'))
+    .filter(c => !COMBAT_COUNTER_BLOCKLIST.has(c.name?.toLowerCase?.() ?? ''));
 
   if (counters.length === 0) {
     return (

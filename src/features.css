@@ -16,7 +16,7 @@
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .feat-summary-item {
@@ -28,7 +28,7 @@
 .feat-summary-label {
   font-family: var(--font-header);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -74,7 +74,7 @@
 }
 
 .feat-list-collapse-icon {
-  font-size: 10px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   width: 12px;
   flex-shrink: 0;
@@ -83,12 +83,12 @@
 .feat-list-name {
   flex: 1;
   font-family: var(--font-header);
-  font-size: 14px;
+  font-size: var(--fs-base);
   color: var(--text-primary);
 }
 
 .feat-list-count {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   background: var(--panel-bg-hover);
   border: 1px solid var(--border-color);
@@ -116,7 +116,7 @@
   padding: 12px 16px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-base);
   margin: 0;
 }
 
@@ -155,19 +155,19 @@
 }
 
 .feat-name {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-primary);
   font-weight: 500;
 }
 
 .feat-category {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   font-family: var(--font-header);
 }
 
 .feat-sub {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -180,37 +180,6 @@
   flex-shrink: 0;
 }
 
-.feat-action-btn {
-  background: none;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  padding: 0;
-}
-
-.feat-action-btn:hover {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-
-.feat-action-btn.feat-btn-active {
-  background: var(--accent-muted);
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-}
-
-.feat-action-btn.danger:hover {
-  border-color: var(--error-color);
-  color: var(--error-color);
-}
 
 /* ── Detail expand ────────────────────────────────────────────────────────── */
 .feat-detail {
@@ -220,7 +189,7 @@
 }
 
 .feat-detail-text {
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text-secondary);
   line-height: 1.55;
   margin: 4px 0;
@@ -242,7 +211,7 @@
 }
 
 .feat-overview-icon {
-  font-size: 14px;
+  font-size: var(--fs-base);
   flex-shrink: 0;
 }
 
@@ -251,7 +220,7 @@
   padding: 32px;
   text-align: center;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 /* ── Bottom controls ──────────────────────────────────────────────────────── */
@@ -288,7 +257,7 @@
 .modal-title {
   margin: 0;
   font-family: var(--font-header);
-  font-size: 16px;
+  font-size: var(--fs-md);
   color: var(--text-primary);
 }
 
@@ -333,7 +302,7 @@
 .lvl-entry {
   padding: 8px 14px;
   border-bottom: 1px solid var(--border-color);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .lvl-entry:last-child {
@@ -356,7 +325,7 @@
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 0;
   width: 14px;
 }
@@ -373,7 +342,7 @@
   align-items: center;
   gap: 6px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .lvl-stat-delta {
@@ -385,7 +354,7 @@
   background: var(--panel-bg-hover);
   border-radius: 4px;
   padding: 1px 5px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--accent-color);
 }
@@ -395,12 +364,12 @@
   color: var(--accent-color);
   border-radius: 4px;
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .lvl-date {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   margin-left: auto;
 }
 
@@ -409,7 +378,7 @@
   border: 1px solid var(--border-color);
   border-radius: 5px;
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   cursor: pointer;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -425,7 +394,7 @@
   margin: 6px 0 2px 18px;
   padding: 0;
   list-style: disc;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-secondary);
 }
 
@@ -435,7 +404,7 @@
 
 /* ── Starting Equipment section ───────────────────────────────────────────── */
 .start-equip-section {
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .start-equip-classes {
@@ -463,7 +432,7 @@
   cursor: pointer;
   text-align: left;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .start-equip-class-header:hover {
@@ -483,7 +452,7 @@
 .start-equip-note {
   margin: 0 0 6px;
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-style: italic;
 }
 
@@ -502,7 +471,7 @@
 .start-equip-gold {
   margin: 6px 0 0;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-style: italic;
 }
 
@@ -510,7 +479,7 @@
   padding: 4px 14px 10px;
   margin: 0;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-style: italic;
 }
 
@@ -533,7 +502,7 @@
 }
 
 .feat-mods-title {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -544,7 +513,7 @@
   align-items: center;
 }
 
-.feat-mod-select { flex: 2; font-size: 11px; margin: 0 !important; }
-.feat-mod-type   { flex: 1; font-size: 11px; margin: 0 !important; }
-.feat-mod-value  { flex: 1; font-size: 11px; margin: 0 !important; min-width: 60px; }
+.feat-mod-select { flex: 2; font-size: var(--fs-xs); margin: 0 !important; }
+.feat-mod-type   { flex: 1; font-size: var(--fs-xs); margin: 0 !important; }
+.feat-mod-value  { flex: 1; font-size: var(--fs-xs); margin: 0 !important; min-width: 60px; }
 

@@ -182,12 +182,8 @@ export function CustomFeatureModal({
         {error && <p class="form-error">{error}</p>}
 
         <div class="form-actions">
-          <button class="cs-btn-small" style={{ background: 'none', border: '1px solid var(--border-color)' }} onClick={onClose}>
-            Cancel
-          </button>
-          <button class="cs-btn-small" style={{ background: 'var(--accent-color)', color: '#000', border: 'none' }} onClick={handleSave}>
-            {isEdit ? 'Save Changes' : 'Add Feature'}
-          </button>
+          <button class="cs-btn-small" onClick={onClose}>Cancel</button>
+          <button class="cs-btn-main" onClick={handleSave}>{isEdit ? 'Save Changes' : 'Add Feature'}</button>
         </div>
       </div>
     </div>

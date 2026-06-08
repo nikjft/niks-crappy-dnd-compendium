@@ -198,40 +198,6 @@ function ItemRow({
         <div class="item-row-breakdown">
           <div class="item-detail-actions-row">
             <div class="item-actions-left">
-              {isEditing ? (
-                <button class="cs-btn-small" onClick={handleSaveProperties}>Save</button>
-              ) : (
-                <button class="cs-btn-small secondary" onClick={() => {
-                  setEditFields({
-                    name: item.name,
-                    weight: item.weight,
-                    type: item.type,
-                    requiresAttunement: item.requiresAttunement,
-                    ac: item.ac,
-                    bonusAc: item.bonusAc,
-                    dmg1: item.dmg1,
-                    dmg2: item.dmg2,
-                    dmgType: item.dmgType,
-                    bonusWeapon: item.bonusWeapon,
-                    modifiers: item.modifiers ? JSON.parse(JSON.stringify(item.modifiers)) : []
-                  });
-                  setIsEditing(true);
-                }}>
-                  <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
-                </button>
-              )}
-              {item.compendiumId && (
-                <button class="cs-btn-small secondary" onClick={() => onSync(item)}>
-                  <span class="material-icons-outlined" style="font-size: 11px;">sync</span> Sync
-                </button>
-              )}
-              {(item.weapon || item.type === 'Consumable' || item.type === 'Gear') && (
-                <button class={`cs-btn-small secondary ${isPinned ? 'active' : ''}`} onClick={() => onTogglePin(item)}>
-                  <span class="material-icons-outlined" style="font-size: 11px;">push_pin</span> {isPinned ? 'Pinned' : 'Pin'}
-                </button>
-              )}
-            </div>
-            <div class="item-actions-right">
               <span style="font-size: 11px; color: var(--text-muted);">Container:</span>
               <select
                 class="item-container-select"
@@ -243,9 +209,48 @@ function ItemRow({
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
-              <button class="cs-btn-small danger" onClick={() => onDelete(item.id!)}>
-                <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
-              </button>
+            </div>
+            <div class="item-actions-right">
+              {isEditing ? (
+                <>
+                  <button class="cs-btn-small" onClick={() => { setIsEditing(false); setEditFields(null); }}>Cancel</button>
+                  <button class="cs-btn-main" onClick={handleSaveProperties}>Save</button>
+                </>
+              ) : (
+                <>
+                  <button class="cs-btn-small" onClick={() => {
+                    setEditFields({
+                      name: item.name,
+                      weight: item.weight,
+                      type: item.type,
+                      requiresAttunement: item.requiresAttunement,
+                      ac: item.ac,
+                      bonusAc: item.bonusAc,
+                      dmg1: item.dmg1,
+                      dmg2: item.dmg2,
+                      dmgType: item.dmgType,
+                      bonusWeapon: item.bonusWeapon,
+                      modifiers: item.modifiers ? JSON.parse(JSON.stringify(item.modifiers)) : []
+                    });
+                    setIsEditing(true);
+                  }}>
+                    <span class="material-icons-outlined" style="font-size: 11px;">edit</span> Edit
+                  </button>
+                  {item.compendiumId && (
+                    <button class="cs-btn-small" onClick={() => onSync(item)}>
+                      <span class="material-icons-outlined" style="font-size: 11px;">sync</span> Sync
+                    </button>
+                  )}
+                  {(item.weapon || item.type === 'Consumable' || item.type === 'Gear') && (
+                    <button class={`cs-btn-small${isPinned ? ' active' : ''}`} onClick={() => onTogglePin(item)}>
+                      <span class="material-icons-outlined" style="font-size: 11px;">push_pin</span> {isPinned ? 'Pinned' : 'Pin'}
+                    </button>
+                  )}
+                  <button class="cs-btn-small danger" onClick={() => onDelete(item.id!)}>
+                    <span class="material-icons-outlined" style="font-size: 11px;">delete</span> Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

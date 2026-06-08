@@ -49,7 +49,7 @@ export function SpellRow({ spell, onTogglePrepared, onEdit, onDelete }: Props) {
           {/* Sync from compendium (only for compendium-sourced spells) */}
           {spell.compendiumId && (
             <button
-              class="spell-action-btn"
+              class="icon-action-btn"
               onClick={() => (window as any).__legacySyncEntity?.(spell, 'spells')}
               title="Resync from compendium"
             >
@@ -58,14 +58,14 @@ export function SpellRow({ spell, onTogglePrepared, onEdit, onDelete }: Props) {
           )}
           {/* Edit spell */}
           <button
-            class="spell-action-btn"
+            class="icon-action-btn"
             onClick={() => onEdit(spell)}
             title="Edit spell properties"
           >
             <span class="material-icons-outlined" style="font-size: 14px;">edit</span>
           </button>
           <button
-            class="spell-action-btn danger"
+            class="icon-action-btn danger"
             onClick={() => onDelete(spell)}
             title="Remove from list"
           >

@@ -8,6 +8,7 @@ import { CountersSection } from './CountersSection.js';
 import { ModifiersSection } from './ModifiersSection.js';
 import { RestWizard } from './RestWizard.js';
 import { QuickActionsSection } from './QuickActionsSection.js';
+import { SpellSlotsTracker } from '../spells/SpellSlotsTracker.js';
 
 type RestType = 'short' | 'long' | null;
 
@@ -54,19 +55,11 @@ export function CombatTab() {
       <div class="cs-combat-main-layout">
         <div class="cs-combat-left">
           <AttacksSection character={character} state={state} />
+          <SpellSlotsTracker character={character} />
           <CountersSection character={character} />
         </div>
         <div class="cs-combat-right">
           <ModifiersSection character={character} />
-
-          {/* Rest buttons */}
-          <div class="cs-combat-card rest-card">
-            <div class="cs-card-header"><h3>Rest</h3></div>
-            <div class="rest-btn-row">
-              <button class="cs-btn-main" onClick={() => { restWizard.value = 'short'; }}>Short Rest</button>
-              <button class="cs-btn-main" onClick={() => { restWizard.value = 'long'; }}>Long Rest</button>
-            </div>
-          </div>
         </div>
       </div>
 

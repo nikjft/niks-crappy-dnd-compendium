@@ -46,7 +46,7 @@
 }
 
 .cs-attr-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -54,14 +54,14 @@
 }
 
 .cs-attr-score-val {
-  font-size: 28px;
+  font-size: var(--fs-2xl);
   font-weight: 800;
   color: var(--text-color);
   margin: 4px 0;
 }
 
 .cs-attr-mod {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   background: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 20px;
@@ -82,7 +82,7 @@
 }
 
 .cs-attr-save-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--text-color);
 }
@@ -97,7 +97,7 @@
 .ability-popup-section h4 {
   margin-top: 0;
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   text-transform: uppercase;
   color: var(--primary-color);
   letter-spacing: 0.05em;
@@ -150,7 +150,7 @@
 }
 
 .cs-passive-label {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
@@ -158,7 +158,7 @@
 }
 
 .cs-passive-val {
-  font-size: 20px;
+  font-size: var(--fs-lg);
   font-weight: bold;
   color: var(--text-color);
   margin-top: 4px;
@@ -202,7 +202,7 @@
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.02);
   border-bottom: 1px solid var(--border-color);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   text-transform: uppercase;
   font-weight: bold;
   color: var(--text-muted);
@@ -264,7 +264,7 @@
   background: transparent;
   color: var(--text-color);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: bold;
   cursor: pointer;
   padding: 2px 4px;
@@ -278,7 +278,7 @@
 
 .stealth-warning-indicator {
   cursor: help;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 /* Skill / Tool Breakdown Inline Box */
@@ -286,7 +286,7 @@
   background: rgba(0, 0, 0, 0.15);
   border-bottom: 1px solid var(--border-color);
   padding: 12px 16px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .skill-row-breakdown .bd-rows {
@@ -299,7 +299,7 @@
 
 .skill-row-breakdown .bd-row {
   padding: 4px 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 /* SimpleTextList and Chips */
@@ -325,7 +325,7 @@
   color: var(--text-color);
   border-radius: 16px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -338,7 +338,7 @@
   color: var(--text-muted);
   cursor: pointer;
   font-weight: bold;
-  font-size: 14px;
+  font-size: var(--fs-base);
   padding: 0;
   line-height: 1;
 }
@@ -356,7 +356,7 @@
 .text-list-input {
   width: 140px;
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 /* Tools List Trash Button */
@@ -367,7 +367,7 @@
   padding: 4px;
   opacity: 0.6;
   transition: opacity 0.2s;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .cs-btn-trash:hover {
