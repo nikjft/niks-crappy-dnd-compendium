@@ -115,3 +115,70 @@ Because parts of the compendium and settings sidebar still rely on the legacy `a
 This bridge allows the legacy roster view, creation wizard, and settings panels to set the active character, while Preact tabs can listen to character changes reactively. 
 
 Additionally, helper functions like `window.__legacyOpenPicker` are utilized to let Preact components trigger the legacy compendium search and item/spell selection overlays.
+
+---
+
+## 6. Testing
+
+### Unit Tests (Vitest)
+
+Run against Preact components and the calculation engine using jsdom.
+
+```bash
+npm test          # single run
+npm run test:watch  # watch mode
+```
+
+Test files live in `src/tests/`. Key suites:
+
+| File | Coverage |
+|---|---|
+| `engine.test.ts` / `engine_ts.test.ts` | Stat calculation engine |
+| `stats_tab.test.tsx` | StatsTab component |
+| `inventory.test.tsx` | InventoryTab component |
+| `parser.test.ts` | 5etools import parser |
+| `sync.test.ts` | Dropbox sync / conflict resolution |
+
+### Legacy Tests
+
+```bash
+npm run test:legacy   # node test_engine.js && test_5etools_parser.js && test_sync.js
+```
+
+### End-to-End QA Script (Playwright)
+
+`scripts/qa-full-ux.mjs` drives a headless Chromium browser through the full user journey. Requires a running dev server.
+
+```bash
+# Start dev server (separate terminal)
+npm run dev
+
+# Run full E2E suite
+node scripts/qa-full-ux.mjs
+
+# Against a different URL (e.g. production preview)
+node scripts/qa-full-ux.mjs --url http://localhost:4173
+
+# Run with visible browser window
+node scripts/qa-full-ux.mjs --headed
+```
+
+The script exits with code 0 on full pass, 1 on any failure. Screenshots are saved to `scripts/qa-screenshots/` for each run (38 images, one per key step).
+
+**Coverage:**
+- Compendium auto-import verification (spells, items, monsters, feats counts)
+- DB clear / fresh state
+- All 8 sidebar categories render
+- Spell and item detail pane browsing
+- Bestiary By CR (with CR groupings) and By Type facets
+- Character creation via 5-step wizard
+- Roster: character appears, duplicate, delete copy
+- All 7 character sheet tabs activate
+- Combat: HP modal, condition picker, Short Rest wizard
+- Stats: ability score display, skills list
+- Features: add feat from compendium, delete
+- Inventory: add item, cycle carry/equip status, delete
+- Spells: add cantrip + leveled spell, prepare toggle, delete
+- Bestiary tab: add beast from compendium, delete
+- Notes: add note via modal
+- Character deletion from roster
