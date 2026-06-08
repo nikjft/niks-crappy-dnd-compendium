@@ -1583,7 +1583,9 @@ async function execute5eToolsImport(sources) {
         if (!sources.includes(item.source)) return;
         if (seen.has(item.name)) return;
         seen.add(item.name);
-        const masteryKey = item.mastery[0].split('|')[0];
+        const masteryRaw = item.mastery[0];
+        const masteryUid = typeof masteryRaw === 'string' ? masteryRaw : (masteryRaw.uid || '');
+        const masteryKey = masteryUid.split('|')[0];
         const descLines = masteryDescMap[masteryKey] || [];
         const descText = descLines.join(' ').trim();
         masteryOptions.push({

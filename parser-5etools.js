@@ -478,9 +478,9 @@ export function parse5etoolsItem(item, source) {
     properties,
     // 5etools uses reqAttune (true | string | undefined); map to internal boolean
     requiresAttunement: !!(item.reqAttune),
-    // 5etools mastery is ["Sap|XPHB"]; extract just the property name
+    // 5etools mastery is ["Sap|XPHB"] or [{"uid":"Vex|XPHB","note":"..."}]; extract property name
     mastery: Array.isArray(item.mastery) && item.mastery.length > 0
-      ? item.mastery[0].split('|')[0]
+      ? (typeof item.mastery[0] === 'string' ? item.mastery[0] : (item.mastery[0].uid || '')).split('|')[0] || undefined
       : undefined
   };
 
