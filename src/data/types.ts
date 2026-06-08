@@ -247,9 +247,6 @@ export interface Character {
   // Pact Magic slots (Warlock only, separate from standard slots)
   pactSlots?: { current: number; max: number; level: number };
 
-  // Weapon Masteries (2024 PHB)
-  weaponMasteries?: string[];
-
   // Sync
   _modified_at?: string;
   classes?: CharacterClass[];

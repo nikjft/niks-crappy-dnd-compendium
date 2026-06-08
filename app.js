@@ -1564,6 +1564,44 @@ async function execute5eToolsImport(sources) {
       }
     }
 
+    // Weapon Mastery options — generated from items-base.json mastery data (XPHB)
+    if (baseItemsJson && baseItemsJson.itemMastery && baseItemsJson.baseitem) {
+      // Build mastery description lookup: { 'Sap': ['rendered text lines'] }
+      const masteryDescMap = {};
+      baseItemsJson.itemMastery.forEach(m => {
+        if (m.entries) masteryDescMap[m.name] = render5etoolsEntries(m.entries);
+      });
+
+      // Collect weapons with mastery from selected sources; prefer XPHB over PHB for duplicates
+      const masteryOptions = [];
+      const seen = new Set();
+      const sortedBySource = [...baseItemsJson.baseitem].sort((a, b) =>
+        (a.source === 'XPHB' ? 0 : 1) - (b.source === 'XPHB' ? 0 : 1)
+      );
+      sortedBySource.forEach(item => {
+        if (!item.mastery || !item.mastery.length) return;
+        if (!sources.includes(item.source)) return;
+        if (seen.has(item.name)) return;
+        seen.add(item.name);
+        const masteryKey = item.mastery[0].split('|')[0];
+        const descLines = masteryDescMap[masteryKey] || [];
+        const descText = descLines.join(' ').trim();
+        masteryOptions.push({
+          name: `Weapon Mastery: ${item.name}`,
+          level: 0,
+          texts: [`**Mastery: ${masteryKey}**${descText ? ' — ' + descText : ''}`],
+          modifiers: [],
+          classes: ['Weapon Mastery'],
+          source: item.source
+        });
+      });
+
+      if (masteryOptions.length > 0) {
+        await saveRecords('options', masteryOptions);
+        importStats.options += masteryOptions.length;
+      }
+    }
+
     // ─── 5. Classes & Subclasses compilation ───
     let classPaths = [];
     if (importSourceType === 'github') {

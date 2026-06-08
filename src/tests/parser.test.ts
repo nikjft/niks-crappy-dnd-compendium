@@ -201,6 +201,31 @@ describe('parse5etoolsItem', () => {
     const parsed = parse5etoolsItem(raw, 'DMG');
     expect(parsed.requiresAttunement).toBe(false);
   });
+
+  it('extracts mastery property name from 5etools mastery array', () => {
+    const raw = {
+      name: 'Longsword',
+      source: 'XPHB',
+      type: 'M|XPHB',
+      rarity: 'none',
+      mastery: ['Sap|XPHB'],
+      entries: ['A versatile sword'],
+    };
+    const parsed = parse5etoolsItem(raw, 'XPHB');
+    expect(parsed.mastery).toBe('Sap');
+  });
+
+  it('sets mastery to undefined when absent', () => {
+    const raw = {
+      name: 'Bag of Holding',
+      source: 'DMG',
+      type: 'W',
+      rarity: 'uncommon',
+      entries: ['A bag with an extradimensional space'],
+    };
+    const parsed = parse5etoolsItem(raw, 'DMG');
+    expect(parsed.mastery).toBeUndefined();
+  });
 });
 
 describe('suffixDuplicateNames', () => {

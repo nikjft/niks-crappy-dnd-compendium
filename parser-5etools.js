@@ -477,7 +477,11 @@ export function parse5etoolsItem(item, source) {
     // Structured weapon property abbreviations (e.g. ['F', 'L', 'T'])
     properties,
     // 5etools uses reqAttune (true | string | undefined); map to internal boolean
-    requiresAttunement: !!(item.reqAttune)
+    requiresAttunement: !!(item.reqAttune),
+    // 5etools mastery is ["Sap|XPHB"]; extract just the property name
+    mastery: Array.isArray(item.mastery) && item.mastery.length > 0
+      ? item.mastery[0].split('|')[0]
+      : undefined
   };
 
   // Copy other flags (like club, dagger, net, weaponCategory, etc.)
