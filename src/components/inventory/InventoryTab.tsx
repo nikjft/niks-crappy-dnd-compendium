@@ -132,7 +132,7 @@ function ItemRow({
     if (isMainHand) {
       return (
         <span class="material-icons state-icon" style="font-size: 14px; color: var(--accent-color);">
-          sword
+          swords
         </span>
       );
     }
