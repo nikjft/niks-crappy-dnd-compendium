@@ -1,4 +1,5 @@
 {
+  "id": "/niks-crappy-dnd-compendium/",
   "short_name": "D&D Compendium",
   "name": "D&D PWA Compendium",
   "description": "An offline-first, browsable database of Dungeons & Dragons content.",
@@ -7,13 +8,25 @@
       "src": "icon.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
     },
     {
       "src": "icon.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
   "start_url": "/niks-crappy-dnd-compendium/",
