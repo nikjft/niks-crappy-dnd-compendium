@@ -460,7 +460,16 @@ export function calcWeaponAttack(
     parts: makeParts(primaryMod, primaryAttr),
   };
 
-  const atkBonusAlt: WeaponAttack['atkBonusAlt'] = undefined;
+  let atkBonusAlt: WeaponAttack['atkBonusAlt'] = undefined;
+  if (isFinesse && strMod !== dexMod) {
+    const altAttr = primaryAttr === 'STR' ? 'DEX' : 'STR';
+    const altMod = altAttr === 'STR' ? strMod : dexMod;
+    atkBonusAlt = {
+      total: profBonus + altMod + magicBonus,
+      base: { label: `Prof + ${altAttr} Mod`, value: profBonus + altMod },
+      parts: makeParts(altMod, altAttr),
+    };
+  }
 
   // Damage bonus: ability modifier + magic bonus.
   // Off-hand without Two-Weapon Fighting: only add the ability modifier if negative.
