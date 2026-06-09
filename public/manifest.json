@@ -6,11 +6,17 @@
     {
       "src": "icon.png",
       "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon.png",
+      "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
     }
   ],
-  "start_url": "./index.html",
+  "start_url": "/niks-crappy-dnd-compendium/",
   "background_color": "#121212",
   "theme_color": "#121212",
   "display": "standalone",
