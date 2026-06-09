@@ -20,7 +20,7 @@ const CONFLICT_FILE_PATH = '/sync_state_conflict_copy.json';
 const SCHEMA_VERSION    = 1;
 
 // Sync debounce delay (ms) — batches rapid local writes before uploading
-const DEBOUNCE_MS = 5_000;
+const DEBOUNCE_MS = 15_000;
 
 // ─── Internal State ──────────────────────────────────────────────────────────
 

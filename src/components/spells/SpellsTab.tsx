@@ -101,6 +101,14 @@ function ListHeader({ listDef, profBonus, flatState, collapsed, onToggleCollapse
         <button class="spell-list-add-btn cs-btn-small" onClick={() => (window as any).__legacyOpenPicker?.('spells', listDef.id)}>
           + Add
         </button>
+        <button
+          class="cs-btn-small secondary"
+          style="font-size: 11px; padding: 2px 8px; margin-left: 4px;"
+          onClick={e => { e.stopPropagation(); (window as any).__legacyOpenListConfig?.(listDef, 'spell'); }}
+          title="Rename or delete this list"
+        >
+          ⚙
+        </button>
       </div>
 
       {dcBd && <BreakdownPopup label={`${listDef.name} Spell DC`} breakdown={dcBreakdown} onClose={() => setDcBd(false)} />}

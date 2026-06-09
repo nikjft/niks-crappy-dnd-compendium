@@ -3414,7 +3414,7 @@ function getDetailHTML(item, category = currentCategory) {
         }
       }
 
-      const spellLabels = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
+      const spellLabels = ['C', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'];
 
       // Build Headers
       let headerHtml = `
@@ -7135,7 +7135,7 @@ function ensureCharacterLists(char) {
   char.spellLists.forEach(l => {
     if (finalSpellLists.some(fl => fl.id === l.id)) return;
     const hasSpells = char.spells && char.spells.some(s => s.listId === l.id);
-    const isCustom = !l.name.endsWith(' Spells');
+    const isCustom = l.isCustom || !l.name.endsWith(' Spells');
     if (hasSpells || isCustom) {
       finalSpellLists.push(l);
     }
@@ -7546,6 +7546,7 @@ function saveListConfig() {
   listDef.name = name;
   if (type === 'spell') {
     listDef.spellcastingAbility = document.getElementById('cs-list-config-ability-select').value;
+    listDef.isCustom = true;
   }
 
   if (isNew) {
@@ -8611,7 +8612,7 @@ function setupCharacterSheetEvents() {
   const addSpellListBtn = document.getElementById('cs-btn-add-spell-list');
   if (addSpellListBtn) addSpellListBtn.onclick = () => {
     ensureCharacterLists(currentCharacter);
-    openListConfigModal({ id: generateId(), name: 'New Spell List', spellcastingAbility: currentCharacter.spellcastingAbility || 'wis' }, 'spell', true);
+    openListConfigModal({ id: generateId(), name: 'New Spell List', spellcastingAbility: currentCharacter.spellcastingAbility || 'wis', isCustom: true }, 'spell', true);
   };
   document.getElementById('cs-btn-add-beast-list').onclick = () => {
     ensureCharacterLists(currentCharacter);
@@ -8663,7 +8664,7 @@ if (typeof window !== 'undefined') {
     if (!currentCharacter) return;
     const name = window.prompt('Spell list name:', 'Custom Spells');
     if (!name) return;
-    const list = { id: generateId(), name, spellcastingAbility: currentCharacter.spellcastingAbility || 'wis' };
+    const list = { id: generateId(), name, spellcastingAbility: currentCharacter.spellcastingAbility || 'wis', isCustom: true };
     if (!currentCharacter.spellLists) currentCharacter.spellLists = [];
     currentCharacter.spellLists.push(list);
     saveCurrentCharacterAndRefresh();
